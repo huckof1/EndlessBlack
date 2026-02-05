@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Endless Pixel Blackjack — Web3 card game on the Endless blockchain. By Huckof1">
+
+  <title>Endless Pixel Blackjack | Web3 Card Game</title>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="top"></div>
+  <div class="container">
+    <!-- Заголовок -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-endless">ENDLESS</span>
+        <span class="logo-pixel">PIXEL</span>
+        <span class="logo-blackjack" data-text="BLACKJACK">BLACKJACK</span>
+      </div>
+      <p class="subtitle" data-i18n="subtitle">WEB3 MULTIPLAYER</p>
+      <span id="demo-badge" class="demo-badge" data-i18n="demo_mode">DEMO MODE</span>
+
+      <div class="header-controls">
+        <button id="home-btn" class="sound-btn" title="Home">
+          <span>↑</span>
+        </button>
+        <button id="sound-toggle" class="sound-btn" title="Sound" data-i18n-title="title_sound">
+          <span id="sound-icon">🔊</span>
+        </button>
+        <button id="theme-toggle" class="sound-btn" title="Theme" data-i18n-title="title_theme">
+          <span id="theme-icon">☀</span>
+        </button>
+        <button id="lang-toggle" class="sound-btn" title="Language" data-i18n-title="title_lang">
+          <span id="lang-icon">EN</span>
+        </button>
+        <button id="network-testnet" class="sound-btn sound-btn-wide" title="Testnet" data-i18n-title="title_testnet">
+          <span data-i18n="testnet">TESTNET</span>
+        </button>
+        <button id="network-mainnet" class="sound-btn sound-btn-wide" title="Mainnet" data-i18n-title="title_mainnet">
+          <span data-i18n="mainnet">MAINNET</span>
+        </button>
+        <button id="connect-wallet-header" class="sound-btn sound-btn-wide" data-i18n="connect_wallet">CONNECT WALLET</button>
+        <button id="change-login-header" class="sound-btn sound-btn-wide" data-i18n="change_login">CHANGE LOGIN</button>
+        <button id="invite-btn-header" class="sound-btn sound-btn-wide" data-i18n="invite">INVITE TO GAME</button>
+        <span id="invite-note-header" class="invite-note-inline" style="display: none;"></span>
+      </div>
+      <div class="header-status">
+        <span class="status-pill" data-i18n="status">STATUS:</span>
+        <span id="wallet-status-pill">OFF</span>
+        <span class="status-pill" data-i18n="network">NETWORK:</span>
+        <span id="wallet-network-pill">TESTNET</span>
+      </div>
+      <div class="sound-panel">
+        <div class="sound-control">
+          <span class="sound-label" data-i18n="music">MUSIC</span>
+          <input id="music-volume" class="sound-slider" type="range" min="0" max="100" value="30">
+        </div>
+        <div class="sound-control">
+          <span class="sound-label" data-i18n="effects">EFFECTS</span>
+          <input id="sfx-volume" class="sound-slider" type="range" min="0" max="100" value="50">
+        </div>
+      </div>
+    </header>
+
+    <!-- Игровая область -->
+    <div id="game-area" class="game-area" style="display: none;">
+      <div id="invite-banner" class="invite-banner" style="display: none;">
+        <div id="invite-text" class="invite-text"></div>
+        <div class="invite-actions">
+          <button id="invite-accept" class="btn btn-success btn-small" data-i18n="invite_accept">ACCEPT</button>
+          <button id="invite-decline" class="btn btn-small" data-i18n="invite_decline">DECLINE</button>
+        </div>
+      </div>
+      <!-- Ставка -->
+      <div class="bet-section">
+        <div class="bet-controls">
+          <button id="bet-minus" class="btn btn-small" title="Decrease bet" data-i18n-title="title_bet_minus">-</button>
+          <div class="bet-display">
+            <span class="label" data-i18n="bet">BET</span>
+            <input type="number" id="bet-input" class="input" value="1" min="0.1" max="10000" step="0.1">
+            <span class="currency">EDS</span>
+          </div>
+          <button id="bet-plus" class="btn btn-small" title="Increase bet" data-i18n-title="title_bet_plus">+</button>
+        </div>
+        <div class="bet-hint" data-i18n="bet_hint">MIN 0.1 EDS · MAX 10000 EDS</div>
+        <div id="bet-offer" class="invite-banner" style="display: none;">
+          <div id="bet-offer-text" class="invite-text"></div>
+          <div class="invite-actions">
+            <button id="bet-accept" class="btn btn-success btn-small" data-i18n="invite_accept">ACCEPT</button>
+            <button id="bet-decline" class="btn btn-small" data-i18n="invite_decline">DECLINE</button>
+          </div>
+        </div>
+        <div class="deal-row">
+          <div id="mascot" class="mascot mascot-deal mascot-left" data-mascot-base="mascot mascot-deal mascot-left">
+            <div class="mascot-face" id="mascot-face">
+              <div class="mascot-eyes">
+                <span class="eye left-eye">👁</span>
+                <span class="eye right-eye">👁</span>
+              </div>
+              <div class="mascot-mouth" id="mascot-mouth">😊</div>
+            </div>
+            <div class="mascot-body">🃏</div>
+          </div>
+          <button id="start-btn" class="btn btn-success btn-deal" title="Start dealing" data-i18n-title="title_deal">
+            <span class="btn-icon">🎴</span> <span data-i18n="deal">DEAL</span>
+          </button>
+          <div class="mascot mascot-deal mascot-right" data-mascot-dup data-mascot-base="mascot mascot-deal mascot-right">
+            <div class="mascot-face">
+              <div class="mascot-eyes">
+                <span class="eye left-eye">👁</span>
+                <span class="eye right-eye">👁</span>
+              </div>
+              <div class="mascot-mouth">😊</div>
+            </div>
+            <div class="mascot-body">🃏</div>
+          </div>
+        </div>
+        <div class="mascot-message deal-message" id="mascot-message" data-i18n="mascot_idle">Let's play?</div>
+      </div>
+
+      <!-- Стол -->
+      <div class="table">
+        <!-- Дилер -->
+        <div class="hand dealer-hand">
+          <div class="hand-label">
+            <span class="hand-name" data-i18n="dealer">DEALER</span>
+            <span class="hand-score" id="dealer-score">0</span>
+          </div>
+          <div id="dealer-cards" class="cards"></div>
+        </div>
+
+      <!-- Сообщение -->
+      <div id="message" class="message" data-i18n="msg_place_bet">PLACE YOUR BET AND DEAL!</div>
+      <div id="winner-banner" class="winner-banner" style="display: none;"></div>
+      <div id="mp-debug" class="invite-note" style="display: none;"></div>
+      <div id="turn-indicator" class="turn-indicator" style="display: none;"></div>
+      <div id="tx-status" class="tx-status" style="display: none;"></div>
+
+        <!-- Игрок -->
+        <div class="hand player-hand">
+          <div class="hand-label">
+            <span class="hand-name" id="player-hand-name" data-i18n="you">YOU</span>
+            <span class="hand-score" id="player-score">0</span>
+          </div>
+          <div id="player-cards" class="cards"></div>
+        </div>
+
+        <!-- Оппонент -->
+        <div class="hand opponent-hand" id="opponent-hand" style="display: none;">
+          <div class="hand-label">
+            <span class="hand-name" id="opponent-name">OPPONENT</span>
+            <span class="hand-score" id="opponent-score">0</span>
+          </div>
+          <div id="opponent-cards" class="cards"></div>
+        </div>
+      </div>
+
+      <!-- Кнопки действий - ВНИЗУ -->
+      <div class="actions-bottom">
+        <button id="hit-btn" class="btn btn-action btn-hit" disabled title="Take a card" data-i18n-title="title_hit">
+          <span class="btn-icon">➕</span> <span data-i18n="hit">HIT</span>
+        </button>
+        <button id="stand-btn" class="btn btn-action btn-stand" disabled title="Stand and pass to dealer" data-i18n-title="title_stand">
+          <span class="btn-icon">✋</span> <span data-i18n="stand">STAND</span>
+        </button>
+      </div>
+      <div class="actions-hint" data-i18n="actions_hint">HIT — take a card, STAND — end your turn</div>
+      <button id="continue-btn" class="btn btn-primary" style="display: none;" data-i18n="continue">CONTINUE</button>
+      <button id="rematch-btn" class="btn btn-primary" style="display: none;" data-i18n="rematch">REMATCH</button>
+      <button id="claim-btn" class="btn btn-success btn-claim" style="display: none;" data-i18n="claim">CLAIM WINNINGS</button>
+      <div id="payout-due" class="payout-due" style="display: none;"></div>
+    </div>
+
+    <!-- Ввод имени игрока -->
+    <div id="name-section" class="name-section">
+      <div class="name-input-wrapper">
+        <label class="label" data-i18n="enter_name">ENTER YOUR NAME:</label>
+        <input type="text" id="player-name" class="input input-name" placeholder="Player" maxlength="12" data-i18n-placeholder="player_placeholder">
+        <button id="start-session-btn" class="btn btn-primary">
+          <span class="btn-icon">🎮</span> <span data-i18n="start">START</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Кошелёк -->
+    <div id="wallet-section" class="wallet-section" style="display: none;">
+      <div class="wallet-grid">
+        <div class="wallet-item">
+          <span class="label" data-i18n="player">PLAYER:</span>
+          <span id="player-display-name" class="player-name-display">-</span>
+        </div>
+        <div class="wallet-item">
+          <span class="label" data-i18n="wallet">WALLET:</span>
+          <span id="wallet-address" class="player-name-display">-</span>
+        </div>
+        <div class="wallet-item">
+          <span class="label" data-i18n="balance">BALANCE:</span>
+          <span id="balance">100.00 EDS</span>
+        </div>
+        <div class="wallet-item">
+          <span class="label" data-i18n="status">STATUS:</span>
+          <span id="wallet-status" class="player-name-display">OFF</span>
+        </div>
+        <div class="wallet-item">
+          <span class="label" data-i18n="network">NETWORK:</span>
+          <span id="wallet-network">TESTNET</span>
+        </div>
+        <div class="wallet-item">
+          <span class="label" data-i18n="bankroll">BANKROLL:</span>
+          <span id="bankroll">0.00 EDS</span>
+        </div>
+        <div class="wallet-item">
+          <span class="label" data-i18n="treasury">TREASURY:</span>
+          <span id="treasury">0.00 EDS</span>
+        </div>
+        <div class="wallet-item">
+          <span class="label" data-i18n="fee">FEE:</span>
+          <span id="fee">0%</span>
+        </div>
+      </div>
+      <div class="wallet-actions">
+        <button id="connect-wallet-btn" class="btn btn-small" data-i18n="connect_wallet">CONNECT WALLET</button>
+        <button id="reset-demo-btn" class="btn btn-small" title="Reset demo data" data-i18n="reset_demo">RESET DEMO</button>
+        <button id="invite-btn" class="btn btn-small" data-i18n="invite">INVITE</button>
+      </div>
+      <div id="invite-note" class="invite-note" style="display: none;"></div>
+    </div>
+
+    <div id="wallet-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-title" data-i18n="wallet_modal_title">WALLET REQUIRED</div>
+        <div class="modal-text" data-i18n="wallet_modal_text">Install Luffa to connect your Endless wallet.</div>
+        <div class="modal-actions">
+          <a id="wallet-install-link" class="btn btn-success" href="https://www.luffa.im/" target="_blank" rel="noopener" data-i18n="wallet_modal_install">DOWNLOAD WALLET</a>
+          <button id="wallet-modal-close" class="btn btn-small" data-i18n="wallet_modal_close">CLOSE</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="layout-grid">
+    <!-- Эффекты победы/поражения -->
+    <div id="win-effect" class="effect-overlay win-effect" style="display: none;">
+      <div class="effect-content">
+        <div class="effect-emoji">🎉</div>
+        <div class="effect-text" data-i18n="win">YOU WIN!</div>
+        <div class="effect-amount" id="win-amount">+0 EDS</div>
+        <div class="confetti-container" id="confetti"></div>
+      </div>
+    </div>
+
+    <div id="lose-effect" class="effect-overlay lose-effect" style="display: none;">
+      <div class="effect-content">
+        <div class="effect-emoji">😢</div>
+        <div class="effect-text" data-i18n="lose">YOU LOSE</div>
+        <div class="effect-amount" id="lose-amount">-0 EDS</div>
+      </div>
+    </div>
+
+    <div id="blackjack-effect" class="effect-overlay blackjack-effect" style="display: none;">
+      <div class="effect-content">
+        <div class="effect-emoji">🃏✨</div>
+        <div class="effect-text" data-i18n="blackjack">BLACKJACK!</div>
+        <div class="effect-amount" id="blackjack-amount">+0 EDS</div>
+        <div class="confetti-container"></div>
+      </div>
+    </div>
+
+    <div id="nickname-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-title" data-i18n="nickname_title">YOUR NICKNAME</div>
+        <div class="modal-text" data-i18n="nickname_text">Choose a name to show in games.</div>
+        <input id="nickname-input" class="input input-name" type="text" maxlength="12" />
+        <div class="modal-actions">
+          <button id="nickname-save" class="btn btn-success" data-i18n="nickname_save">SAVE</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="invite-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-title" data-i18n="invite_modal_title">INVITE BET</div>
+        <div class="modal-text" data-i18n="invite_modal_text">Enter the bet to propose.</div>
+        <input id="invite-bet-input" class="input input-name" type="number" min="0.1" max="10000" step="0.1" />
+        <div class="modal-actions">
+          <button id="invite-bet-confirm" class="btn btn-success" data-i18n="invite_modal_send">SEND INVITE</button>
+          <button id="invite-bet-cancel" class="btn btn-small" data-i18n="wallet_modal_close">CLOSE</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <!-- Лидерборд -->
+      <div class="leaderboard-section">
+        <h2 class="section-title" data-i18n="leaderboard">🏆 LEADERBOARD</h2>
+        <div class="leaderboard-tabs">
+          <button class="tab-btn active" data-tab="daily" data-i18n="today">TODAY</button>
+          <button class="tab-btn" data-tab="alltime" data-i18n="all_time">ALL TIME</button>
+        </div>
+        <div id="leaderboard" class="leaderboard">
+          <div class="leaderboard-header">
+            <span class="lb-rank">#</span>
+            <span class="lb-name" data-i18n="player">PLAYER</span>
+            <span class="lb-wins" data-i18n="wins">WINS</span>
+            <span class="lb-profit" data-i18n="profit">PROFIT</span>
+          </div>
+          <div id="leaderboard-list" class="leaderboard-list">
+            <!-- Динамически заполняется -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Лента событий -->
+      <div id="feed-section" class="feed-section">
+        <h2 class="section-title" data-i18n="feed">≋ FEED</h2>
+        <div id="feed" class="feed">
+          <!-- Динамически заполняется -->
+        </div>
+      </div>
+
+      <!-- Статистика игрока -->
+      <div class="stats-section">
+        <h2 class="section-title" data-i18n="your_stats">▮▮▮ YOUR STATS</h2>
+        <div id="stats" class="stats">
+          <div class="stat-item">
+            <span class="stat-icon">🎮</span>
+            <span class="stat-label" data-i18n="games">GAMES</span>
+            <span class="stat-value" id="stat-games">0</span>
+          </div>
+          <div class="stat-item stat-win">
+            <span class="stat-icon">🏆</span>
+            <span class="stat-label" data-i18n="wins">WINS</span>
+            <span class="stat-value" id="stat-wins">0</span>
+          </div>
+          <div class="stat-item stat-loss">
+            <span class="stat-icon">💔</span>
+            <span class="stat-label" data-i18n="losses">LOSSES</span>
+            <span class="stat-value" id="stat-losses">0</span>
+          </div>
+          <div class="stat-item stat-blackjack">
+            <span class="stat-icon">🃏</span>
+            <span class="stat-label" data-i18n="blackjacks">BLACKJACKS</span>
+            <span class="stat-value" id="stat-blackjacks">0</span>
+          </div>
+          <div class="stat-item stat-winrate">
+            <span class="stat-icon">📈</span>
+            <span class="stat-label" data-i18n="win_rate">WIN RATE</span>
+            <span class="stat-value" id="stat-winrate">0%</span>
+          </div>
+          <div class="stat-item stat-profit">
+            <span class="stat-icon">💰</span>
+            <span class="stat-label" data-i18n="profit">PROFIT</span>
+            <span class="stat-value" id="stat-profit">0 EDS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Активные игроки -->
+      <div class="active-players-section">
+        <h2 class="section-title" data-i18n="active_players">🎮 ACTIVE PLAYERS</h2>
+        <div id="active-players" class="active-players">
+          <!-- Динамически заполняется -->
+        </div>
+      </div>
+    </aside>
+    </div>
+
+    <!-- Футер -->
+    <footer class="footer">
+      <div class="footer-brand">
+        <p class="powered-by" data-i18n="powered_by">POWERED BY</p>
+        <p class="endless-brand">ENDLESS BLOCKCHAIN</p>
+      </div>
+
+      <div class="footer-author">
+        <p class="by-author"><span data-i18n="author">By</span> <span class="author-name">Huckof1</span></p>
+      </div>
+
+      <div class="social-links">
+        <a href="https://github.com/huckof1" target="_blank" rel="noopener noreferrer" class="social-link" title="GitHub">
+          <svg class="social-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+        </a>
+        <a href="https://x.com/huckof1" target="_blank" rel="noopener noreferrer" class="social-link" title="X (Twitter)">
+          <svg class="social-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+        </a>
+      </div>
+
+      <p class="version" data-i18n="version">v2.0.0 - Multiplayer</p>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

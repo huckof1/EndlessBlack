@@ -1,0 +1,10 @@
+[package]
+name = "pixel_blackjack"
+version = "1.0.0"
+authors = []
+
+[addresses]
+pixel_blackjack = "_"
+
+[dependencies]
+EndlessFramework = { git = "https://github.com/endless-labs/endless-move-framework.git", subdir = "endless-framework", rev = "main" }
