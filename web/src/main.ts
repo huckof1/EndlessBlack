@@ -5,7 +5,6 @@ import { game } from "./game";
 import {
   getBankInfo,
   claimPayout as claimPayoutOnChain,
-  hasWalletProvider,
   waitForWalletProvider,
   connectWallet,
   getWalletBalance,
