@@ -23,7 +23,7 @@ const SOUND_URLS = {
 };
 
 // Типы звуков
-type SoundType = keyof typeof SOUND_URLS;
+type SoundType = Exclude<keyof typeof SOUND_URLS, "bgMusic">;
 
 class SoundManager {
   private sounds: Map<SoundType, HTMLAudioElement> = new Map();
@@ -111,20 +111,13 @@ class SoundManager {
   play(type: SoundType): void {
     if (this.isMuted || !this.isInitialized) return;
 
-    if (type === "bgMusic") {
-      this.startMusic();
-      return;
-    }
-
     const sound = this.sounds.get(type);
     if (!sound) return;
 
     try {
       // Для SFX: сбрасываем и воспроизводим
-      if (type !== "bgMusic") {
-        this.duckMusic();
-        sound.currentTime = 0;
-      }
+    this.duckMusic();
+    sound.currentTime = 0;
       sound.play().catch(() => {
         // Игнорируем ошибки autoplay
       });
@@ -149,7 +142,12 @@ class SoundManager {
 
     // Останавливаем музыку при выключении
     if (this.isMuted) {
-      this.stop("bgMusic");
+      if (this.musicA) {
+        this.musicA.pause();
+      }
+      if (this.musicB) {
+        this.musicB.pause();
+      }
     }
 
     return this.isMuted;
@@ -242,7 +240,7 @@ class SoundManager {
     localStorage.setItem("soundVolumeMusic", String(this.musicVolume));
 
     // Обновляем громкость существующих звуков
-    this.sounds.forEach((audio, key) => {
+    this.sounds.forEach(audio => {
       audio.volume = this.sfxVolume;
     });
     if (this.musicA) this.musicA.volume = Math.min(this.musicA.volume, this.musicVolume);

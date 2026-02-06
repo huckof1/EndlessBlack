@@ -2414,14 +2414,6 @@ function updateUI() {
     startBtn.disabled = true;
   }
   if (multiplayerRoom && multiplayerSnapshot?.phase === "done" && multiplayerSnapshot.agreed) {
-    const computed =
-      multiplayerSnapshot.results && multiplayerSnapshot.payouts
-        ? {
-            results: multiplayerSnapshot.results,
-            payouts: multiplayerSnapshot.payouts,
-            claimed: multiplayerSnapshot.claimed || [],
-          }
-        : mpComputeResults(multiplayerSnapshot);
     if (mpPayoutBucket > 0) {
       claimBtn.style.display = "block";
       claimBtn.disabled = false;
