@@ -75,7 +75,17 @@ type WalletProvider = {
 
 function getWallet(): WalletProvider | null {
   const w = window as any;
-  return (w.endless as WalletProvider) || null;
+  return (
+    (w.endless as WalletProvider) ||
+    (w.luffa as WalletProvider) ||
+    (w.luffaWallet as WalletProvider) ||
+    (w.endlessWallet as WalletProvider) ||
+    null
+  );
+}
+
+export function hasWalletProvider(): boolean {
+  return Boolean(getWallet());
 }
 
 export async function connectWallet(): Promise<string> {

@@ -76,6 +76,69 @@ body {
   overflow-x: hidden;
 }
 
+@media (max-width: 430px), (max-height: 760px) {
+  body {
+    min-height: 100dvh;
+    overflow-y: hidden;
+  }
+
+  .container {
+    padding: 10px;
+    padding-bottom: 10px;
+  }
+
+  .header {
+    padding: 8px 0 10px;
+    margin-bottom: 6px;
+  }
+
+  .header-controls {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 6px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .header-controls::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sound-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .sound-btn-wide {
+    min-width: 76px;
+    font-size: 9px;
+    padding: 0 6px;
+  }
+
+  .header-status {
+    margin-top: 4px;
+    font-size: 8px;
+  }
+
+  .sound-panel {
+    display: none;
+  }
+
+  .bet-section {
+    margin-bottom: 6px;
+  }
+
+  .table {
+    min-height: 180px;
+  }
+
+  .actions-hint {
+    display: none;
+  }
+}
+
 body[data-theme="light"] {
   --bg-dark: #f6f3ee;
   --bg-card: #fffaf3;
