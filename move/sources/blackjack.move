@@ -330,7 +330,7 @@ module pixel_blackjack::blackjack {
         assert!(game.player_score < BLACKJACK, E_PLAYER_BUSTED);
 
         //  
-        let card_index = (vector::length(&game.player_cards) + vector::length(&game.dealer_cards)) as u64;
+        let card_index = vector::length(&game.player_cards) + vector::length(&game.dealer_cards);
         let new_card = draw_card(game_id, card_index);
         vector::push_back(&mut game.player_cards, new_card);
 
@@ -385,7 +385,7 @@ module pixel_blackjack::blackjack {
         assert!(!game.is_finished, E_GAME_ALREADY_FINISHED);
 
         //   -    < 17
-        let card_index = (vector::length(&game.player_cards) + vector::length(&game.dealer_cards)) as u64;
+        let card_index = vector::length(&game.player_cards) + vector::length(&game.dealer_cards);
         while (game.dealer_score < DEALER_STAND) {
             let new_card = draw_card(game_id, card_index);
             vector::push_back(&mut game.dealer_cards, new_card);
