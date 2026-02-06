@@ -73,6 +73,13 @@ type WalletProvider = {
   signAndSubmitTransaction?: (args: any) => Promise<any>;
 };
 
+type LuffaSdk = {
+  connect: () => Promise<{ status: string; args?: { account?: string } }>;
+  getAccount: () => Promise<{ status: string; args?: { account?: string } }>;
+  signAndSubmitTransaction: (input: any) => Promise<any>;
+  changeNetwork?: (input: { network: string }) => void;
+};
+
 function getWallet(): WalletProvider | null {
   const w = window as any;
   const nested =
@@ -89,50 +96,79 @@ function getWallet(): WalletProvider | null {
   );
 }
 
-export function hasWalletProvider(): boolean {
-  return Boolean(getWallet());
-}
+let luffaSdkPromise: Promise<LuffaSdk | null> | null = null;
 
-export async function waitForWalletProvider(timeoutMs: number = 1500, intervalMs: number = 100): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (hasWalletProvider()) return true;
-    await new Promise(resolve => setTimeout(resolve, intervalMs));
+async function getLuffaSdk(mode?: "testnet" | "mainnet"): Promise<LuffaSdk | null> {
+  if (!luffaSdkPromise) {
+    luffaSdkPromise = (async () => {
+      try {
+        const { EndlessLuffaSdk } = await import("@luffalab/luffa-endless-sdk");
+        const network = mode ?? (NETWORK as string);
+        return new EndlessLuffaSdk({ network }) as LuffaSdk;
+      } catch {
+        return null;
+      }
+    })();
   }
-  return hasWalletProvider();
+  const sdk = await luffaSdkPromise;
+  if (sdk?.changeNetwork) {
+    const network = mode ?? (NETWORK as string);
+    sdk.changeNetwork({ network });
+  }
+  return sdk;
 }
 
 export async function connectWallet(): Promise<string> {
   const wallet = getWallet();
-  if (!wallet) {
-    throw new Error("Wallet not found");
+  if (wallet) {
+    const res = wallet.connect ? await wallet.connect() : null;
+    if (res?.address) return res.address;
+    if (wallet.account) {
+      const account = await wallet.account();
+      if (account?.address) return account.address;
+    }
   }
-  const res = wallet.connect ? await wallet.connect() : null;
-  if (res?.address) return res.address;
-  if (wallet.account) {
-    const account = await wallet.account();
-    if (account?.address) return account.address;
+
+  const sdk = await getLuffaSdk();
+  if (sdk) {
+    const existing = await sdk.getAccount();
+    if (existing?.status === "APPROVED" && existing.args?.account) {
+      return existing.args.account;
+    }
+    const res = await sdk.connect();
+    if (res?.status === "APPROVED" && res.args?.account) {
+      return res.args.account;
+    }
   }
-  throw new Error("Failed to connect wallet");
+
+  throw new Error("Wallet not found");
 }
 
 async function submitEntryFunction(functionName: string, args: any[], mode?: "testnet" | "mainnet") {
   const wallet = getWallet();
-  if (!wallet || !wallet.signAndSubmitTransaction) {
-    throw new Error("Wallet not found");
-  }
+  const func = `${getContractAddress(mode)}::${MODULE_NAME}::${functionName}`;
   const payload = {
-    function: `${getContractAddress(mode)}::${MODULE_NAME}::${functionName}`,
+    function: func,
     typeArguments: [],
     functionArguments: args,
     type_arguments: [],
     arguments: args,
   };
-  try {
-    return await wallet.signAndSubmitTransaction({ payload });
-  } catch {
-    return await wallet.signAndSubmitTransaction({ data: payload });
+
+  if (wallet && wallet.signAndSubmitTransaction) {
+    try {
+      return await wallet.signAndSubmitTransaction({ payload });
+    } catch {
+      return await wallet.signAndSubmitTransaction({ data: payload });
+    }
   }
+
+  const sdk = await getLuffaSdk(mode);
+  if (sdk) {
+    return await sdk.signAndSubmitTransaction({ payload });
+  }
+
+  throw new Error("Wallet not found");
 }
 
 export async function getBankInfo(networkMode?: "testnet" | "mainnet"): Promise<{ bankroll: number; treasury: number; feeBps: number }> {

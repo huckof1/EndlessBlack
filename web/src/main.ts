@@ -5,7 +5,6 @@ import { game } from "./game";
 import {
   getBankInfo,
   claimPayout as claimPayoutOnChain,
-  waitForWalletProvider,
   connectWallet,
   getWalletBalance,
   getPlayerStats,
@@ -980,15 +979,11 @@ async function startSession() {
     setWalletStatus(true);
     if (walletAddressEl) walletAddressEl.textContent = "DEMO";
   } else {
-    if (!(await waitForWalletProvider())) {
-      showMessage(I18N[currentLocale].msg_wallet_missing, "error");
-      if (walletModal) walletModal.style.display = "flex";
-      return;
-    }
     try {
       walletAddress = await connectWallet();
     } catch (error) {
-      showMessage(I18N[currentLocale].msg_wallet_failed, "error");
+      showMessage(I18N[currentLocale].msg_wallet_missing, "error");
+      if (walletModal) walletModal.style.display = "flex";
       return;
     }
     try {
@@ -2445,10 +2440,6 @@ function updateUI() {
 
 async function handleConnectWallet() {
   if (isDemoActive()) return;
-  if (!(await waitForWalletProvider())) {
-    if (walletModal) walletModal.style.display = "flex";
-    return;
-  }
   try {
     walletAddress = await connectWallet();
     await updateBalance();
