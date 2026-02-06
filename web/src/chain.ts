@@ -97,12 +97,14 @@ function getWallet(): WalletProvider | null {
 }
 
 let luffaSdkPromise: Promise<LuffaSdk | null> | null = null;
+let luffaStatusApproved: string | null = null;
 
 async function getLuffaSdk(mode?: "testnet" | "mainnet"): Promise<LuffaSdk | null> {
   if (!luffaSdkPromise) {
     luffaSdkPromise = (async () => {
       try {
-        const { EndlessLuffaSdk } = await import("@luffalab/luffa-endless-sdk");
+        const { EndlessLuffaSdk, UserResponseStatus } = await import("@luffalab/luffa-endless-sdk");
+        luffaStatusApproved = UserResponseStatus.APPROVED;
         const network = mode ?? (NETWORK as string);
         return new EndlessLuffaSdk({ network }) as LuffaSdk;
       } catch {
@@ -132,11 +134,11 @@ export async function connectWallet(): Promise<string> {
   const sdk = await getLuffaSdk();
   if (sdk) {
     const existing = await sdk.getAccount();
-    if (existing?.status === "APPROVED" && existing.args?.account) {
+    if (existing?.status === luffaStatusApproved && existing.args?.account) {
       return existing.args.account;
     }
     const res = await sdk.connect();
-    if (res?.status === "APPROVED" && res.args?.account) {
+    if (res?.status === luffaStatusApproved && res.args?.account) {
       return res.args.account;
     }
   }

@@ -1609,8 +1609,8 @@ function setNetwork(mode: "testnet" | "mainnet") {
     renderActivePlayers();
   }
   if (networkMode === "mainnet" && !walletAddress) {
-    // auto-connect on mainnet
-    startSession();
+    // Attempt connect on explicit mainnet switch (user gesture)
+    void handleConnectWallet();
   }
 }
 
