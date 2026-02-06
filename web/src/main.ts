@@ -150,7 +150,6 @@ let mpPayoutBucket = parseFloat(localStorage.getItem("mpPayoutBucket") || "0") |
 let mpPayoutRoom: string | null = localStorage.getItem("mpPayoutRoom");
 let pendingInvite: { name: string; mode: "demo" | "testnet" | "mainnet"; bet: number } | null = null;
 let pendingResume: { mode: "demo" | "chain"; game: any; gameId?: number } | null = null;
-let currentTurn: "you" | "dealer" | null = null;
 let multiplayerRoom: string | null = null;
 let multiplayerState: { players: string[]; turnIndex: number | null } | null = null;
 type MultiplayerSnapshot = {
@@ -1144,7 +1143,6 @@ function applyI18n() {
 }
 
 function setTurn(turn: "you" | "dealer" | null) {
-  currentTurn = turn;
   if (!turnIndicator) return;
   if (!turn) {
     turnIndicator.style.display = "none";
@@ -1211,10 +1209,6 @@ function mpNextTurn(snapshot: MultiplayerSnapshot, start: number): number | null
     if (!snapshot.hands[idx].done) return idx;
   }
   return null;
-}
-
-function mpIsBlackjack(cards: { suit: number; rank: number }[]): boolean {
-  return cards.length === 2 && mpScore(cards) === 21;
 }
 
 function mpFinalizeResults(snapshot: MultiplayerSnapshot) {
@@ -1675,7 +1669,7 @@ async function handleStartGame() {
     const deck = mpCreateDeck();
     const hands = players.map(() => ({ cards: [mpDraw(deck), mpDraw(deck)], done: false }));
     const betValue = parseFloat(betInput.value) || 1;
-    multiplayerSnapshot = {
+    const snapshot: MultiplayerSnapshot = {
       players,
       dealerCards: [],
       hands,
@@ -1688,21 +1682,22 @@ async function handleStartGame() {
       pendingBy: null,
       agreed: true,
     };
-    multiplayerSnapshot.hands.forEach((hand, i) => {
+    multiplayerSnapshot = snapshot;
+    snapshot.hands.forEach((hand, i) => {
       if (mpScore(hand.cards) === 21) {
         hand.done = true;
       }
       if (i === 0 && hand.done) {
-        multiplayerSnapshot.turnIndex = mpNextTurn(multiplayerSnapshot, i);
+        snapshot.turnIndex = mpNextTurn(snapshot, i);
       }
     });
-    if (multiplayerSnapshot.hands.every(h => h.done)) {
-      multiplayerSnapshot.phase = "done";
-      multiplayerSnapshot.turnIndex = null;
-      mpFinalizeResults(multiplayerSnapshot);
+    if (snapshot.hands.every(h => h.done)) {
+      snapshot.phase = "done";
+      snapshot.turnIndex = null;
+      mpFinalizeResults(snapshot);
     }
-    multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
-    renderMultiplayerSnapshot(multiplayerSnapshot);
+    multiplayer.sendSnapshot({ type: "game:snapshot", ...snapshot });
+    renderMultiplayerSnapshot(snapshot);
     return;
   }
   if (pendingResume) {
@@ -2419,8 +2414,6 @@ function updateUI() {
     startBtn.disabled = true;
   }
   if (multiplayerRoom && multiplayerSnapshot?.phase === "done" && multiplayerSnapshot.agreed) {
-    const players = multiplayerSnapshot.players || [];
-    const meIndex = players.findIndex(p => p === getMpName());
     const computed =
       multiplayerSnapshot.results && multiplayerSnapshot.payouts
         ? {

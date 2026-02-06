@@ -5,17 +5,7 @@ type ClientState = {
 };
 
 type OnState = (state: ClientState) => void;
-type OnSnapshot = (snapshot: {
-  players: string[];
-  dealerCards: { suit: number; rank: number }[];
-  hands: { cards: { suit: number; rank: number }[]; done: boolean }[];
-  turnIndex: number | null;
-  phase: "lobby" | "player" | "dealer" | "done";
-  bet: number;
-  pendingBet: number | null;
-  pendingBy: string | null;
-  agreed: boolean;
-}) => void;
+type OnSnapshot = (snapshot: SnapshotEvent) => void;
 type OnEvent = (data: any) => void;
 
 type JoinEvent = { type: "game:join"; name: string };
@@ -29,6 +19,7 @@ type SnapshotEvent = {
   hands: { cards: { suit: number; rank: number }[]; done: boolean }[];
   deck: { suit: number; rank: number }[];
   turnIndex: number | null;
+  pendingTurn: { nextIndex: number; until: number } | null;
   phase: "lobby" | "player" | "dealer" | "done";
   bet: number;
   pendingBet: number | null;
