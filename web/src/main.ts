@@ -216,6 +216,7 @@ function setWalletStatus(on: boolean) {
 function startGameMusic() {
   gameMusicActive = true;
   if (!soundManager.getMuted()) {
+    void initAudio();
     soundManager.startGameMusic();
   }
 }
@@ -947,7 +948,11 @@ async function initAudio() {
   if (firstInteraction) return;
   firstInteraction = true;
   await soundManager.init();
-  startIdleMusic();
+  if (gameMusicActive) {
+    soundManager.startGameMusic();
+  } else {
+    startIdleMusic();
+  }
 }
 
 // ==================== SESSION ====================
