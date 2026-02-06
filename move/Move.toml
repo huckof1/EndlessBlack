@@ -4,6 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
+endless_framework = "0x1"
 pixel_blackjack = "_"
 
 [dependencies]
