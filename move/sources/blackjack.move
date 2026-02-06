@@ -8,13 +8,9 @@
 module pixel_blackjack::blackjack {
     use std::signer;
     use std::vector;
-    use std::string::{Self, String};
     use endless_framework::timestamp;
-    use endless_framework::coin;
-    use endless_framework::endless_coin::EndlessCoin;
     use endless_framework::event;
-    use endless_framework::account;
-    use endless_framework::randomness;
+    use endless_framework::endless_coin;
 
     // ====================  ====================
 
@@ -42,15 +38,15 @@ module pixel_blackjack::blackjack {
     // ====================  ====================
 
     ///   (0.1 EDS)
-    const MIN_BET: u64 = 10000000;
+    const MIN_BET: u128 = 10000000;
     ///   (100 EDS)
-    const MAX_BET: u64 = 10000000000;
+    const MAX_BET: u128 = 10000000000;
     ///  (21)
     const BLACKJACK: u64 = 21;
     ///    17
     const DEALER_STAND: u64 = 17;
     ///   (10%)
-    const MAX_FEE_BPS: u64 = 1000;
+    const MAX_FEE_BPS: u128 = 1000;
 
     // ====================  ====================
 
@@ -69,13 +65,13 @@ module pixel_blackjack::blackjack {
         ///  
         player: address,
         /// 
-        bet_amount: u64,
+        bet_amount: u128,
         ///   
-        net_bet: u64,
+        net_bet: u128,
         /// 
-        fee_amount: u64,
+        fee_amount: u128,
         /// ,  
-        payout_due: u64,
+        payout_due: u128,
         ///  ?
         is_claimed: bool,
         ///  
@@ -101,13 +97,13 @@ module pixel_blackjack::blackjack {
         ///  
         games: vector<Game>,
         ///   ( )
-        bankroll: coin::Coin<EndlessCoin>,
+        bankroll: u128,
         ///  
-        treasury: coin::Coin<EndlessCoin>,
+        treasury: u128,
         /// 
         owner: address,
         ///   bps (100 = 1%)
-        fee_bps: u64,
+        fee_bps: u128,
     }
 
     ///  
@@ -123,9 +119,9 @@ module pixel_blackjack::blackjack {
         /// 
         blackjacks: u64,
         ///  
-        total_won: u64,
+        total_won: u128,
         ///  
-        total_lost: u64,
+        total_lost: u128,
     }
 
     // ====================  ====================
@@ -134,9 +130,9 @@ module pixel_blackjack::blackjack {
     struct GameStarted has drop, store {
         game_id: u64,
         player: address,
-        bet_amount: u64,
-        fee_amount: u64,
-        net_bet: u64,
+        bet_amount: u128,
+        fee_amount: u128,
+        net_bet: u128,
         player_cards: vector<Card>,
         dealer_visible_card: Card,
         player_score: u64,
@@ -158,22 +154,22 @@ module pixel_blackjack::blackjack {
         result: u8,
         player_score: u64,
         dealer_score: u64,
-        payout: u64,
+        payout: u128,
     }
 
     #[event]
     struct PayoutClaimed has drop, store {
         game_id: u64,
         player: address,
-        payout: u64,
+        payout: u128,
     }
 
     // ====================  ====================
 
     ///   (  )
     fun init_module(admin: &signer) {
-        let treasury = coin::zero<EndlessCoin>();
-        let bankroll = coin::zero<EndlessCoin>();
+        let treasury = 0;
+        let bankroll = 0;
         let owner = signer::address_of(admin);
         move_to(admin, GameStore {
             game_counter: 0,
@@ -190,7 +186,7 @@ module pixel_blackjack::blackjack {
     ///   
     public entry fun start_game(
         player: &signer,
-        bet_amount: u64,
+        bet_amount: u128,
     ) acquires GameStore, PlayerStats {
         let player_addr = signer::address_of(player);
 
@@ -199,10 +195,7 @@ module pixel_blackjack::blackjack {
         assert!(bet_amount <= MAX_BET, E_INVALID_BET);
 
         //  
-        assert!(coin::balance<EndlessCoin>(player_addr) >= bet_amount, E_INSUFFICIENT_FUNDS);
-
-        //  
-        let bet_coin = coin::withdraw<EndlessCoin>(player, bet_amount);
+        assert!(endless_coin::balance(player_addr) >= bet_amount, E_INSUFFICIENT_FUNDS);
 
         //  
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
@@ -213,14 +206,14 @@ module pixel_blackjack::blackjack {
         let net_bet = bet_amount - fee_amount;
 
         //  :  +  >= .  (2.5x)
-        let bankroll_value = coin::value(&game_store.bankroll);
+        let bankroll_value = game_store.bankroll;
         let max_payout = net_bet * 5 / 2;
         assert!(bankroll_value + net_bet >= max_payout, E_INSUFFICIENT_BANKROLL);
 
-        //       
-        let fee_coin = coin::extract(&mut bet_coin, fee_amount);
-        coin::merge(&mut game_store.treasury, fee_coin);
-        coin::merge(&mut game_store.bankroll, bet_coin);
+        //  transfer bet to owner and update accounting
+        endless_coin::transfer(player, game_store.owner, bet_amount);
+        game_store.treasury = game_store.treasury + fee_amount;
+        game_store.bankroll = game_store.bankroll + net_bet;
 
         //  ID 
         let game_id = game_store.game_counter + 1;
@@ -472,7 +465,7 @@ module pixel_blackjack::blackjack {
     }
 
     ///  
-    fun determine_winner(player_score: u64, dealer_score: u64, bet: u64): (u8, u64) {
+    fun determine_winner(player_score: u64, dealer_score: u64, bet: u128): (u8, u128) {
         if (dealer_score > BLACKJACK) {
             //   -  
             (1, bet * 2)
@@ -503,7 +496,7 @@ module pixel_blackjack::blackjack {
     }
 
     ///   
-    fun update_stats(player: address, result: u8, won: u64, lost: u64) acquires PlayerStats {
+    fun update_stats(player: address, result: u8, won: u128, lost: u128) acquires PlayerStats {
         if (!exists<PlayerStats>(player)) {
             return
         };
@@ -531,7 +524,7 @@ module pixel_blackjack::blackjack {
     #[view]
     ///    ID
     public fun get_game(game_id: u64): (
-        address, u64, u64, u64, vector<Card>, vector<Card>, u64, u64, bool, u8, u64, bool
+        address, u128, u128, u128, vector<Card>, vector<Card>, u64, u64, bool, u8, u128, bool
     ) acquires GameStore {
         let game_store = borrow_global<GameStore>(@pixel_blackjack);
         let game_idx = find_game_index(&game_store.games, game_id);
@@ -555,7 +548,7 @@ module pixel_blackjack::blackjack {
 
     #[view]
     ///   
-    public fun get_player_stats(player: address): (u64, u64, u64, u64, u64, u64, u64) acquires PlayerStats {
+    public fun get_player_stats(player: address): (u64, u64, u64, u64, u64, u128, u128) acquires PlayerStats {
         if (!exists<PlayerStats>(player)) {
             return (0, 0, 0, 0, 0, 0, 0)
         };
@@ -574,21 +567,21 @@ module pixel_blackjack::blackjack {
 
     #[view]
     ///  
-    public fun get_treasury_balance(): u64 acquires GameStore {
+    public fun get_treasury_balance(): u128 acquires GameStore {
         let game_store = borrow_global<GameStore>(@pixel_blackjack);
-        coin::value(&game_store.treasury)
+        game_store.treasury
     }
 
     #[view]
     ///   ( )
-    public fun get_bankroll_balance(): u64 acquires GameStore {
+    public fun get_bankroll_balance(): u128 acquires GameStore {
         let game_store = borrow_global<GameStore>(@pixel_blackjack);
-        coin::value(&game_store.bankroll)
+        game_store.bankroll
     }
 
     #[view]
     ///   bps
-    public fun get_fee_bps(): u64 acquires GameStore {
+    public fun get_fee_bps(): u128 acquires GameStore {
         let game_store = borrow_global<GameStore>(@pixel_blackjack);
         game_store.fee_bps
     }
@@ -603,20 +596,23 @@ module pixel_blackjack::blackjack {
     // ====================    ====================
 
     ///     
-    public entry fun claim_payout(player: &signer, game_id: u64) acquires GameStore {
-        let player_addr = signer::address_of(player);
+    public entry fun claim_payout(owner: &signer, player_addr: address, game_id: u64) acquires GameStore {
+        let owner_addr = signer::address_of(owner);
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
         let game_idx = find_game_index(&game_store.games, game_id);
         let game = vector::borrow_mut(&mut game_store.games, game_idx);
 
+        assert!(owner_addr == game_store.owner, E_NOT_OWNER);
         assert!(game.player == player_addr, E_GAME_NOT_FOUND);
         assert!(game.is_finished, E_GAME_NOT_FINISHED);
         assert!(game.payout_due > 0, E_INVALID_BET);
         assert!(!game.is_claimed, E_PAYOUT_ALREADY_CLAIMED);
 
         let payout = game.payout_due;
-        let payout_coin = coin::extract(&mut game_store.bankroll, payout);
-        coin::deposit(player_addr, payout_coin);
+        assert!(game_store.bankroll >= payout, E_INSUFFICIENT_BANKROLL);
+        assert!(endless_coin::balance(owner_addr) >= payout, E_INSUFFICIENT_FUNDS);
+        endless_coin::transfer(owner, player_addr, payout);
+        game_store.bankroll = game_store.bankroll - payout;
 
         game.is_claimed = true;
 
@@ -630,23 +626,26 @@ module pixel_blackjack::blackjack {
     // ====================   ====================
 
     ///  
-    public entry fun fund_bankroll(owner: &signer, amount: u64) acquires GameStore {
+    public entry fun fund_bankroll(owner: &signer, amount: u128) acquires GameStore {
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
-        assert!(signer::address_of(owner) == game_store.owner, E_NOT_OWNER);
-        let coin_in = coin::withdraw<EndlessCoin>(owner, amount);
-        coin::merge(&mut game_store.bankroll, coin_in);
+        let owner_addr = signer::address_of(owner);
+        assert!(owner_addr == game_store.owner, E_NOT_OWNER);
+        assert!(endless_coin::balance(owner_addr) >= amount, E_INSUFFICIENT_FUNDS);
+        game_store.bankroll = game_store.bankroll + amount;
     }
 
     ///  
-    public entry fun withdraw_fees(owner: &signer, amount: u64, recipient: address) acquires GameStore {
+    public entry fun withdraw_fees(owner: &signer, amount: u128, recipient: address) acquires GameStore {
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
-        assert!(signer::address_of(owner) == game_store.owner, E_NOT_OWNER);
-        let payout_coin = coin::extract(&mut game_store.treasury, amount);
-        coin::deposit(recipient, payout_coin);
+        let owner_addr = signer::address_of(owner);
+        assert!(owner_addr == game_store.owner, E_NOT_OWNER);
+        assert!(game_store.treasury >= amount, E_INSUFFICIENT_FUNDS);
+        endless_coin::transfer(owner, recipient, amount);
+        game_store.treasury = game_store.treasury - amount;
     }
 
     ///  
-    public entry fun set_fee_bps(owner: &signer, fee_bps: u64) acquires GameStore {
+    public entry fun set_fee_bps(owner: &signer, fee_bps: u128) acquires GameStore {
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
         assert!(signer::address_of(owner) == game_store.owner, E_NOT_OWNER);
         assert!(fee_bps <= MAX_FEE_BPS, E_INVALID_FEE);

@@ -121,10 +121,10 @@ export async function getBankInfo(networkMode?: "testnet" | "mainnet"): Promise<
 }
 
 export async function getWalletBalance(address: string, networkMode?: "testnet" | "mainnet"): Promise<number> {
-  const func = `0x1::coin::balance` as `${string}::${string}::${string}`;
+  const func = `0x1::endless_coin::balance` as `${string}::${string}::${string}`;
   const payload = {
     function: func,
-    typeArguments: ["0x1::endless_coin::EndlessCoin"],
+    typeArguments: [],
     functionArguments: [address],
   };
   const endless = await getEndless(networkMode);
@@ -193,6 +193,11 @@ export async function getLatestGameId(address: string, networkMode?: "testnet" |
   return toNumber(data[0]);
 }
 
+export async function getOwner(networkMode?: "testnet" | "mainnet"): Promise<string> {
+  const data = await viewAny("get_owner", [], networkMode);
+  return String(data[0]);
+}
+
 export async function startGame(betAmount: number, networkMode?: "testnet" | "mainnet") {
   return await submitEntryFunction("start_game", [betAmount], networkMode);
 }
@@ -205,6 +210,6 @@ export async function stand(gameId: number, networkMode?: "testnet" | "mainnet")
   return await submitEntryFunction("stand", [gameId], networkMode);
 }
 
-export async function claimPayout(gameId: number, networkMode?: "testnet" | "mainnet") {
-  return await submitEntryFunction("claim_payout", [gameId], networkMode);
+export async function claimPayout(playerAddress: string, gameId: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("claim_payout", [playerAddress, gameId], networkMode);
 }

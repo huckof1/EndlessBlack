@@ -8,6 +8,7 @@ import {
   connectWallet,
   getWalletBalance,
   getPlayerStats,
+  getOwner,
   getLatestGameId,
   getGame,
   startGame as startGameOnChain,
@@ -2499,8 +2500,14 @@ async function handleClaim() {
         showMessage(I18N[currentLocale].msg_no_payout, "error");
         return;
       }
+      const ownerAddress = await getOwner(networkMode);
+      if (!walletAddress || walletAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+        showMessage("Only the contract owner can claim on-chain payouts.", "error");
+        return;
+      }
       setTxStatus(I18N[currentLocale].tx_wait_wallet);
-      await claimPayoutOnChain(chainGameId, networkMode);
+      const gameOnChain = await getGame(chainGameId, networkMode);
+      await claimPayoutOnChain(gameOnChain.player, chainGameId, networkMode);
       setTxStatus(I18N[currentLocale].tx_submitted);
       chainGame = await getGame(chainGameId, networkMode);
     }
