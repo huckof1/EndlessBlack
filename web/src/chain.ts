@@ -75,17 +75,31 @@ type WalletProvider = {
 
 function getWallet(): WalletProvider | null {
   const w = window as any;
+  const nested =
+    (w.luffa && (w.luffa.endless || w.luffa.provider)) ||
+    (w.endless && (w.endless.provider || w.endless.wallet)) ||
+    null;
   return (
     (w.endless as WalletProvider) ||
     (w.luffa as WalletProvider) ||
     (w.luffaWallet as WalletProvider) ||
     (w.endlessWallet as WalletProvider) ||
+    (nested as WalletProvider) ||
     null
   );
 }
 
 export function hasWalletProvider(): boolean {
   return Boolean(getWallet());
+}
+
+export async function waitForWalletProvider(timeoutMs: number = 1500, intervalMs: number = 100): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (hasWalletProvider()) return true;
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  return hasWalletProvider();
 }
 
 export async function connectWallet(): Promise<string> {
