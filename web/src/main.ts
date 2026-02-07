@@ -693,25 +693,26 @@ function init() {
   betDecline.addEventListener("click", () => multiplayer.declineBet());
 
   // Sound
+  let soundPanelTimer: number | null = null;
+  const scheduleSoundPanelHide = () => {
+    if (!soundPanel) return;
+    if (soundPanelTimer) window.clearTimeout(soundPanelTimer);
+    soundPanelTimer = window.setTimeout(() => {
+      soundPanel.classList.remove("is-open");
+    }, 1200);
+  };
+
   soundToggle.addEventListener("click", () => {
-    toggleSound();
-    if (soundPanel) {
-      if (soundManager.getMuted()) {
-        soundPanel.classList.remove("is-open");
-      } else {
-        soundPanel.classList.add("is-open");
-      }
+    if (!soundPanel) return;
+    soundPanel.classList.toggle("is-open");
+    if (soundPanel.classList.contains("is-open")) {
+      if (soundPanelTimer) window.clearTimeout(soundPanelTimer);
     }
   });
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
-    if (soundManager.getMuted()) {
-      soundManager.toggleMute();
-      updateSoundIcon();
-    }
     soundManager.setVolume(sfx, music);
-    if (soundPanel) soundPanel.classList.add("is-open");
     if (music > 0) {
       if (gameMusicActive) {
         soundManager.startGameMusic();
@@ -719,16 +720,15 @@ function init() {
         soundManager.startIdleMusic();
       }
     }
+    if (soundPanel) soundPanel.classList.add("is-open");
+    scheduleSoundPanelHide();
   });
   sfxVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
-    if (soundManager.getMuted()) {
-      soundManager.toggleMute();
-      updateSoundIcon();
-    }
     soundManager.setVolume(sfx, music);
     if (soundPanel) soundPanel.classList.add("is-open");
+    scheduleSoundPanelHide();
   });
   if (homeBtn) {
     homeBtn.addEventListener("click", () => {
@@ -1098,33 +1098,6 @@ function startMascotAnimations() {
 }
 
 // ==================== SOUND ====================
-function toggleSound() {
-  const volumes = soundManager.getVolume();
-  const prevSfxKey = "soundVolumePrevSfx";
-  const prevMusicKey = "soundVolumePrevMusic";
-  const muted = soundManager.toggleMute();
-  updateSoundIcon();
-  if (!muted) {
-    const prevSfx = Number(localStorage.getItem(prevSfxKey));
-    const prevMusic = Number(localStorage.getItem(prevMusicKey));
-    const sfx = Number.isFinite(prevSfx) && prevSfx > 0 ? prevSfx : 0.5;
-    const music = Number.isFinite(prevMusic) && prevMusic > 0 ? prevMusic : 0.3;
-    soundManager.setVolume(sfx, music);
-    musicVolumeEl.value = Math.round(music * 100).toString();
-    sfxVolumeEl.value = Math.round(sfx * 100).toString();
-    if (gameMusicActive) {
-      soundManager.startGameMusic();
-    } else {
-      soundManager.startIdleMusic();
-    }
-  } else {
-    localStorage.setItem(prevSfxKey, String(volumes.sfx));
-    localStorage.setItem(prevMusicKey, String(volumes.music));
-    soundManager.setVolume(0, 0);
-    musicVolumeEl.value = "0";
-    sfxVolumeEl.value = "0";
-  }
-}
 
 function updateSoundIcon() {
   const muted = soundManager.getMuted();
