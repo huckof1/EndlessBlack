@@ -79,11 +79,11 @@ const loseAmount = document.getElementById("lose-amount") as HTMLDivElement;
 const blackjackAmount = document.getElementById("blackjack-amount") as HTMLDivElement;
 
 const soundToggle = document.getElementById("sound-toggle") as HTMLButtonElement;
-const soundPanel = document.querySelector(".sound-panel") as HTMLDivElement;
+const soundPanel = null as HTMLDivElement | null;
 const homeBtn = document.getElementById("home-btn") as HTMLButtonElement;
 const soundIcon = document.getElementById("sound-icon") as HTMLSpanElement;
-const musicVolumeEl = document.getElementById("music-volume") as HTMLInputElement;
-const sfxVolumeEl = document.getElementById("sfx-volume") as HTMLInputElement;
+const musicVolumeEl = null as HTMLInputElement | null;
+const sfxVolumeEl = null as HTMLInputElement | null;
 const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement;
 const rematchBtn = document.getElementById("rematch-btn") as HTMLButtonElement;
 const themeToggle = document.getElementById("theme-toggle") as HTMLButtonElement;
@@ -693,67 +693,19 @@ function init() {
   betDecline.addEventListener("click", () => multiplayer.declineBet());
 
   // Sound
-  let soundPanelTimer: number | null = null;
-  const scheduleSoundPanelHide = () => {
-    if (!soundPanel) return;
-    if (soundPanelTimer) window.clearTimeout(soundPanelTimer);
-    soundPanelTimer = window.setTimeout(() => {
-      soundPanel.classList.remove("is-open");
-    }, 1200);
-  };
-
   soundToggle.addEventListener("click", () => {
     const muted = soundManager.toggleMute();
     updateSoundIcon();
     if (muted) {
-      // Save desired volumes but keep sliders in place
-      localStorage.setItem("soundVolumePrevSfx", sfxVolumeEl.value);
-      localStorage.setItem("soundVolumePrevMusic", musicVolumeEl.value);
       soundManager.setVolume(0, 0);
     } else {
-      const sfx = Number(sfxVolumeEl.value) / 100;
-      const music = Number(musicVolumeEl.value) / 100;
-      soundManager.setVolume(sfx, music);
-      if (music > 0) {
-        if (gameMusicActive) {
-          soundManager.startGameMusic();
-        } else {
-          soundManager.startIdleMusic();
-        }
-      }
-    }
-    if (soundPanel) {
-      soundPanel.classList.toggle("is-open");
-      if (soundPanel.classList.contains("is-open")) {
-        if (soundPanelTimer) window.clearTimeout(soundPanelTimer);
-      }
-      scheduleSoundPanelHide();
-    }
-  });
-  musicVolumeEl.addEventListener("input", () => {
-    const sfx = Number(sfxVolumeEl.value) / 100;
-    const music = Number(musicVolumeEl.value) / 100;
-    if (!soundManager.getMuted()) {
-      soundManager.setVolume(sfx, music);
-    }
-    if (!soundManager.getMuted() && music > 0) {
+      soundManager.setVolume(0.5, 0.3);
       if (gameMusicActive) {
         soundManager.startGameMusic();
       } else {
         soundManager.startIdleMusic();
       }
     }
-    if (soundPanel) soundPanel.classList.add("is-open");
-    scheduleSoundPanelHide();
-  });
-  sfxVolumeEl.addEventListener("input", () => {
-    const sfx = Number(sfxVolumeEl.value) / 100;
-    const music = Number(musicVolumeEl.value) / 100;
-    if (!soundManager.getMuted()) {
-      soundManager.setVolume(sfx, music);
-    }
-    if (soundPanel) soundPanel.classList.add("is-open");
-    scheduleSoundPanelHide();
   });
   if (homeBtn) {
     homeBtn.addEventListener("click", () => {
