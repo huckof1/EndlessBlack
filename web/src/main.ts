@@ -114,6 +114,7 @@ const walletInstallLink = document.getElementById("wallet-install-link") as HTML
 const devOverlay = document.getElementById("dev-overlay") as HTMLDivElement;
 const devOverlayKeys = document.getElementById("dev-overlay-keys") as HTMLPreElement;
 const devOverlayClose = document.getElementById("dev-overlay-close") as HTMLButtonElement;
+const devOverlayOpen = document.getElementById("dev-overlay-open") as HTMLButtonElement;
 const nicknameModal = document.getElementById("nickname-modal") as HTMLDivElement;
 const nicknameInput = document.getElementById("nickname-input") as HTMLInputElement;
 const nicknameSave = document.getElementById("nickname-save") as HTMLButtonElement;
@@ -394,6 +395,13 @@ function showDevOverlay(keys: string[]) {
   if (!devOverlay || !devOverlayKeys) return;
   devOverlayKeys.textContent = keys.length ? keys.join(", ") : "no keys found";
   devOverlay.style.display = "flex";
+}
+
+function openLuffaDeepLink() {
+  const base = "luffa://connect";
+  const params = new URLSearchParams({ url: window.location.href });
+  const deepLink = `${base}?${params.toString()}`;
+  window.location.href = deepLink;
 }
 
 // ==================== LEADERBOARD DATA ====================
@@ -815,9 +823,17 @@ function init() {
       if (devOverlay) devOverlay.style.display = "none";
     });
   }
+  if (devOverlayOpen) {
+    devOverlayOpen.addEventListener("click", () => {
+      openLuffaDeepLink();
+    });
+  }
   window.addEventListener("wallet-debug-keys", (event) => {
     const keys = (event as CustomEvent<string[]>).detail || [];
     showDevOverlay(keys);
+    if (!keys.length) {
+      openLuffaDeepLink();
+    }
   });
   requestAutoConnectInLuffa();
   nicknameSave.addEventListener("click", saveNickname);
