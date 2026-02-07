@@ -153,6 +153,15 @@ class SoundManager {
     return this.isMuted;
   }
 
+  setMuted(muted: boolean): void {
+    this.isMuted = muted;
+    localStorage.setItem("soundMuted", String(this.isMuted));
+    if (this.isMuted) {
+      if (this.musicA) this.musicA.pause();
+      if (this.musicB) this.musicB.pause();
+    }
+  }
+
   // Проверка статуса
   getMuted(): boolean {
     return this.isMuted;

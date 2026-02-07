@@ -703,15 +703,32 @@ function init() {
   };
 
   soundToggle.addEventListener("click", () => {
-    if (!soundPanel) return;
-    soundPanel.classList.toggle("is-open");
-    if (soundPanel.classList.contains("is-open")) {
-      if (soundPanelTimer) window.clearTimeout(soundPanelTimer);
+    const muted = soundManager.toggleMute();
+    updateSoundIcon();
+    if (!muted) {
+      const music = Number(musicVolumeEl.value) / 100;
+      if (music > 0) {
+        if (gameMusicActive) {
+          soundManager.startGameMusic();
+        } else {
+          soundManager.startIdleMusic();
+        }
+      }
+    }
+    if (soundPanel) {
+      soundPanel.classList.toggle("is-open");
+      if (soundPanel.classList.contains("is-open")) {
+        if (soundPanelTimer) window.clearTimeout(soundPanelTimer);
+      }
     }
   });
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
+    if (soundManager.getMuted()) {
+      soundManager.setMuted(false);
+      updateSoundIcon();
+    }
     soundManager.setVolume(sfx, music);
     if (music > 0) {
       if (gameMusicActive) {
@@ -726,6 +743,10 @@ function init() {
   sfxVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
+    if (soundManager.getMuted()) {
+      soundManager.setMuted(false);
+      updateSoundIcon();
+    }
     soundManager.setVolume(sfx, music);
     if (soundPanel) soundPanel.classList.add("is-open");
     scheduleSoundPanelHide();
