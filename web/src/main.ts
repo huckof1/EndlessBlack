@@ -79,6 +79,7 @@ const loseAmount = document.getElementById("lose-amount") as HTMLDivElement;
 const blackjackAmount = document.getElementById("blackjack-amount") as HTMLDivElement;
 
 const soundToggle = document.getElementById("sound-toggle") as HTMLButtonElement;
+const soundPanel = document.querySelector(".sound-panel") as HTMLDivElement;
 const homeBtn = document.getElementById("home-btn") as HTMLButtonElement;
 const soundIcon = document.getElementById("sound-icon") as HTMLSpanElement;
 const musicVolumeEl = document.getElementById("music-volume") as HTMLInputElement;
@@ -693,6 +694,11 @@ function init() {
 
   // Sound
   soundToggle.addEventListener("click", toggleSound);
+  if (soundPanel) {
+    soundToggle.addEventListener("click", () => {
+      soundPanel.classList.toggle("is-open");
+    });
+  }
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
