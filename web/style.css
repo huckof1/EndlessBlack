@@ -114,11 +114,18 @@ body {
   .sound-btn-wide {
     min-width: 0;
     width: 100%;
-    font-size: 8px;
+    font-size: 7px;
     padding: 4px;
     height: auto;
     white-space: normal;
     line-height: 1.1;
+    word-break: break-word;
+  }
+
+  #change-login-header,
+  #invite-btn-header {
+    font-size: 6.5px;
+    letter-spacing: 0.2px;
   }
 
   .header-status { display: none; }
