@@ -708,6 +708,15 @@ body[data-theme="light"] .btn-small {
   justify-items: center;
 }
 
+.deal-row .btn-deal {
+  justify-self: center;
+}
+
+.deal-row .mascot-left,
+.deal-row .mascot-right {
+  justify-self: center;
+}
+
 body.mp-mode .deal-row {
   grid-template-columns: 1fr;
   justify-items: center;
