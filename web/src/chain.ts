@@ -17,10 +17,10 @@ async function loadSdk(): Promise<SdkModule> {
 
 async function getNetwork(mode?: "testnet" | "mainnet") {
   const { Network } = await loadSdk();
-  if (mode === "mainnet") return Network.MAINNET;
+  if (mode === "mainnet") return Network.TESTNET;
   if (mode === "testnet") return Network.TESTNET;
   const net = NETWORK as string;
-  if (net === "mainnet") return Network.MAINNET;
+  if (net === "mainnet") return Network.TESTNET;
   if (net === "testnet") return Network.TESTNET;
   return Network.DEVNET;
 }
@@ -38,7 +38,7 @@ function toNumber(value: any): number {
 }
 
 function getContractAddress(mode?: "testnet" | "mainnet"): string {
-  if (mode === "mainnet") return CONTRACT_ADDRESS_MAINNET;
+  if (mode === "mainnet") return CONTRACT_ADDRESS_TESTNET;
   if (mode === "testnet") return CONTRACT_ADDRESS_TESTNET;
   return CONTRACT_ADDRESS_TESTNET;
 }
@@ -80,15 +80,27 @@ type LuffaSdk = {
   changeNetwork?: (input: { network: string }) => void;
 };
 
+function resolveNetworkMode(mode?: "testnet" | "mainnet"): "testnet" | "mainnet" {
+  if (mode === "mainnet") return "testnet";
+  if (mode === "testnet") return "testnet";
+  return (NETWORK as "testnet" | "mainnet") === "mainnet" ? "testnet" : "testnet";
+}
+
 function getWallet(): WalletProvider | null {
   const w = window as any;
+  const luffa = w.luffa;
+  const endless = w.endless;
   const nested =
-    (w.luffa && (w.luffa.endless || w.luffa.provider)) ||
-    (w.endless && (w.endless.provider || w.endless.wallet)) ||
+    (luffa && (luffa.endless || luffa.endlessProvider || luffa.provider || luffa.providers?.endless)) ||
+    (endless && (endless.provider || endless.wallet)) ||
     null;
   return (
-    (w.endless as WalletProvider) ||
-    (w.luffa as WalletProvider) ||
+    (endless as WalletProvider) ||
+    (luffa as WalletProvider) ||
+    (luffa?.endless as WalletProvider) ||
+    (luffa?.endlessProvider as WalletProvider) ||
+    (luffa?.provider as WalletProvider) ||
+    (luffa?.providers?.endless as WalletProvider) ||
     (w.luffaWallet as WalletProvider) ||
     (w.endlessWallet as WalletProvider) ||
     (nested as WalletProvider) ||
@@ -105,7 +117,7 @@ async function getLuffaSdk(mode?: "testnet" | "mainnet"): Promise<LuffaSdk | nul
       try {
         const { EndlessLuffaSdk, UserResponseStatus } = await import("@luffalab/luffa-endless-sdk");
         luffaStatusApproved = UserResponseStatus.APPROVED;
-        const network = mode ?? (NETWORK as string);
+        const network = resolveNetworkMode(mode);
         return new EndlessLuffaSdk({ network }) as LuffaSdk;
       } catch {
         return null;
@@ -114,21 +126,30 @@ async function getLuffaSdk(mode?: "testnet" | "mainnet"): Promise<LuffaSdk | nul
   }
   const sdk = await luffaSdkPromise;
   if (sdk?.changeNetwork) {
-    const network = mode ?? (NETWORK as string);
+    const network = resolveNetworkMode(mode);
     sdk.changeNetwork({ network });
   }
   return sdk;
 }
 
 export async function connectWallet(): Promise<string> {
-  const wallet = getWallet();
-  if (wallet) {
+  const tryWallet = async (): Promise<string | null> => {
+    const wallet = getWallet();
+    if (!wallet) return null;
     const res = wallet.connect ? await wallet.connect() : null;
     if (res?.address) return res.address;
     if (wallet.account) {
       const account = await wallet.account();
       if (account?.address) return account.address;
     }
+    return null;
+  };
+  const direct = await tryWallet();
+  if (direct) return direct;
+  for (let i = 0; i < 5; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const retry = await tryWallet();
+    if (retry) return retry;
   }
 
   const sdk = await getLuffaSdk();

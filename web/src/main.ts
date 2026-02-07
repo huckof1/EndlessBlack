@@ -108,6 +108,8 @@ const inviteDecline = document.getElementById("invite-decline") as HTMLButtonEle
 const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
+const walletModalText = document.querySelector("#wallet-modal .modal-text") as HTMLDivElement;
+const walletInstallLink = document.getElementById("wallet-install-link") as HTMLAnchorElement;
 const nicknameModal = document.getElementById("nickname-modal") as HTMLDivElement;
 const nicknameInput = document.getElementById("nickname-input") as HTMLInputElement;
 const nicknameSave = document.getElementById("nickname-save") as HTMLButtonElement;
@@ -364,6 +366,12 @@ function isDemoActive(): boolean {
   return DEMO_MODE && networkMode !== "mainnet";
 }
 
+function isLuffaInApp(): boolean {
+  const ua = navigator.userAgent || "";
+  const w = window as any;
+  return /luffa/i.test(ua) || Boolean(w.luffa);
+}
+
 // ==================== LEADERBOARD DATA ====================
 interface LeaderboardEntry {
   name: string;
@@ -481,6 +489,7 @@ const I18N = {
     connect_wallet: "CONNECT WALLET",
     wallet_modal_title: "WALLET REQUIRED",
     wallet_modal_text: "Install Luffa to connect your Endless wallet.",
+    wallet_modal_text_inapp: "Approve the connection in your Luffa wallet.",
     wallet_modal_install: "DOWNLOAD WALLET",
     wallet_modal_close: "CLOSE",
     invite_modal_title: "INVITE BET",
@@ -615,6 +624,7 @@ const I18N = {
     connect_wallet: "ПОДКЛЮЧИТЬ КОШЕЛЁК",
     wallet_modal_title: "НУЖЕН КОШЕЛЁК",
     wallet_modal_text: "Установите Luffa для подключения кошелька Endless.",
+    wallet_modal_text_inapp: "Подтвердите подключение в кошельке Luffa.",
     wallet_modal_install: "СКАЧАТЬ КОШЕЛЁК",
     wallet_modal_close: "ЗАКРЫТЬ",
     invite_modal_title: "СТАВКА ДЛЯ ПРИГЛАШЕНИЯ",
@@ -2427,6 +2437,15 @@ async function handleConnectWallet() {
     updateUI();
   } catch {
     showMessage(I18N[currentLocale].msg_wallet_missing, "error");
+    const inApp = isLuffaInApp();
+    if (walletModalText) {
+      walletModalText.textContent = inApp
+        ? I18N[currentLocale].wallet_modal_text_inapp
+        : I18N[currentLocale].wallet_modal_text;
+    }
+    if (walletInstallLink) {
+      walletInstallLink.style.display = inApp ? "none" : "inline-flex";
+    }
     if (walletModal) walletModal.style.display = "flex";
   }
 }
