@@ -705,8 +705,15 @@ function init() {
   soundToggle.addEventListener("click", () => {
     const muted = soundManager.toggleMute();
     updateSoundIcon();
-    if (!muted) {
+    if (muted) {
+      // Save desired volumes but keep sliders in place
+      localStorage.setItem("soundVolumePrevSfx", sfxVolumeEl.value);
+      localStorage.setItem("soundVolumePrevMusic", musicVolumeEl.value);
+      soundManager.setVolume(0, 0);
+    } else {
+      const sfx = Number(sfxVolumeEl.value) / 100;
       const music = Number(musicVolumeEl.value) / 100;
+      soundManager.setVolume(sfx, music);
       if (music > 0) {
         if (gameMusicActive) {
           soundManager.startGameMusic();
@@ -726,7 +733,9 @@ function init() {
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
-    soundManager.setVolume(sfx, music);
+    if (!soundManager.getMuted()) {
+      soundManager.setVolume(sfx, music);
+    }
     if (!soundManager.getMuted() && music > 0) {
       if (gameMusicActive) {
         soundManager.startGameMusic();
@@ -740,7 +749,9 @@ function init() {
   sfxVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
-    soundManager.setVolume(sfx, music);
+    if (!soundManager.getMuted()) {
+      soundManager.setVolume(sfx, music);
+    }
     if (soundPanel) soundPanel.classList.add("is-open");
     scheduleSoundPanelHide();
   });
