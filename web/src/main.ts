@@ -79,11 +79,8 @@ const loseAmount = document.getElementById("lose-amount") as HTMLDivElement;
 const blackjackAmount = document.getElementById("blackjack-amount") as HTMLDivElement;
 
 const soundToggle = document.getElementById("sound-toggle") as HTMLButtonElement;
-const soundPanel = null as HTMLDivElement | null;
 const homeBtn = document.getElementById("home-btn") as HTMLButtonElement;
 const soundIcon = document.getElementById("sound-icon") as HTMLSpanElement;
-const musicVolumeEl = null as HTMLInputElement | null;
-const sfxVolumeEl = null as HTMLInputElement | null;
 const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement;
 const rematchBtn = document.getElementById("rematch-btn") as HTMLButtonElement;
 const themeToggle = document.getElementById("theme-toggle") as HTMLButtonElement;
@@ -867,9 +864,7 @@ function init() {
   applyTheme();
   applyI18n();
   applyNetworkMode();
-  const volumes = soundManager.getVolume();
-  musicVolumeEl.value = Math.round(volumes.music * 100).toString();
-  sfxVolumeEl.value = Math.round(volumes.sfx * 100).toString();
+  // Sound sliders removed; toggle only.
 
   const params = new URLSearchParams(window.location.search);
   const inviteFrom = params.get("invite");
