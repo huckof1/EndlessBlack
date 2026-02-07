@@ -107,22 +107,16 @@ body {
   .logo-blackjack { font-size: 16px; }
 
   .subtitle,
-  .demo-badge,
-  .header-status {
+  .demo-badge {
     display: none;
   }
 
   .header-controls {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
     padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .header-controls::-webkit-scrollbar {
-    display: none;
+    overflow: visible;
   }
 
   .sound-btn {
@@ -132,18 +126,23 @@ body {
   }
 
   .sound-btn-wide {
-    min-width: 76px;
+    min-width: 0;
+    width: 100%;
     font-size: 9px;
     padding: 0 6px;
+    height: 34px;
   }
 
   .header-status {
     margin-top: 4px;
-    font-size: 8px;
+    font-size: 9px;
+    gap: 6px;
   }
 
-  .sound-panel {
-    display: none;
+  .sound-panel { display: none; }
+  .sound-panel.is-open {
+    display: flex;
+    margin-top: 6px;
   }
 
   .wallet-section {
@@ -182,7 +181,13 @@ body {
   }
 
   .sidebar {
-    display: none;
+    display: block;
+    order: 2;
+  }
+
+  .leaderboard-section,
+  .stats-section {
+    padding: 8px;
   }
 
   .actions-hint {
