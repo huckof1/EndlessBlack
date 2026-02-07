@@ -88,18 +88,14 @@ body {
   }
 
   .header {
-    padding: 6px 0 8px;
-    margin-bottom: 6px;
+    padding: 4px 0 6px;
+    margin-bottom: 4px;
   }
 
-  .logo {
-    gap: 2px;
-    margin-bottom: 6px;
-  }
-
-  .logo-endless { font-size: 12px; letter-spacing: 2px; }
-  .logo-pixel { font-size: 10px; letter-spacing: 3px; }
-  .logo-blackjack { font-size: 16px; }
+  .logo { gap: 1px; margin-bottom: 4px; }
+  .logo-endless { font-size: 11px; letter-spacing: 1px; }
+  .logo-pixel { font-size: 9px; letter-spacing: 2px; }
+  .logo-blackjack { font-size: 14px; }
 
   .subtitle,
   .demo-badge {
@@ -107,38 +103,33 @@ body {
   }
 
   .header-controls {
-    flex-wrap: wrap;
-    overflow-x: visible;
-    justify-content: center;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    justify-items: stretch;
   }
 
-  .sound-btn {
-    width: 30px;
-    height: 30px;
-    font-size: 12px;
-  }
+  .sound-btn { width: 28px; height: 28px; font-size: 11px; }
 
   .sound-btn-wide {
-    min-width: 70px;
-    font-size: 9px;
-    padding: 0 6px;
-    height: 30px;
+    min-width: 0;
+    width: 100%;
+    font-size: 8px;
+    padding: 4px;
+    height: auto;
+    white-space: normal;
+    line-height: 1.1;
   }
 
-  .header-status {
-    margin-top: 4px;
-    font-size: 8px;
-    gap: 6px;
-  }
+  .header-status { display: none; }
 
   .sound-panel {
-    display: none;
+    display: none !important;
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 6px;
   }
-  .sound-panel.is-open { display: flex; }
+  .sound-panel.is-open { display: flex !important; }
 
   .bet-section {
     margin-bottom: 6px;
