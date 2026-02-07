@@ -944,15 +944,16 @@ function init() {
   `);
 }
 
-async function initAudio() {
+function initAudio() {
   if (firstInteraction) return;
   firstInteraction = true;
-  await soundManager.init();
-  if (gameMusicActive) {
-    soundManager.startGameMusic();
-  } else {
-    startIdleMusic();
-  }
+  void soundManager.init().then(() => {
+    if (gameMusicActive) {
+      soundManager.startGameMusic();
+    } else {
+      startIdleMusic();
+    }
+  });
 }
 
 // ==================== SESSION ====================
@@ -1656,12 +1657,12 @@ function validateBet() {
 
 // ==================== GAME ====================
 async function handleStartGame() {
+  hasGameResult = false;
+  initAudio();
+  startGameMusic();
   if (!isSessionStarted) {
     await startSession();
   }
-  hasGameResult = false;
-  await initAudio();
-  startGameMusic();
   if (multiplayerRoom && LS_PUBLIC_KEY && !isRoomHost) {
     showMessage(currentLocale === "ru" ? "Ждём хоста..." : "Waiting for host...", "info");
     return;
