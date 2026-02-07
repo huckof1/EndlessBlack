@@ -705,6 +705,7 @@ body[data-theme="light"] .btn-small {
   align-items: center;
   gap: 12px;
   width: 100%;
+  justify-items: center;
 }
 
 body.mp-mode .deal-row {
