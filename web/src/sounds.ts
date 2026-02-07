@@ -166,9 +166,17 @@ class SoundManager {
       this.musicActive = this.musicActive || "A";
       music.currentTime = 0;
       music.volume = 0;
-      music.play().catch(() => {
-        // ignore autoplay errors
-      });
+      const playNow = () => {
+        music.play().catch(() => {
+          // ignore autoplay errors
+        });
+      };
+      if (music.readyState < 2) {
+        music.load();
+        music.addEventListener("canplaythrough", playNow, { once: true });
+      } else {
+        playNow();
+      }
       this.attachLoopHandler(music);
       if (this.fadeTimer) {
         window.clearInterval(this.fadeTimer);
