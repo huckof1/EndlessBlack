@@ -111,6 +111,9 @@ const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
 const walletModalText = document.querySelector("#wallet-modal .modal-text") as HTMLDivElement;
 const walletInstallLink = document.getElementById("wallet-install-link") as HTMLAnchorElement;
+const devOverlay = document.getElementById("dev-overlay") as HTMLDivElement;
+const devOverlayKeys = document.getElementById("dev-overlay-keys") as HTMLPreElement;
+const devOverlayClose = document.getElementById("dev-overlay-close") as HTMLButtonElement;
 const nicknameModal = document.getElementById("nickname-modal") as HTMLDivElement;
 const nicknameInput = document.getElementById("nickname-input") as HTMLInputElement;
 const nicknameSave = document.getElementById("nickname-save") as HTMLButtonElement;
@@ -385,6 +388,12 @@ function requestAutoConnectInLuffa() {
       }
     }
   }, 900);
+}
+
+function showDevOverlay(keys: string[]) {
+  if (!devOverlay || !devOverlayKeys) return;
+  devOverlayKeys.textContent = keys.length ? keys.join(", ") : "no keys found";
+  devOverlay.style.display = "flex";
 }
 
 // ==================== LEADERBOARD DATA ====================
@@ -800,6 +809,15 @@ function init() {
   connectWalletBtn.addEventListener("click", handleConnectWallet);
   walletModalClose.addEventListener("click", () => {
     if (walletModal) walletModal.style.display = "none";
+  });
+  if (devOverlayClose) {
+    devOverlayClose.addEventListener("click", () => {
+      if (devOverlay) devOverlay.style.display = "none";
+    });
+  }
+  window.addEventListener("wallet-debug-keys", (event) => {
+    const keys = (event as CustomEvent<string[]>).detail || [];
+    showDevOverlay(keys);
   });
   requestAutoConnectInLuffa();
   nicknameSave.addEventListener("click", saveNickname);

@@ -610,6 +610,23 @@ body[data-theme="light"] .btn-small {
   z-index: 999;
 }
 
+.modal.dev-overlay .modal-content {
+  max-height: 85vh;
+  overflow: hidden;
+  width: min(90vw, 480px);
+}
+.dev-keys {
+  background: #04040a;
+  color: #00ffb3;
+  font-size: 12px;
+  padding: 12px;
+  border-radius: 4px;
+  text-align: left;
+  max-height: 40vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
 .modal-content {
   background: var(--bg-card);
   border: 3px solid var(--gold);
