@@ -123,7 +123,8 @@ body {
   }
 
   #change-login-header,
-  #invite-btn-header {
+  #invite-btn-header,
+  #connect-wallet-header {
     font-size: 6.5px;
     letter-spacing: 0.2px;
   }

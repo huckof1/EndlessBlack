@@ -862,8 +862,8 @@ function init() {
   currentLocale = savedLocale === "ru" ? "ru" : "en";
   const savedTheme = localStorage.getItem("theme");
   currentTheme = savedTheme === "light" ? "light" : "dark";
-  const savedNetwork = localStorage.getItem("networkMode");
-  networkMode = savedNetwork === "mainnet" ? "mainnet" : "testnet";
+  networkMode = "testnet";
+  localStorage.setItem("networkMode", networkMode);
   applyTheme();
   applyI18n();
   applyNetworkMode();
