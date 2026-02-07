@@ -83,13 +83,33 @@ body {
   }
 
   .container {
-    padding: 10px;
-    padding-bottom: 10px;
+    padding: 8px;
+    padding-bottom: 8px;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
   .header {
-    padding: 8px 0 10px;
-    margin-bottom: 6px;
+    padding: 6px 0 8px;
+    margin-bottom: 4px;
+    position: static;
+  }
+
+  .logo {
+    gap: 2px;
+    margin-bottom: 4px;
+  }
+
+  .logo-endless { font-size: 12px; letter-spacing: 2px; }
+  .logo-pixel { font-size: 10px; letter-spacing: 3px; }
+  .logo-blackjack { font-size: 16px; }
+
+  .subtitle,
+  .demo-badge,
+  .header-status {
+    display: none;
   }
 
   .header-controls {
@@ -126,6 +146,20 @@ body {
     display: none;
   }
 
+  .wallet-section {
+    padding: 10px;
+    margin-bottom: 4px;
+  }
+
+  .wallet-grid {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    gap: 6px;
+  }
+
+  .wallet-actions {
+    gap: 6px;
+  }
+
   .bet-section {
     margin-bottom: 6px;
   }
@@ -134,9 +168,34 @@ body {
     min-height: 180px;
   }
 
+  .game-area {
+    flex: 1;
+    min-height: 0;
+    padding: 10px;
+  }
+
+  .layout-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
   .actions-hint {
     display: none;
   }
+}
+
+.modal .input {
+  width: 100%;
+  max-width: 260px;
+  margin: 0 auto 10px;
+  border: 2px solid var(--gold);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 body[data-theme="light"] {
