@@ -88,7 +88,6 @@ const themeIcon = document.getElementById("theme-icon") as HTMLSpanElement;
 const langToggle = document.getElementById("lang-toggle") as HTMLButtonElement;
 const langIcon = document.getElementById("lang-icon") as HTMLSpanElement;
 const networkTestnetBtn = document.getElementById("network-testnet") as HTMLButtonElement;
-const networkMainnetBtn = document.getElementById("network-mainnet") as HTMLButtonElement;
 const connectWalletHeader = document.getElementById("connect-wallet-header") as HTMLButtonElement;
 const demoBadge = document.getElementById("demo-badge") as HTMLSpanElement;
 
@@ -746,11 +745,7 @@ function init() {
   themeToggle.addEventListener("click", toggleTheme);
   langToggle.addEventListener("click", toggleLanguage);
   networkTestnetBtn.addEventListener("click", () => setNetwork("testnet"));
-  networkMainnetBtn.addEventListener("click", () => setNetwork("mainnet"));
-  networkMainnetBtn.disabled = true;
-  networkMainnetBtn.style.display = "none";
-  networkMainnetBtn.setAttribute("aria-hidden", "true");
-  networkMainnetBtn.setAttribute("tabindex", "-1");
+  // mainnet button removed (testnet-only)
 
   // Reset demo
   resetDemoBtn.addEventListener("click", handleResetDemo);
@@ -1597,7 +1592,7 @@ function applyNetworkMode() {
     walletNetworkPill.textContent = "TESTNET";
   }
   networkTestnetBtn.classList.toggle("active", true);
-  networkMainnetBtn.classList.toggle("active", false);
+  // no mainnet button in UI
 }
 
 // ==================== BET ====================
