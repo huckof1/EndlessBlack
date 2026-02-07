@@ -693,12 +693,16 @@ function init() {
   betDecline.addEventListener("click", () => multiplayer.declineBet());
 
   // Sound
-  soundToggle.addEventListener("click", toggleSound);
-  if (soundPanel) {
-    soundToggle.addEventListener("click", () => {
-      soundPanel.classList.toggle("is-open");
-    });
-  }
+  soundToggle.addEventListener("click", () => {
+    toggleSound();
+    if (soundPanel) {
+      if (soundManager.getMuted()) {
+        soundPanel.classList.remove("is-open");
+      } else {
+        soundPanel.classList.add("is-open");
+      }
+    }
+  });
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
@@ -707,6 +711,7 @@ function init() {
       updateSoundIcon();
     }
     soundManager.setVolume(sfx, music);
+    if (soundPanel) soundPanel.classList.add("is-open");
     if (music > 0) {
       if (gameMusicActive) {
         soundManager.startGameMusic();
@@ -723,6 +728,7 @@ function init() {
       updateSoundIcon();
     }
     soundManager.setVolume(sfx, music);
+    if (soundPanel) soundPanel.classList.add("is-open");
   });
   if (homeBtn) {
     homeBtn.addEventListener("click", () => {
