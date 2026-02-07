@@ -79,7 +79,7 @@ body {
 @media (max-width: 430px) {
   body {
     min-height: 100dvh;
-    overflow-y: hidden;
+    overflow-y: auto;
   }
 
   .container {
