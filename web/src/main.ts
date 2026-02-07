@@ -1660,6 +1660,7 @@ async function handleStartGame() {
     await startSession();
   }
   hasGameResult = false;
+  await initAudio();
   startGameMusic();
   if (multiplayerRoom && LS_PUBLIC_KEY && !isRoomHost) {
     showMessage(currentLocale === "ru" ? "Ждём хоста..." : "Waiting for host...", "info");
