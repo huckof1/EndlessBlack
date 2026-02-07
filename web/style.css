@@ -717,6 +717,17 @@ body[data-theme="light"] .btn-small {
   justify-self: center;
 }
 
+@media (max-width: 430px) {
+  .deal-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .deal-row .btn-deal {
+    justify-self: center;
+    margin: 0 auto;
+  }
+}
+
 body.mp-mode .deal-row {
   grid-template-columns: 1fr;
   justify-items: center;
