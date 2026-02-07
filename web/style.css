@@ -719,8 +719,11 @@ body[data-theme="light"] .btn-small {
 
 @media (max-width: 430px) {
   .deal-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 80px auto 80px;
     gap: 8px;
+  }
+  .deal-row .mascot {
+    width: 80px;
   }
   .deal-row .btn-deal {
     justify-self: center;
