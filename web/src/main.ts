@@ -1559,15 +1559,9 @@ function saveNickname() {
 }
 
 function setNetwork(mode: "testnet" | "mainnet") {
-  if (mode === "mainnet") {
-    mode = "testnet";
-  }
   const prevMode = networkMode;
-  networkMode = mode;
+  networkMode = "testnet";
   localStorage.setItem("networkMode", networkMode);
-  if (networkMode === "mainnet" && walletAddress === "DEMO") {
-    walletAddress = "";
-  }
   if (prevMode !== mode) {
     pendingResume = null;
     if (!walletAddress) {
@@ -1593,21 +1587,17 @@ function setNetwork(mode: "testnet" | "mainnet") {
     renderLeaderboard();
     renderActivePlayers();
   }
-  if (networkMode === "mainnet" && !walletAddress) {
-    // Attempt connect on explicit mainnet switch (user gesture)
-    void handleConnectWallet();
-  }
 }
 
 function applyNetworkMode() {
   if (walletNetworkEl) {
-    walletNetworkEl.textContent = networkMode.toUpperCase();
+    walletNetworkEl.textContent = "TESTNET";
   }
   if (walletNetworkPill) {
-    walletNetworkPill.textContent = networkMode.toUpperCase();
+    walletNetworkPill.textContent = "TESTNET";
   }
-  networkTestnetBtn.classList.toggle("active", networkMode === "testnet");
-  networkMainnetBtn.classList.toggle("active", networkMode === "mainnet");
+  networkTestnetBtn.classList.toggle("active", true);
+  networkMainnetBtn.classList.toggle("active", false);
 }
 
 // ==================== BET ====================
