@@ -720,17 +720,14 @@ function init() {
       if (soundPanel.classList.contains("is-open")) {
         if (soundPanelTimer) window.clearTimeout(soundPanelTimer);
       }
+      scheduleSoundPanelHide();
     }
   });
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
-    if (soundManager.getMuted()) {
-      soundManager.setMuted(false);
-      updateSoundIcon();
-    }
     soundManager.setVolume(sfx, music);
-    if (music > 0) {
+    if (!soundManager.getMuted() && music > 0) {
       if (gameMusicActive) {
         soundManager.startGameMusic();
       } else {
@@ -743,10 +740,6 @@ function init() {
   sfxVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
-    if (soundManager.getMuted()) {
-      soundManager.setMuted(false);
-      updateSoundIcon();
-    }
     soundManager.setVolume(sfx, music);
     if (soundPanel) soundPanel.classList.add("is-open");
     scheduleSoundPanelHide();
