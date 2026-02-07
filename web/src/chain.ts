@@ -114,6 +114,9 @@ export async function connectWallet(): Promise<string> {
     const retry = await tryWallet();
     if (retry) return retry;
   }
+  const keys = Object.keys(window).filter((key) => /luffa|endless/i.test(key));
+  // eslint-disable-next-line no-console
+  console.warn("connectWallet: no provider detected, window keys", keys);
   throw new Error("Wallet not found");
 }
 

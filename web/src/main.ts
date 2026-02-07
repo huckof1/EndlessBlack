@@ -31,6 +31,7 @@ const walletStatusEl = document.getElementById("wallet-status") as HTMLSpanEleme
 const walletNetworkEl = document.getElementById("wallet-network") as HTMLSpanElement;
 const walletStatusPill = document.getElementById("wallet-status-pill") as HTMLSpanElement;
 const walletNetworkPill = document.getElementById("wallet-network-pill") as HTMLSpanElement;
+let autoConnectAttempted = false;
 const headerStatus = document.querySelector(".header-status") as HTMLDivElement;
 const balanceEl = document.getElementById("balance") as HTMLSpanElement;
 const bankrollEl = document.getElementById("bankroll") as HTMLSpanElement;
@@ -370,6 +371,20 @@ function isLuffaInApp(): boolean {
   const ua = navigator.userAgent || "";
   const w = window as any;
   return /luffa/i.test(ua) || Boolean(w.luffa);
+}
+
+function requestAutoConnectInLuffa() {
+  if (autoConnectAttempted || isDemoActive() || !isLuffaInApp()) return;
+  autoConnectAttempted = true;
+  setTimeout(async () => {
+    if (!walletAddress) {
+      try {
+        await handleConnectWallet();
+      } catch {
+        // handled inside handleConnectWallet
+      }
+    }
+  }, 900);
 }
 
 // ==================== LEADERBOARD DATA ====================
@@ -786,6 +801,7 @@ function init() {
   walletModalClose.addEventListener("click", () => {
     if (walletModal) walletModal.style.display = "none";
   });
+  requestAutoConnectInLuffa();
   nicknameSave.addEventListener("click", saveNickname);
   nicknameInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") saveNickname();
