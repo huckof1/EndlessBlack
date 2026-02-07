@@ -702,11 +702,26 @@ function init() {
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
+    if (soundManager.getMuted()) {
+      soundManager.toggleMute();
+      updateSoundIcon();
+    }
     soundManager.setVolume(sfx, music);
+    if (music > 0) {
+      if (gameMusicActive) {
+        soundManager.startGameMusic();
+      } else {
+        soundManager.startIdleMusic();
+      }
+    }
   });
   sfxVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
+    if (soundManager.getMuted()) {
+      soundManager.toggleMute();
+      updateSoundIcon();
+    }
     soundManager.setVolume(sfx, music);
   });
   if (homeBtn) {
