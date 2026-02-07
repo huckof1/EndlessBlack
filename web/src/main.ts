@@ -88,6 +88,7 @@ const themeIcon = document.getElementById("theme-icon") as HTMLSpanElement;
 const langToggle = document.getElementById("lang-toggle") as HTMLButtonElement;
 const langIcon = document.getElementById("lang-icon") as HTMLSpanElement;
 const networkTestnetBtn = document.getElementById("network-testnet") as HTMLButtonElement;
+const networkMainnetBtn = document.getElementById("network-mainnet") as HTMLButtonElement;
 const connectWalletHeader = document.getElementById("connect-wallet-header") as HTMLButtonElement;
 const demoBadge = document.getElementById("demo-badge") as HTMLSpanElement;
 
@@ -745,7 +746,7 @@ function init() {
   themeToggle.addEventListener("click", toggleTheme);
   langToggle.addEventListener("click", toggleLanguage);
   networkTestnetBtn.addEventListener("click", () => setNetwork("testnet"));
-  // mainnet button removed (testnet-only)
+  networkMainnetBtn.addEventListener("click", () => setNetwork("mainnet"));
 
   // Reset demo
   resetDemoBtn.addEventListener("click", handleResetDemo);
@@ -1555,7 +1556,7 @@ function saveNickname() {
 
 function setNetwork(mode: "testnet" | "mainnet") {
   const prevMode = networkMode;
-  networkMode = "testnet";
+  networkMode = mode;
   localStorage.setItem("networkMode", networkMode);
   if (prevMode !== mode) {
     pendingResume = null;
@@ -1582,17 +1583,22 @@ function setNetwork(mode: "testnet" | "mainnet") {
     renderLeaderboard();
     renderActivePlayers();
   }
+  if (networkMode === "mainnet" && !walletAddress) {
+    // Attempt connect on explicit onchain switch (user gesture)
+    void handleConnectWallet();
+  }
 }
 
 function applyNetworkMode() {
+  const networkLabel = networkMode === "mainnet" ? "TESTNET" : "TEST";
   if (walletNetworkEl) {
-    walletNetworkEl.textContent = "TESTNET";
+    walletNetworkEl.textContent = networkLabel;
   }
   if (walletNetworkPill) {
-    walletNetworkPill.textContent = "TESTNET";
+    walletNetworkPill.textContent = networkLabel;
   }
-  networkTestnetBtn.classList.toggle("active", true);
-  // no mainnet button in UI
+  networkTestnetBtn.classList.toggle("active", networkMode === "testnet");
+  networkMainnetBtn.classList.toggle("active", networkMode === "mainnet");
 }
 
 // ==================== BET ====================
