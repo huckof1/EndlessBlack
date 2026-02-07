@@ -398,10 +398,13 @@ function showDevOverlay(keys: string[]) {
 }
 
 function openLuffaDeepLink() {
-  const base = "luffa://connect";
-  const params = new URLSearchParams({ url: window.location.href });
-  const deepLink = `${base}?${params.toString()}`;
+  const url = window.location.href;
+  const deepLink = `luffa://connect?${new URLSearchParams({ url }).toString()}`;
+  const fallback = `https://www.luffa.im/lcs?${new URLSearchParams({ url }).toString()}`;
   window.location.href = deepLink;
+  setTimeout(() => {
+    window.location.href = fallback;
+  }, 600);
 }
 
 // ==================== LEADERBOARD DATA ====================
