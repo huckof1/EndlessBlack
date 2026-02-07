@@ -9,8 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@endlesslab/endless-ts-sdk": "^1.0.0",
-    "@luffalab/luffa-endless-sdk": "^1.0.4"
+    "@endlesslab/endless-ts-sdk": "^1.0.0"
   },
   "devDependencies": {
     "typescript": "^5.3.0",
