@@ -110,6 +110,7 @@ const inviteDecline = document.getElementById("invite-decline") as HTMLButtonEle
 const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
+const debugMusic2Btn = document.getElementById("debug-music2-btn") as HTMLButtonElement;
 const nicknameModal = document.getElementById("nickname-modal") as HTMLDivElement;
 const nicknameInput = document.getElementById("nickname-input") as HTMLInputElement;
 const nicknameSave = document.getElementById("nickname-save") as HTMLButtonElement;
@@ -693,6 +694,13 @@ function init() {
 
   // Sound
   soundToggle.addEventListener("click", toggleSound);
+  if (debugMusic2Btn) {
+    debugMusic2Btn.addEventListener("click", () => {
+      initAudio();
+      soundManager.startGameMusic();
+      showMessage("MUSIC 2 TEST", "info");
+    });
+  }
   musicVolumeEl.addEventListener("input", () => {
     const sfx = Number(sfxVolumeEl.value) / 100;
     const music = Number(musicVolumeEl.value) / 100;
