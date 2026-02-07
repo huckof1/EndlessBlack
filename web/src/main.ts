@@ -747,6 +747,10 @@ function init() {
   langToggle.addEventListener("click", toggleLanguage);
   networkTestnetBtn.addEventListener("click", () => setNetwork("testnet"));
   networkMainnetBtn.addEventListener("click", () => setNetwork("mainnet"));
+  networkMainnetBtn.disabled = true;
+  networkMainnetBtn.style.display = "none";
+  networkMainnetBtn.setAttribute("aria-hidden", "true");
+  networkMainnetBtn.setAttribute("tabindex", "-1");
 
   // Reset demo
   resetDemoBtn.addEventListener("click", handleResetDemo);
@@ -1555,6 +1559,9 @@ function saveNickname() {
 }
 
 function setNetwork(mode: "testnet" | "mainnet") {
+  if (mode === "mainnet") {
+    mode = "testnet";
+  }
   const prevMode = networkMode;
   networkMode = mode;
   localStorage.setItem("networkMode", networkMode);
