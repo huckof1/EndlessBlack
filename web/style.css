@@ -355,15 +355,17 @@ body[data-theme="light"] .demo-badge {
 .sound-btn-wide {
   width: auto;
   min-width: 92px;
-  padding: 0 8px;
+  padding: 4px 10px;
   font-size: 10px;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
+  letter-spacing: 0.3px;
+  white-space: normal;
   text-align: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-transform: uppercase;
+  word-break: break-word;
+  line-height: 1.2;
 }
 
 .sound-btn.active {
