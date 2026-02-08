@@ -153,6 +153,7 @@ let rematchModalActive = false;
 let rematchRetryTimer: number | null = null;
 let mpPayoutBucket = parseFloat(localStorage.getItem("mpPayoutBucket") || "0") || 0;
 let mpPayoutRoom: string | null = localStorage.getItem("mpPayoutRoom");
+let mpLastWinKey: string | null = localStorage.getItem("mpLastWinKey");
 let pendingInvite: { name: string; mode: "demo" | "testnet" | "mainnet"; bet: number } | null = null;
 let pendingResume: { mode: "demo" | "chain"; game: any; gameId?: number } | null = null;
 let multiplayerRoom: string | null = null;
@@ -1551,6 +1552,19 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
       if (multiplayerRoom) {
         mpPayoutRoom = multiplayerRoom;
         localStorage.setItem("mpPayoutRoom", mpPayoutRoom);
+      }
+      if (isDemoActive() && payout > 0) {
+        const winKey = `${multiplayerRoom || "_"}:${snapshot.results?.join(",") || ""}:${snapshot.payouts?.join(",") || ""}:${snapshot.phase}:${snapshot.bet}:${snapshot.players.join(",")}`;
+        if (winKey !== mpLastWinKey) {
+          mpLastWinKey = winKey;
+          localStorage.setItem("mpLastWinKey", winKey);
+          game.addBalanceEDS(payout);
+          updateBalance().catch(() => {
+            /* ignore */
+          });
+          mpPayoutBucket = 0;
+          localStorage.setItem("mpPayoutBucket", "0");
+        }
       }
     } else if (result === 0) {
       showMessage(I18N[currentLocale].msg_rematch, "info");

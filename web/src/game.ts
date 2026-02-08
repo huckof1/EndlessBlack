@@ -113,6 +113,18 @@ export class PixelBlackjack {
         this.deck = [];
       }
     }
+    if (
+      this.currentGame &&
+      this.currentGame.isFinished &&
+      this.currentGame.payoutDue > 0 &&
+      !this.currentGame.isClaimed
+    ) {
+      this.applyPayout(this.currentGame.payoutDue);
+      this.currentGame.payoutDue = 0;
+      this.currentGame.isClaimed = true;
+      this.saveCurrentGame();
+    }
+
   }
 
   // Создание колоды
@@ -240,8 +252,9 @@ export class PixelBlackjack {
       // Выплата 2.5x
       const payout = Math.floor(netBet * 2.5);
       this.currentGame.payoutDue = payout;
-      this.currentGame.isClaimed = false;
-      this.saveBalance();
+      this.applyPayout(payout);
+      this.currentGame.payoutDue = 0;
+      this.currentGame.isClaimed = true;
 
       // Статистика
       this.stats.totalGames++;
@@ -334,7 +347,13 @@ export class PixelBlackjack {
     this.currentGame.isFinished = true;
     this.currentGame.result = result;
     this.currentGame.payoutDue = payout;
-    this.currentGame.isClaimed = false;
+    if (payout > 0) {
+      this.applyPayout(payout);
+      this.currentGame.payoutDue = 0;
+      this.currentGame.isClaimed = true;
+    } else {
+      this.currentGame.isClaimed = false;
+    }
 
     // Выплата по запросу
 
@@ -389,11 +408,10 @@ export class PixelBlackjack {
       throw new Error("Нет выплаты");
     }
     await this.delay(200);
-    this.balance += this.currentGame.payoutDue;
-    this.bankroll = Math.max(0, this.bankroll - this.currentGame.payoutDue);
-    this.saveBalance();
-    this.saveBankroll();
+    const payout = this.currentGame.payoutDue;
+    this.applyPayout(payout);
     this.currentGame.isClaimed = true;
+    this.currentGame.payoutDue = 0;
     this.saveCurrentGame();
     return this.currentGame;
   }
@@ -410,6 +428,14 @@ export class PixelBlackjack {
   // Claim on-chain (stub for integration)
   async claimPayoutOnChain(): Promise<void> {
     await this.delay(200);
+  }
+
+  private applyPayout(amount: number): void {
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    this.balance += amount;
+    this.bankroll = Math.max(0, this.bankroll - amount);
+    this.saveBalance();
+    this.saveBankroll();
   }
 
   // Сохранение статистики
