@@ -39,8 +39,8 @@ module pixel_blackjack::blackjack {
 
     ///   (0.1 EDS)
     const MIN_BET: u128 = 10000000;
-    ///   (100 EDS)
-    const MAX_BET: u128 = 10000000000;
+    ///   (10000 EDS)
+    const MAX_BET: u128 = 1000000000000;
     ///  (21)
     const BLACKJACK: u64 = 21;
     ///    17

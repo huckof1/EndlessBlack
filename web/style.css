@@ -568,7 +568,6 @@ body[data-theme="light"] .btn-small {
 }
 
 .wallet-actions {
-.wallet-actions {
   display: flex;
   justify-content: center;
   margin-top: 8px;
@@ -576,7 +575,6 @@ body[data-theme="light"] .btn-small {
   flex-wrap: wrap;
 }
 
-.wallet-item {
 .wallet-item {
   background: var(--bg-dark);
   padding: 8px 10px;
