@@ -158,7 +158,8 @@ body {
   max-width: 260px;
   margin: 0 auto 10px;
   border: 2px solid var(--gold);
-  background: var(--bg-dark);
+  border-radius: 10px;
+  background: rgba(13,13,26,0.8);
 }
 
 body[data-theme="light"] {
@@ -333,9 +334,9 @@ body[data-theme="light"] .demo-badge {
 
 .sound-btn {
   position: static;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.12));
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.15));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
   width: 30px;
   height: 30px;
   cursor: pointer;
@@ -343,7 +344,7 @@ body[data-theme="light"] .demo-badge {
   color: var(--white);
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .sound-btn-wide {
@@ -418,9 +419,9 @@ body[data-theme="light"] .header {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--bg-card);
-  border: 2px solid var(--border);
-  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(26,26,46,0.9), rgba(22,33,62,0.9));
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
   padding: 4px 8px;
 }
 
@@ -522,11 +523,13 @@ body[data-theme="light"] .btn-small {
 
 /* ==================== NAME INPUT ==================== */
 .name-section {
-  background: var(--bg-card);
-  border: 4px solid var(--secondary);
+  background: linear-gradient(180deg, #1a1a2e, #16213e);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  border-radius: 16px;
   padding: var(--section-padding);
   margin-bottom: var(--section-gap);
   text-align: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 
 .name-input-wrapper {
@@ -541,18 +544,21 @@ body[data-theme="light"] .btn-small {
   text-align: center;
   font-size: var(--font-size-body);
   padding: 12px;
-  border: 4px solid var(--gold);
-  background: var(--bg-dark);
+  border: 3px solid var(--gold);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(13,13,26,0.9), rgba(26,26,46,0.9));
   color: var(--gold);
+  box-shadow: 0 2px 10px rgba(255,215,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 /* ==================== WALLET ==================== */
 .wallet-section {
-  background: var(--bg-card);
-  border: 3px solid var(--secondary);
+  background: linear-gradient(180deg, #1a1a2e, #16213e);
+  border: 1px solid rgba(0, 217, 255, 0.2);
   padding: 8px;
   margin-bottom: 5px;
-  border-radius: 10px;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 
 .wallet-grid {
@@ -571,12 +577,12 @@ body[data-theme="light"] .btn-small {
 }
 
 .wallet-item {
-  background: var(--bg-dark);
+  background: rgba(0,0,0,0.25);
   padding: 4px 6px;
-  border: 2px solid var(--gray);
+  border: 1px solid rgba(255,255,255,0.08);
   text-align: center;
   min-height: 0;
-  border-radius: 6px;
+  border-radius: 10px;
 }
 
 .wallet-item .label {
@@ -641,12 +647,14 @@ body[data-theme="light"] .btn-small {
 }
 
 .modal-content {
-  background: var(--bg-card);
+  background: linear-gradient(180deg, #1a1a2e, #16213e);
   border: 3px solid var(--gold);
-  padding: 16px;
+  border-radius: 16px;
+  padding: 20px;
   max-width: 420px;
   width: calc(100% - 32px);
   text-align: center;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 20px rgba(255,215,0,0.1);
 }
 
 .modal-title {
@@ -672,10 +680,11 @@ body[data-theme="light"] .btn-small {
   margin: 6px auto 0;
   padding: 6px 10px;
   border: 2px solid var(--secondary);
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: var(--font-size-small);
   color: var(--secondary);
   width: fit-content;
+  background: rgba(0, 217, 255, 0.08);
 }
 
 .invite-note-inline {
@@ -686,6 +695,7 @@ body[data-theme="light"] .btn-small {
 
 .invite-banner {
   border: 3px dashed var(--secondary);
+  border-radius: 12px;
   padding: 10px;
   margin-bottom: 10px;
   background: rgba(0, 0, 0, 0.15);
@@ -915,46 +925,50 @@ body.invite-mode .mascot-right {
   font-family: 'Press Start 2P', cursive;
   font-size: var(--font-size-body);
   padding: 12px 20px;
-  border: 4px solid;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.1s;
+  transition: all 0.15s ease;
   text-transform: uppercase;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   touch-action: manipulation;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
 .btn-icon { font-size: 14px; }
 
 .btn:hover:not(:disabled) {
-  transform: translate(-2px, -2px);
-  box-shadow: 4px 4px 0 var(--white);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  filter: brightness(1.1);
 }
 
 .btn:active:not(:disabled) {
-  transform: translate(0, 0);
-  box-shadow: none;
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; filter: grayscale(0.3); }
 
 .btn-pulse {
   animation: btnPulse 0.8s ease-in-out infinite;
 }
 
 @keyframes btnPulse {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-1px, -1px) scale(1.02); }
+  0%, 100% { transform: scale(1); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+  50% { transform: scale(1.03); box-shadow: 0 6px 25px rgba(0,0,0,0.4); }
 }
 
 .btn-primary {
-  background: linear-gradient(90deg, #ff5f7a, #ffb347, #ff5f7a);
-  background-size: 200% 100%;
-  border-color: var(--white);
+  background: linear-gradient(135deg, #ff6b6b, #ffa502, #ff6b6b);
+  background-size: 200% 200%;
+  border-color: rgba(255,255,255,0.4);
   color: var(--white);
   animation: btnFlow 3s ease-in-out infinite;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 @keyframes btnFlow {
@@ -964,18 +978,31 @@ body.invite-mode .mascot-right {
 }
 
 .btn-success {
-  background: linear-gradient(180deg, var(--success) 0%, #00cc6a 100%);
-  border-color: var(--white);
-  color: var(--bg-dark);
+  background: linear-gradient(135deg, #2ed573, #7bed9f);
+  border-color: rgba(255,255,255,0.3);
+  color: #1a1a2e;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
 }
 
 .btn-action {
-  background: linear-gradient(180deg, var(--secondary) 0%, #00b0d9 100%);
-  border-color: var(--white);
-  color: var(--bg-dark);
   flex: 1;
-  min-height: 60px;
+  min-height: 56px;
   font-size: calc(var(--font-size-body) * 1.2);
+  border-radius: 14px;
+}
+
+.btn-hit {
+  background: linear-gradient(135deg, #ffa502, #ffda79);
+  border-color: rgba(255,255,255,0.3);
+  color: #1a1a2e;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.btn-stand {
+  background: linear-gradient(135deg, #e94560, #ff6b81);
+  border-color: rgba(255,255,255,0.3);
+  color: var(--white);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 .btn-claim {
@@ -1034,22 +1061,15 @@ body.invite-mode .mascot-right {
   }
 }
 
-.btn-hit {
-  background: linear-gradient(180deg, var(--success) 0%, #00cc6a 100%);
-}
-
-.btn-stand {
-  background: linear-gradient(180deg, var(--primary) 0%, #c9304a 100%);
-  color: var(--white);
-}
-
 .btn-small {
-  padding: 10px 18px;
-  font-size: 14px;
+  padding: 8px 16px;
+  font-size: 12px;
   min-width: 44px;
-  background: var(--bg-card);
-  border-color: var(--gray);
+  background: linear-gradient(135deg, #2a2a4a, #3a3a5e);
+  border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
   color: var(--white);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
 .wallet-actions .btn-small {
@@ -1061,11 +1081,13 @@ body.invite-mode .mascot-right {
 
 /* ==================== GAME AREA ==================== */
 .game-area {
-  background: var(--bg-card);
-  border: 3px solid var(--gold);
-  padding: 8px;
-  margin-bottom: 4px;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid rgba(255, 215, 0, 0.3);
+  border-radius: 16px;
+  padding: 10px;
+  margin-bottom: 6px;
   position: relative;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 
 .layout-grid {
@@ -1099,11 +1121,13 @@ body.invite-mode .mascot-right {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--bg-dark);
-  padding: 4px 10px;
+  background: linear-gradient(180deg, rgba(13,13,26,0.9), rgba(26,26,46,0.9));
+  padding: 6px 12px;
   border: 2px solid var(--gold);
+  border-radius: 12px;
   min-width: 110px;
   text-align: center;
+  box-shadow: 0 2px 10px rgba(255,215,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
 .bet-display .label,
@@ -1149,25 +1173,53 @@ body.invite-mode .mascot-right {
 
 /* Table */
 .table {
-  background: linear-gradient(180deg, #0a4d3a 0%, #0f3460 50%, #0a4d3a 100%);
-  border: 3px solid var(--gold);
-  border-radius: 60px 60px 12px 12px;
-  padding: 12px 8px;
-  min-height: 200px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.06) 0%, transparent 60%),
+    linear-gradient(180deg, #0e6b45 0%, #0a5c3b 30%, #074a30 60%, #0a5c3b 100%);
+  border: 6px solid #8b6914;
+  border-image: linear-gradient(180deg, #d4a017, #8b6914 30%, #6b4f10 60%, #8b6914) 1;
+  border-radius: 140px 140px 20px 20px;
+  border-image: none;
+  border-color: transparent;
+  padding: 18px 12px 14px;
+  min-height: 220px;
   position: relative;
-  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5), 0 4px 0 #0a2a20;
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.35),
+    inset 0 2px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 5px #8b6914,
+    0 0 0 8px #6b4f10,
+    0 0 0 10px rgba(0,0,0,0.4),
+    0 8px 30px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
 }
 
 .table::before {
-  content: "ENDLESS BLACKJACK";
+  content: "ENDLESS";
   position: absolute;
-  top: 50%;
+  top: 46%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 6px;
-  color: rgba(255, 215, 0, 0.15);
-  letter-spacing: 3px;
+  font-size: 18px;
+  font-family: 'Press Start 2P', cursive;
+  color: rgba(255, 215, 0, 0.07);
+  letter-spacing: 8px;
   white-space: nowrap;
+  pointer-events: none;
+}
+
+.table::after {
+  content: "BLOCKCHAIN";
+  position: absolute;
+  top: 54%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 9px;
+  font-family: 'Press Start 2P', cursive;
+  color: rgba(255, 215, 0, 0.05);
+  letter-spacing: 5px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .hand { margin: 6px 0; }
@@ -1189,12 +1241,13 @@ body.invite-mode .mascot-right {
 }
 
 .hand-score {
-  background: var(--bg-dark);
+  background: linear-gradient(180deg, rgba(0,0,0,0.7), rgba(0,0,0,0.5));
   color: var(--gold);
   padding: 4px 10px;
   border: 2px solid var(--gold);
-  border-radius: 4px;
+  border-radius: 10px;
   font-size: var(--font-size-small);
+  box-shadow: 0 2px 10px rgba(255,215,0,0.2), 0 2px 8px rgba(0,0,0,0.4);
 }
 
 .soft-badge {
@@ -1270,14 +1323,14 @@ body.invite-mode .mascot-right {
 .card {
   width: var(--card-width);
   height: var(--card-height);
-  border: 3px solid var(--white);
-  border-radius: 6px;
+  border: 2px solid rgba(255,255,255,0.8);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  animation: dealCard 0.3s ease-out;
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+  animation: dealCard 0.35s ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255,255,255,0.1) inset;
 }
 
 @keyframes dealCard {
@@ -1285,29 +1338,34 @@ body.invite-mode .mascot-right {
   to { transform: translateY(0) rotateY(0) scale(1); opacity: 1; }
 }
 
-.card:hover { transform: translateY(-5px) scale(1.05); z-index: 10; }
+.card:hover { transform: translateY(-6px) scale(1.06); z-index: 10; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6); }
 
-.card-red { background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%); color: var(--card-red); }
-.card-black { background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%); color: var(--card-black); }
+.card-red { background: linear-gradient(150deg, #fff 0%, #f8f8f8 50%, #f0eee8 100%); color: var(--card-red); }
+.card-black { background: linear-gradient(150deg, #fff 0%, #f8f8f8 50%, #f0eee8 100%); color: var(--card-black); }
 
 .card-back {
-  background: repeating-linear-gradient(45deg, var(--primary) 0px, var(--primary) 5px, var(--bg-dark) 5px, var(--bg-dark) 10px);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1), transparent 50%),
+    repeating-linear-gradient(45deg, #c0392b 0px, #c0392b 4px, #8b1a1a 4px, #8b1a1a 8px);
   border-color: var(--gold);
   color: var(--gold);
   font-size: calc(var(--card-width) * 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
-.card-rank { font-size: calc(var(--card-width) * 0.2); font-weight: bold; }
-.card-suit { font-size: calc(var(--card-width) * 0.3); }
+.card-rank { font-size: calc(var(--card-width) * 0.22); font-weight: bold; }
+.card-suit { font-size: calc(var(--card-width) * 0.32); }
 
 /* Message */
 .message {
   text-align: center;
-  padding: 6px 8px;
+  padding: 6px 10px;
   margin: 6px auto;
   font-size: var(--font-size-small);
-  border: 2px solid;
+  border: 1px solid;
+  border-radius: 10px;
   max-width: 95%;
+  backdrop-filter: blur(4px);
 }
 
 .message-info { background: rgba(0, 217, 255, 0.1); border-color: var(--secondary); color: var(--secondary); }
@@ -1320,6 +1378,7 @@ body.invite-mode .mascot-right {
   margin: 8px auto 0;
   font-size: var(--font-size-small);
   border: 2px dashed var(--gray);
+  border-radius: 10px;
   color: var(--gray);
   max-width: 95%;
   word-break: break-word;
@@ -1328,13 +1387,13 @@ body.invite-mode .mascot-right {
 /* Actions Bottom */
 .actions-bottom {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 10px;
   position: sticky;
   bottom: 0;
-  background: var(--bg-card);
-  padding: 6px 0;
-  border-top: 2px solid var(--gray);
+  background: linear-gradient(180deg, transparent, rgba(26,26,46,0.95) 20%);
+  padding: 10px 4px 4px;
+  border-top: none;
 }
 
 .actions-hint {
@@ -1401,6 +1460,7 @@ body.invite-mode .mascot-right {
   padding: 10px 20px;
   background: var(--white);
   border: 4px solid var(--bg-dark);
+  border-radius: 12px;
 }
 
 /* Confetti */
@@ -1428,10 +1488,12 @@ body.invite-mode .mascot-right {
 
 /* ==================== LEADERBOARD ==================== */
 .leaderboard-section, .feed-section, .stats-section, .active-players-section {
-  background: var(--bg-card);
-  border: 3px solid var(--gray);
-  padding: 8px;
-  margin-bottom: 4px;
+  background: linear-gradient(180deg, #1a1a2e, #16213e);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 10px;
+  margin-bottom: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 
 .section-title {
@@ -1452,8 +1514,9 @@ body.invite-mode .mascot-right {
   font-family: 'Press Start 2P', cursive;
   font-size: var(--font-size-small);
   padding: 5px 10px;
-  background: var(--bg-dark);
+  background: linear-gradient(180deg, rgba(13,13,26,0.8), rgba(26,26,46,0.8));
   border: 2px solid var(--gray);
+  border-radius: 8px;
   color: var(--gray);
   cursor: pointer;
   transition: all 0.2s;
@@ -1462,11 +1525,15 @@ body.invite-mode .mascot-right {
 .tab-btn.active, .tab-btn:hover {
   border-color: var(--gold);
   color: var(--gold);
+  background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,165,0,0.1));
+  box-shadow: 0 0 10px rgba(255,215,0,0.2);
 }
 
 .leaderboard {
-  background: var(--bg-dark);
-  border: 2px solid var(--gray);
+  background: linear-gradient(180deg, rgba(13,13,26,0.8), rgba(26,26,46,0.6));
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .leaderboard-header {
@@ -1474,7 +1541,7 @@ body.invite-mode .mascot-right {
   grid-template-columns: 30px 1fr 50px 70px;
   gap: 4px;
   padding: 6px 8px;
-  background: var(--bg-card);
+  background: linear-gradient(180deg, rgba(26,26,46,0.9), rgba(22,33,62,0.9));
   font-size: var(--font-size-small);
   color: var(--gray);
 }
@@ -1512,8 +1579,9 @@ body.invite-mode .mascot-right {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: var(--bg-dark);
-  border: 2px solid var(--gray);
+  background: linear-gradient(180deg, rgba(13,13,26,0.8), rgba(26,26,46,0.6));
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
   padding: 6px;
   max-height: 100px;
   overflow-y: auto;
@@ -1544,13 +1612,15 @@ body.invite-mode .mascot-right {
 }
 
 .stat-item {
-  background: var(--bg-dark);
-  padding: 4px 4px;
+  background: linear-gradient(180deg, rgba(13,13,26,0.8), rgba(26,26,46,0.8));
+  padding: 6px 4px;
   text-align: center;
   border: 2px solid var(--gray);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .stat-icon { font-size: 11px; }
@@ -1577,8 +1647,9 @@ body.invite-mode .mascot-right {
 }
 
 .active-player {
-  background: var(--bg-dark);
+  background: linear-gradient(180deg, rgba(13,13,26,0.8), rgba(26,26,46,0.8));
   border: 2px solid var(--gray);
+  border-radius: 10px;
   padding: 4px 8px;
   display: flex;
   align-items: center;
@@ -1613,9 +1684,13 @@ body.invite-mode .mascot-right {
 /* ==================== FOOTER ==================== */
 .footer {
   text-align: center;
-  padding: 12px 10px;
-  border-top: 3px solid var(--gray);
-  background: var(--bg-card);
+  padding: 14px 12px;
+  border-top: none;
+  background: linear-gradient(180deg, #1a1a2e, #16213e);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  margin-top: 8px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 
 .footer-brand { margin-bottom: 6px; }
@@ -1638,11 +1713,12 @@ body.invite-mode .mascot-right {
   justify-content: center;
   width: 44px;
   height: 44px;
-  background: var(--bg-dark);
-  border: 3px solid var(--gray);
-  border-radius: 8px;
+  background: linear-gradient(135deg, #2a2a4a, #3a3a5e);
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
   color: var(--white);
   transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .social-link:hover {
@@ -1704,9 +1780,9 @@ body.invite-mode .mascot-right {
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--bg-dark); }
-::-webkit-scrollbar-thumb { background: var(--primary); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(13,13,26,0.5); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--primary), var(--gold)); border-radius: 3px; }
 
 /* Safe Area */
 @supports (padding: max(0px)) {
