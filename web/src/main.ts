@@ -1854,7 +1854,7 @@ async function handleHit() {
 
     if (isDemoActive()) {
       const gameState = await game.hit();
-      await renderGame(gameState);
+      await renderHitCard(gameState);
       hitBtn.classList.remove("btn-pulse");
 
       if (gameState.playerScore > 21) {
@@ -1878,7 +1878,7 @@ async function handleHit() {
       await hitOnChain(chainGameId || 0, networkMode);
       setTxStatus(I18N[currentLocale].tx_submitted);
       chainGame = await getGame(chainGameId || 0, networkMode);
-      await renderGame(chainGame);
+      await renderHitCard(chainGame);
       hitBtn.classList.remove("btn-pulse");
 
       if (chainGame.playerScore > 21) {
@@ -1935,7 +1935,7 @@ async function handleStand() {
 
     if (isDemoActive()) {
       const gameState = await game.stand();
-      await renderGame(gameState, true);
+      await renderDealerReveal(gameState);
       standBtn.classList.remove("btn-pulse");
 
       const result = gameState.result;
@@ -1967,7 +1967,7 @@ async function handleStand() {
       await standOnChain(chainGameId || 0, networkMode);
       setTxStatus(I18N[currentLocale].tx_submitted);
       chainGame = await getGame(chainGameId || 0, networkMode);
-      await renderGame(chainGame, true);
+      await renderDealerReveal(chainGame);
       standBtn.classList.remove("btn-pulse");
 
       const result = chainGame.result;
@@ -2087,14 +2087,18 @@ function endGame() {
 }
 
 // ==================== RENDER ====================
+
+// Полный рендер начальной раздачи (только для startGame)
 async function renderGame(gameState: any, showDealerCards = false) {
   playerCardsEl.innerHTML = "";
   dealerCardsEl.innerHTML = "";
 
+  // Показываем карты игрока по одной, обновляя счёт после каждой
   for (let i = 0; i < gameState.playerCards.length; i++) {
     await delay(PLAYER_CARD_REVEAL_DELAY);
     playSound("deal");
     playerCardsEl.appendChild(renderCard(gameState.playerCards[i]));
+    playerScoreEl.textContent = mpScore(gameState.playerCards.slice(0, i + 1)).toString();
   }
 
   if (showDealerCards || gameState.isFinished) {
@@ -2102,8 +2106,8 @@ async function renderGame(gameState: any, showDealerCards = false) {
       await delay(DEALER_CARD_REVEAL_DELAY);
       playSound("deal");
       dealerCardsEl.appendChild(renderCard(gameState.dealerCards[i]));
+      dealerScoreEl.textContent = mpScore(gameState.dealerCards.slice(0, i + 1)).toString();
     }
-    dealerScoreEl.textContent = gameState.dealerScore.toString();
   } else {
     await delay(DEALER_CARD_REVEAL_DELAY);
     playSound("deal");
@@ -2113,8 +2117,28 @@ async function renderGame(gameState: any, showDealerCards = false) {
     dealerCardsEl.appendChild(renderCardBack());
     dealerScoreEl.textContent = "?";
   }
+}
 
+// Добавить одну карту игроку (для Hit) — без перерисовки всех карт
+async function renderHitCard(gameState: any) {
+  const newCard = gameState.playerCards[gameState.playerCards.length - 1];
+  await delay(PLAYER_CARD_REVEAL_DELAY);
+  playSound("deal");
+  playerCardsEl.appendChild(renderCard(newCard));
   playerScoreEl.textContent = gameState.playerScore.toString();
+}
+
+// Раскрыть карты дилера пошагово (для Stand)
+async function renderDealerReveal(gameState: any) {
+  // Убираем текущие карты дилера (первая + рубашка)
+  dealerCardsEl.innerHTML = "";
+  // Показываем все карты дилера по одной с обновлением счёта
+  for (let i = 0; i < gameState.dealerCards.length; i++) {
+    await delay(DEALER_CARD_REVEAL_DELAY);
+    playSound("deal");
+    dealerCardsEl.appendChild(renderCard(gameState.dealerCards[i]));
+    dealerScoreEl.textContent = mpScore(gameState.dealerCards.slice(0, i + 1)).toString();
+  }
 }
 
 function renderCard(card: { suit: number; rank: number }): HTMLDivElement {
