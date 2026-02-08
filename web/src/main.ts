@@ -64,6 +64,9 @@ const opponentCardsEl = document.getElementById("opponent-cards") as HTMLDivElem
 const dealerScoreEl = document.getElementById("dealer-score") as HTMLSpanElement;
 const playerScoreEl = document.getElementById("player-score") as HTMLSpanElement;
 const playerHandNameEl = document.getElementById("player-hand-name") as HTMLSpanElement;
+const softBadge = document.getElementById("soft-badge") as HTMLSpanElement;
+const scoreHint = document.getElementById("score-hint") as HTMLDivElement;
+const dealerHint = document.getElementById("dealer-hint") as HTMLSpanElement;
 const opponentScoreEl = document.getElementById("opponent-score") as HTMLSpanElement;
 const opponentHandEl = document.getElementById("opponent-hand") as HTMLDivElement;
 const opponentNameEl = document.getElementById("opponent-name") as HTMLSpanElement;
@@ -1229,6 +1232,104 @@ function mpScore(cards: { suit: number; rank: number }[]): number {
   return score;
 }
 
+// Анализ руки: soft/hard, подсказки
+interface HandInfo {
+  score: number;
+  isSoft: boolean;       // есть туз, считающийся как 11
+  aceCount: number;      // кол-во тузов
+  acesReduced: number;   // тузов, ставших 1
+}
+
+function analyzeHand(cards: { suit: number; rank: number }[]): HandInfo {
+  let score = 0;
+  let aces = 0;
+  for (const card of cards) {
+    if (card.rank === 1) { aces++; score += 11; }
+    else if (card.rank >= 10) { score += 10; }
+    else { score += card.rank; }
+  }
+  let reduced = 0;
+  while (reduced < aces && score > 21) {
+    score -= 10;
+    reduced++;
+  }
+  return { score, isSoft: aces > reduced && score <= 21, aceCount: aces, acesReduced: reduced };
+}
+
+let prevHandInfo: HandInfo | null = null;
+
+function updatePlayerHints(cards: { suit: number; rank: number }[]) {
+  const info = analyzeHand(cards);
+  const prev = prevHandInfo;
+  prevHandInfo = info;
+
+  // SOFT badge
+  if (softBadge) {
+    softBadge.style.display = info.isSoft ? "inline-block" : "none";
+    softBadge.textContent = info.isSoft ? "SOFT" : "";
+  }
+
+  if (!scoreHint) return;
+
+  // Туз только что сменил значение (был soft, стал hard)
+  if (prev && prev.isSoft && !info.isSoft && info.acesReduced > prev.acesReduced) {
+    scoreHint.style.display = "block";
+    scoreHint.className = "score-hint hint-ace";
+    scoreHint.textContent = currentLocale === "ru"
+      ? `A: 11→1 (иначе перебор)`
+      : `Ace: 11→1 (would bust)`;
+    return;
+  }
+
+  // Подсказки по счёту
+  if (info.score > 21) {
+    scoreHint.style.display = "block";
+    scoreHint.className = "score-hint hint-danger";
+    scoreHint.textContent = currentLocale === "ru" ? "ПЕРЕБОР! Более 21" : "BUST! Over 21";
+  } else if (info.score === 21) {
+    scoreHint.style.display = "block";
+    scoreHint.className = "score-hint hint-safe";
+    scoreHint.textContent = currentLocale === "ru" ? "21! Идеально!" : "21! Perfect!";
+  } else if (info.score >= 17) {
+    scoreHint.style.display = "block";
+    scoreHint.className = "score-hint hint-warning";
+    scoreHint.textContent = currentLocale === "ru"
+      ? "Рискованно брать ещё"
+      : "Risky to hit";
+  } else if (info.score >= 13 && info.score <= 16) {
+    scoreHint.style.display = "block";
+    scoreHint.className = "score-hint hint-warning";
+    scoreHint.textContent = currentLocale === "ru"
+      ? "Опасная зона — подумай"
+      : "Danger zone — think";
+  } else if (info.isSoft) {
+    scoreHint.style.display = "block";
+    scoreHint.className = "score-hint hint-ace";
+    scoreHint.textContent = currentLocale === "ru"
+      ? `Мягкая рука: туз = 11 (безопасно брать)`
+      : `Soft hand: ace = 11 (safe to hit)`;
+  } else {
+    scoreHint.style.display = "none";
+  }
+}
+
+function showDealerHint(show: boolean) {
+  if (!dealerHint) return;
+  if (show) {
+    dealerHint.style.display = "inline-block";
+    dealerHint.textContent = currentLocale === "ru" ? "берёт до 17" : "stands on 17";
+  } else {
+    dealerHint.style.display = "none";
+  }
+}
+
+function hidePlayerHints() {
+  prevHandInfo = null;
+  if (softBadge) softBadge.style.display = "none";
+  if (scoreHint) scoreHint.style.display = "none";
+  if (dealerHint) dealerHint.style.display = "none";
+}
+
 function mpDraw(deck: { suit: number; rank: number }[]) {
   if (deck.length === 0) {
     deck.push(...mpCreateDeck());
@@ -1703,6 +1804,7 @@ async function handleStartGame() {
   scrollToGameArea();
   hasGameResult = false;
   hideGameResult();
+  hidePlayerHints();
   initAudio();
   startGameMusic();
   if (!isSessionStarted) {
@@ -2120,13 +2222,17 @@ function endGame() {
 async function renderGame(gameState: any, showDealerCards = false) {
   playerCardsEl.innerHTML = "";
   dealerCardsEl.innerHTML = "";
+  hidePlayerHints();
+  prevHandInfo = null;
 
-  // Показываем карты игрока по одной, обновляя счёт после каждой
+  // Показываем карты игрока по одной, обновляя счёт и подсказки
   for (let i = 0; i < gameState.playerCards.length; i++) {
     await delay(PLAYER_CARD_REVEAL_DELAY);
     playSound("deal");
     playerCardsEl.appendChild(renderCard(gameState.playerCards[i]));
-    playerScoreEl.textContent = mpScore(gameState.playerCards.slice(0, i + 1)).toString();
+    const partial = gameState.playerCards.slice(0, i + 1);
+    playerScoreEl.textContent = mpScore(partial).toString();
+    updatePlayerHints(partial);
   }
 
   if (showDealerCards || gameState.isFinished) {
@@ -2154,10 +2260,12 @@ async function renderHitCard(gameState: any) {
   playSound("deal");
   playerCardsEl.appendChild(renderCard(newCard));
   playerScoreEl.textContent = gameState.playerScore.toString();
+  updatePlayerHints(gameState.playerCards);
 }
 
 // Раскрыть карты дилера пошагово (для Stand)
 async function renderDealerReveal(gameState: any) {
+  showDealerHint(true);
   // Убираем текущие карты дилера (первая + рубашка)
   dealerCardsEl.innerHTML = "";
   // Показываем все карты дилера по одной с обновлением счёта
@@ -2167,6 +2275,7 @@ async function renderDealerReveal(gameState: any) {
     dealerCardsEl.appendChild(renderCard(gameState.dealerCards[i]));
     dealerScoreEl.textContent = mpScore(gameState.dealerCards.slice(0, i + 1)).toString();
   }
+  showDealerHint(false);
 }
 
 function renderCard(card: { suit: number; rank: number }): HTMLDivElement {
