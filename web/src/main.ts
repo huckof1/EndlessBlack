@@ -915,7 +915,11 @@ function init() {
 
   // Load locale/theme
   const savedLocale = localStorage.getItem("locale");
-  currentLocale = savedLocale === "ru" ? "ru" : "en";
+  if (savedLocale) {
+    currentLocale = savedLocale === "ru" ? "ru" : "en";
+  } else {
+    currentLocale = navigator.language.startsWith("ru") ? "ru" : "en";
+  }
   const savedTheme = localStorage.getItem("theme");
   currentTheme = savedTheme === "light" ? "light" : "dark";
   networkMode = "testnet";
@@ -1176,6 +1180,7 @@ function applyI18n() {
   langIcon.textContent = currentLocale.toUpperCase();
   setWalletStatus(Boolean(walletAddress));
   showInviteBanner();
+  refreshHintsLocale();
   updateUI();
 }
 
@@ -1257,8 +1262,10 @@ function analyzeHand(cards: { suit: number; rank: number }[]): HandInfo {
 }
 
 let prevHandInfo: HandInfo | null = null;
+let currentPlayerCards: { suit: number; rank: number }[] = [];
 
 function updatePlayerHints(cards: { suit: number; rank: number }[]) {
+  currentPlayerCards = cards;
   const info = analyzeHand(cards);
   const prev = prevHandInfo;
   prevHandInfo = info;
@@ -1325,9 +1332,37 @@ function showDealerHint(show: boolean) {
 
 function hidePlayerHints() {
   prevHandInfo = null;
+  currentPlayerCards = [];
   if (softBadge) softBadge.style.display = "none";
   if (scoreHint) scoreHint.style.display = "none";
   if (dealerHint) dealerHint.style.display = "none";
+}
+
+function refreshHintsLocale() {
+  // Обновить подсказки при смене языка
+  if (currentPlayerCards.length > 0 && scoreHint && scoreHint.style.display !== "none") {
+    const info = analyzeHand(currentPlayerCards);
+    if (info.score > 21) {
+      scoreHint.textContent = currentLocale === "ru" ? "ПЕРЕБОР! Более 21" : "BUST! Over 21";
+    } else if (info.score === 21) {
+      scoreHint.textContent = currentLocale === "ru" ? "21! Идеально!" : "21! Perfect!";
+    } else if (info.score >= 17) {
+      scoreHint.textContent = currentLocale === "ru" ? "Рискованно брать ещё" : "Risky to hit";
+    } else if (info.score >= 13 && info.score <= 16) {
+      scoreHint.textContent = currentLocale === "ru" ? "Опасная зона — подумай" : "Danger zone — think";
+    } else if (info.isSoft) {
+      scoreHint.textContent = currentLocale === "ru"
+        ? "Мягкая рука: туз = 11 (безопасно брать)"
+        : "Soft hand: ace = 11 (safe to hit)";
+    } else if (prevHandInfo && !info.isSoft && info.acesReduced > 0) {
+      scoreHint.textContent = currentLocale === "ru"
+        ? "A: 11→1 (иначе перебор)"
+        : "Ace: 11→1 (would bust)";
+    }
+  }
+  if (dealerHint && dealerHint.style.display !== "none") {
+    dealerHint.textContent = currentLocale === "ru" ? "берёт до 17" : "stands on 17";
+  }
 }
 
 function mpDraw(deck: { suit: number; rank: number }[]) {
