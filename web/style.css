@@ -983,6 +983,34 @@ body.invite-mode .mascot-right {
   width: 100%;
 }
 
+.continue-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.game-result-amount {
+  font-family: 'Press Start 2P', cursive;
+  font-size: var(--font-size-body);
+  font-weight: bold;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.game-result-amount.result-win {
+  color: var(--success);
+}
+
+.game-result-amount.result-lose {
+  color: var(--error);
+}
+
+.game-result-amount.result-draw {
+  color: var(--gold);
+}
+
 .payout-due {
   margin-top: 8px;
   text-align: center;

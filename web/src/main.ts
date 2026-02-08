@@ -83,6 +83,7 @@ const soundToggle = document.getElementById("sound-toggle") as HTMLButtonElement
 const homeBtn = document.getElementById("home-btn") as HTMLButtonElement;
 const soundIcon = document.getElementById("sound-icon") as HTMLSpanElement;
 const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement;
+const gameResultAmount = document.getElementById("game-result-amount") as HTMLSpanElement;
 const rematchBtn = document.getElementById("rematch-btn") as HTMLButtonElement;
 const themeToggle = document.getElementById("theme-toggle") as HTMLButtonElement;
 const themeIcon = document.getElementById("theme-icon") as HTMLSpanElement;
@@ -1701,6 +1702,7 @@ function scrollToGameArea() {
 async function handleStartGame() {
   scrollToGameArea();
   hasGameResult = false;
+  hideGameResult();
   initAudio();
   startGameMusic();
   if (!isSessionStarted) {
@@ -1957,6 +1959,7 @@ async function handleStand() {
         );
         showMessage(I18N[currentLocale].msg_draw, "info");
         addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
+        showGameResult(0, "draw");
         updateUI();
         endGame();
       } else if (result === 4) {
@@ -1989,6 +1992,7 @@ async function handleStand() {
         );
         showMessage(I18N[currentLocale].msg_draw, "info");
         addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
+        showGameResult(0, "draw");
         updateUI();
         endGame();
       } else if (result === 4) {
@@ -2004,6 +2008,27 @@ async function handleStand() {
 }
 
 // ==================== EFFECTS ====================
+
+function showGameResult(amount: number, type: "win" | "lose" | "draw") {
+  if (!gameResultAmount) return;
+  gameResultAmount.style.display = "inline-block";
+  if (type === "win") {
+    gameResultAmount.textContent = `+${formatEDS(amount)}`;
+    gameResultAmount.className = "game-result-amount result-win";
+  } else if (type === "lose") {
+    gameResultAmount.textContent = `-${formatEDS(amount)}`;
+    gameResultAmount.className = "game-result-amount result-lose";
+  } else {
+    gameResultAmount.textContent = `0 EDS`;
+    gameResultAmount.className = "game-result-amount result-draw";
+  }
+}
+
+function hideGameResult() {
+  if (!gameResultAmount) return;
+  gameResultAmount.style.display = "none";
+}
+
 async function showWinEffect(bet: number) {
   playSound("win");
   const payout = bet * 2;
@@ -2012,6 +2037,7 @@ async function showWinEffect(bet: number) {
   setMascotState("excited", "🎉", I18N[currentLocale].msg_win);
   createConfetti();
   addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_win} ${formatEDS(payout - bet)}`);
+  showGameResult(payout - bet, "win");
 
   await delay(2200);
   winEffect.style.display = "none";
@@ -2026,6 +2052,7 @@ async function showLoseEffect(bet: number) {
   loseEffect.style.display = "flex";
   setMascotState("sad", "😭", currentLocale === "ru" ? "В следующий раз!" : "Better luck next time!");
   addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_lose} ${formatEDS(bet)}`);
+  showGameResult(bet, "lose");
 
   await delay(1800);
   loseEffect.style.display = "none";
@@ -2042,6 +2069,7 @@ async function showBlackjackEffect(bet: number) {
   setMascotState("excited", "🤩", I18N[currentLocale].msg_blackjack);
   createConfetti();
   addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_blackjack} ${formatEDS(payout - bet)}`);
+  showGameResult(payout - bet, "win");
 
   await delay(2600);
   blackjackEffect.style.display = "none";
