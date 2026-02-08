@@ -1705,7 +1705,12 @@ function validateBet() {
 }
 
 // ==================== GAME ====================
+function scrollToGameArea() {
+  if (!gameArea) return;
+  gameArea.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 async function handleStartGame() {
+  scrollToGameArea();
   hasGameResult = false;
   initAudio();
   startGameMusic();
