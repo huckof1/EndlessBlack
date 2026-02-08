@@ -98,7 +98,6 @@ const feedEl = document.getElementById("feed") as HTMLDivElement;
 const feedSection = document.getElementById("feed-section") as HTMLDivElement;
 const activePlayersEl = document.getElementById("active-players") as HTMLDivElement;
 const resetDemoBtn = document.getElementById("reset-demo-btn") as HTMLButtonElement;
-const inviteBtn = document.getElementById("invite-btn") as HTMLButtonElement;
 const inviteBtnHeader = document.getElementById("invite-btn-header") as HTMLButtonElement;
 const inviteNoteHeader = document.getElementById("invite-note-header") as HTMLSpanElement;
 const inviteNote = document.getElementById("invite-note") as HTMLDivElement;
@@ -798,16 +797,6 @@ function init() {
 
   // Reset demo
   resetDemoBtn.addEventListener("click", handleResetDemo);
-  inviteBtn.addEventListener("click", () => {
-    if (inviteModal) {
-      rematchModalActive = false;
-      if (inviteModalTitle) inviteModalTitle.textContent = I18N[currentLocale].invite_modal_title;
-      if (inviteModalText) inviteModalText.textContent = I18N[currentLocale].invite_modal_text;
-      if (inviteBetConfirm) inviteBetConfirm.textContent = I18N[currentLocale].invite_modal_send;
-      inviteBetInput.value = betInput.value || "1";
-      inviteModal.style.display = "flex";
-    }
-  });
   inviteBtnHeader.addEventListener("click", () => {
     if (inviteModal) {
       rematchModalActive = false;
