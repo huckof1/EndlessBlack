@@ -134,6 +134,9 @@ const statBlackjacks = document.getElementById("stat-blackjacks") as HTMLSpanEle
 const statWinrate = document.getElementById("stat-winrate") as HTMLSpanElement;
 const statProfit = document.getElementById("stat-profit") as HTMLSpanElement;
 
+const PLAYER_CARD_REVEAL_DELAY = 220;
+const DEALER_CARD_REVEAL_DELAY = 260;
+
 // ==================== STATE ====================
 let playerName = "";
 let isPlaying = false;
@@ -489,7 +492,7 @@ const I18N = {
     msg_perfect_21: "Perfect 21!",
     msg_standing_21: "21! STANDING...",
     msg_error: "ERROR!",
-    msg_draw: "DRAW - BET RETURNED",
+    msg_draw: "DRAW — BET RETURNED. TAP CONTINUE TO REMATCH",
     msg_win: "YOU WIN!",
     msg_lose: "YOU LOSE",
     msg_winner: "Winner: {name}",
@@ -624,7 +627,7 @@ const I18N = {
     msg_perfect_21: "Идеальные 21!",
     msg_standing_21: "21! СТОП...",
     msg_error: "ОШИБКА!",
-    msg_draw: "НИЧЬЯ — СТАВКА ВОЗВРАЩЕНА",
+    msg_draw: "НИЧЬЯ — СТАВКА ВОЗВРАЩЕНА. НАЖМИ CONTINUE ДЛЯ ПОВТОРА",
     msg_win: "ПОБЕДА!",
     msg_lose: "ПРОИГРЫШ",
     msg_winner: "Победитель: {name}",
@@ -1953,13 +1956,15 @@ async function handleStand() {
       } else if (result === 3) {
         setTurn(null);
         playSound("chip");
-        setMascotState("thinking", "🤷", currentLocale === "ru" ? "Ничья!" : "It's a tie!");
-        showMessage(I18N[currentLocale].msg_rematch, "info");
+        setMascotState(
+          "thinking",
+          "🤷",
+          currentLocale === "ru" ? "Ничья! Нажми CONTINUE для переигрыша" : "It's a tie! Tap Continue to rematch"
+        );
+        showMessage(I18N[currentLocale].msg_draw, "info");
         addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
-        await delay(900);
         updateUI();
         endGame();
-        handleStartGame();
       } else if (result === 4) {
         await showBlackjackEffect(bet);
       }
@@ -1983,13 +1988,15 @@ async function handleStand() {
       } else if (result === 3) {
         setTurn(null);
         playSound("chip");
-        setMascotState("thinking", "🤷", currentLocale === "ru" ? "Ничья!" : "It's a tie!");
-        showMessage(I18N[currentLocale].msg_rematch, "info");
+        setMascotState(
+          "thinking",
+          "🤷",
+          currentLocale === "ru" ? "Ничья! Нажми CONTINUE для переигрыша" : "It's a tie! Tap Continue to rematch"
+        );
+        showMessage(I18N[currentLocale].msg_draw, "info");
         addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
-        await delay(900);
         updateUI();
         endGame();
-        handleStartGame();
       } else if (result === 4) {
         await showBlackjackEffect(bet);
       }
@@ -2091,23 +2098,23 @@ async function renderGame(gameState: any, showDealerCards = false) {
   dealerCardsEl.innerHTML = "";
 
   for (let i = 0; i < gameState.playerCards.length; i++) {
-    await delay(120);
+    await delay(PLAYER_CARD_REVEAL_DELAY);
     playSound("deal");
     playerCardsEl.appendChild(renderCard(gameState.playerCards[i]));
   }
 
   if (showDealerCards || gameState.isFinished) {
     for (let i = 0; i < gameState.dealerCards.length; i++) {
-      await delay(140);
+      await delay(DEALER_CARD_REVEAL_DELAY);
       playSound("deal");
       dealerCardsEl.appendChild(renderCard(gameState.dealerCards[i]));
     }
     dealerScoreEl.textContent = gameState.dealerScore.toString();
   } else {
-    await delay(120);
+    await delay(DEALER_CARD_REVEAL_DELAY);
     playSound("deal");
     dealerCardsEl.appendChild(renderCard(gameState.dealerCards[0]));
-    await delay(120);
+    await delay(DEALER_CARD_REVEAL_DELAY);
     playSound("deal");
     dealerCardsEl.appendChild(renderCardBack());
     dealerScoreEl.textContent = "?";
