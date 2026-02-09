@@ -1,7 +1,7 @@
-name: Deploy Blackjack Contract to Endless Testnet
-
-  on:
-    workflow_dispatch:
+name: Deploy Blackjack Contract to Endless Testnet                                                                                                                 
+                                                                                   
+  on:                                                                                                                                                                
+    workflow_dispatch:                                                                                                                                               
       inputs:
         confirm:
           description: 'Type "deploy" to confirm deployment'
