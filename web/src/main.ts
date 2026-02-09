@@ -420,6 +420,10 @@ interface LeaderboardEntry {
   losses: number;
   profit: number;
   lastPlayed: number;
+  dailyWins: number;
+  dailyLosses: number;
+  dailyProfit: number;
+  dailyDate: string; // "YYYY-MM-DD"
 }
 
 interface FeedItem {
@@ -428,12 +432,13 @@ interface FeedItem {
 }
 
 // Fake players for demo
+const todayStr = new Date().toISOString().slice(0, 10);
 const FAKE_PLAYERS: LeaderboardEntry[] = [
-  { name: "CryptoKing", wins: 45, losses: 32, profit: 125.5, lastPlayed: Date.now() - 60000 },
-  { name: "LuckyAce", wins: 38, losses: 28, profit: 89.2, lastPlayed: Date.now() - 120000 },
-  { name: "PixelPro", wins: 29, losses: 35, profit: -12.8, lastPlayed: Date.now() - 180000 },
-  { name: "Web3Wizard", wins: 52, losses: 41, profit: 156.3, lastPlayed: Date.now() - 30000 },
-  { name: "CardShark", wins: 33, losses: 30, profit: 45.0, lastPlayed: Date.now() - 90000 },
+  { name: "CryptoKing", wins: 45, losses: 32, profit: 125.5, lastPlayed: Date.now() - 60000, dailyWins: 5, dailyLosses: 3, dailyProfit: 18.2, dailyDate: todayStr },
+  { name: "LuckyAce", wins: 38, losses: 28, profit: 89.2, lastPlayed: Date.now() - 120000, dailyWins: 3, dailyLosses: 2, dailyProfit: 12.0, dailyDate: todayStr },
+  { name: "PixelPro", wins: 29, losses: 35, profit: -12.8, lastPlayed: Date.now() - 180000, dailyWins: 1, dailyLosses: 4, dailyProfit: -8.5, dailyDate: todayStr },
+  { name: "Web3Wizard", wins: 52, losses: 41, profit: 156.3, lastPlayed: Date.now() - 30000, dailyWins: 7, dailyLosses: 2, dailyProfit: 32.1, dailyDate: todayStr },
+  { name: "CardShark", wins: 33, losses: 30, profit: 45.0, lastPlayed: Date.now() - 90000, dailyWins: 2, dailyLosses: 3, dailyProfit: -4.0, dailyDate: todayStr },
 ];
 const DEMO_PLAYERS = DEMO_MODE ? FAKE_PLAYERS : [];
 
@@ -2800,12 +2805,30 @@ async function handleClaim() {
 // ==================== LEADERBOARD ====================
 function getLeaderboard(): LeaderboardEntry[] {
   if (!isDemoActive()) return [];
+  const today = new Date().toISOString().slice(0, 10);
   const saved = localStorage.getItem("leaderboard");
   if (saved) {
-    const entries = JSON.parse(saved).map((entry: LeaderboardEntry) => ({
-      ...entry,
-      lastPlayed: entry.lastPlayed ?? 0,
-    }));
+    const entries = JSON.parse(saved).map((entry: any) => {
+      const e: LeaderboardEntry = {
+        name: entry.name,
+        wins: entry.wins ?? 0,
+        losses: entry.losses ?? 0,
+        profit: entry.profit ?? 0,
+        lastPlayed: entry.lastPlayed ?? 0,
+        dailyWins: entry.dailyWins ?? 0,
+        dailyLosses: entry.dailyLosses ?? 0,
+        dailyProfit: entry.dailyProfit ?? 0,
+        dailyDate: entry.dailyDate ?? "",
+      };
+      // Reset daily stats if date changed
+      if (e.dailyDate !== today) {
+        e.dailyWins = 0;
+        e.dailyLosses = 0;
+        e.dailyProfit = 0;
+        e.dailyDate = today;
+      }
+      return e;
+    });
     return [...entries, ...DEMO_PLAYERS];
   }
   return [...DEMO_PLAYERS];
@@ -2815,31 +2838,66 @@ function updateLeaderboardEntry() {
   if (!isDemoActive()) return;
   if (!playerName) return;
 
+  const today = new Date().toISOString().slice(0, 10);
   const leaderboard = JSON.parse(localStorage.getItem("leaderboard") || "[]");
   const stats = game.getCurrentStats();
 
   let entry = leaderboard.find((e: LeaderboardEntry) => e.name === playerName);
   if (!entry) {
-    entry = { name: playerName, wins: 0, losses: 0, profit: 0, lastPlayed: Date.now() };
+    entry = {
+      name: playerName, wins: 0, losses: 0, profit: 0, lastPlayed: Date.now(),
+      dailyWins: 0, dailyLosses: 0, dailyProfit: 0, dailyDate: today,
+    };
     leaderboard.push(entry);
   }
 
+  // Reset daily if new day
+  if (entry.dailyDate !== today) {
+    entry.dailyWins = 0;
+    entry.dailyLosses = 0;
+    entry.dailyProfit = 0;
+    entry.dailyDate = today;
+  }
+
+  // Calculate deltas from previous all-time values
+  const prevWins = entry.wins || 0;
+  const prevLosses = entry.losses || 0;
+  const prevProfit = entry.profit || 0;
+
+  // Update all-time
   entry.wins = stats.wins;
   entry.losses = stats.losses;
   entry.profit = (stats.totalWon - stats.totalLost) / 100000000;
   entry.lastPlayed = Date.now();
+
+  // Update daily with deltas
+  const deltaWins = entry.wins - prevWins;
+  const deltaLosses = entry.losses - prevLosses;
+  const deltaProfit = entry.profit - prevProfit;
+
+  entry.dailyWins = (entry.dailyWins || 0) + deltaWins;
+  entry.dailyLosses = (entry.dailyLosses || 0) + deltaLosses;
+  entry.dailyProfit = Math.round(((entry.dailyProfit || 0) + deltaProfit) * 100) / 100;
 
   localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
 }
 
 function renderLeaderboard() {
   const all = getLeaderboard();
-  const now = Date.now();
-  const dayMs = 24 * 60 * 60 * 1000;
-  const filtered = activeLeaderboardTab === "daily"
-    ? all.filter(entry => now - entry.lastPlayed <= dayMs)
+  const today = new Date().toISOString().slice(0, 10);
+  const isDaily = activeLeaderboardTab === "daily";
+
+  // For daily: filter only players who played today and have daily activity
+  const filtered = isDaily
+    ? all.filter(entry => entry.dailyDate === today && (entry.dailyWins > 0 || entry.dailyLosses > 0))
     : all;
-  const sorted = filtered.sort((a, b) => b.profit - a.profit);
+
+  // Sort by appropriate profit
+  const sorted = filtered.sort((a, b) => {
+    const profitA = isDaily ? (a.dailyProfit || 0) : a.profit;
+    const profitB = isDaily ? (b.dailyProfit || 0) : b.profit;
+    return profitB - profitA;
+  });
   const top10 = sorted.slice(0, 10);
 
   if (top10.length === 0) {
@@ -2857,14 +2915,16 @@ function renderLeaderboard() {
   leaderboardList.innerHTML = top10.map((entry, i) => {
     const isCurrentPlayer = entry.name === playerName;
     const rankClass = i === 0 ? "rank-1" : i === 1 ? "rank-2" : i === 2 ? "rank-3" : "";
-    const profitClass = entry.profit < 0 ? "negative" : "";
+    const wins = isDaily ? (entry.dailyWins || 0) : entry.wins;
+    const profit = isDaily ? (entry.dailyProfit || 0) : entry.profit;
+    const profitClass = profit < 0 ? "negative" : "";
 
     return `
       <div class="lb-row ${rankClass} ${isCurrentPlayer ? "current-player" : ""}">
         <span class="lb-rank">${i + 1}</span>
         <span class="lb-name">${entry.name}</span>
-        <span class="lb-wins">${entry.wins}</span>
-        <span class="lb-profit ${profitClass}">${entry.profit >= 0 ? "+" : ""}${entry.profit.toFixed(1)}</span>
+        <span class="lb-wins">${wins}</span>
+        <span class="lb-profit ${profitClass}">${profit >= 0 ? "+" : ""}${profit.toFixed(1)}</span>
       </div>
     `;
   }).join("");
