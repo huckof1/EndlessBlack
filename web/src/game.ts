@@ -249,8 +249,8 @@ export class PixelBlackjack {
       this.currentGame.isFinished = true;
       this.currentGame.result = 4; // Блэкджек
 
-      // Выплата 2.5x
-      const payout = Math.floor(netBet * 2.5);
+      // Выплата 2.5x (от полной ставки, комиссия уже снята отдельно)
+      const payout = Math.floor(betAmount * 2.5);
       this.currentGame.payoutDue = payout;
       this.applyPayout(payout);
       this.currentGame.payoutDue = 0;
@@ -321,7 +321,6 @@ export class PixelBlackjack {
     const playerScore = this.currentGame.playerScore;
     const dealerScore = this.currentGame.dealerScore;
     const bet = this.currentGame.betAmount;
-    const netBet = this.currentGame.netBet;
 
     let result: number;
     let payout: number;
@@ -329,19 +328,19 @@ export class PixelBlackjack {
     if (dealerScore > 21) {
       // Дилер перебрал
       result = 1;
-      payout = netBet * 2;
+      payout = bet * 2;
     } else if (playerScore > dealerScore) {
       // Игрок ближе к 21
       result = 1;
-      payout = netBet * 2;
+      payout = bet * 2;
     } else if (playerScore < dealerScore) {
       // Дилер ближе к 21
       result = 2;
       payout = 0;
     } else {
-      // Ничья
+      // Ничья — возврат полной ставки
       result = 3;
-      payout = netBet;
+      payout = bet;
     }
 
     this.currentGame.isFinished = true;
