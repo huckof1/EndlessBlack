@@ -1657,9 +1657,6 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
   showDebugState("snapshot");
   if (snapshot.phase === "done") {
     showMessage(currentLocale === "ru" ? "ПРЕДЛОЖИ СТАВКУ ДЛЯ РЕВАНША" : "PROPOSE A BET FOR REMATCH", "info");
-    if (gameMusicActive) {
-      startIdleMusic();
-    }
     const meIndex = players.findIndex(p => p === getMpName());
     const computed =
       snapshot.results && snapshot.payouts

@@ -196,6 +196,8 @@ class SoundManager {
     }
   }
 
+  private currentMode: "idle" | "game" | null = null;
+
   private setMusicPair(mode: "idle" | "game"): void {
     if (mode === "game") {
       this.musicA = this.gameA;
@@ -205,15 +207,23 @@ class SoundManager {
       this.musicB = this.idleB;
     }
     this.musicActive = null;
+    this.currentMode = mode;
+  }
+
+  private isMusicPlaying(): boolean {
+    const active = this.musicActive === "A" ? this.musicA : this.musicActive === "B" ? this.musicB : null;
+    return active !== null && !active.paused;
   }
 
   startIdleMusic(): void {
+    if (this.currentMode === "idle" && this.isMusicPlaying()) return;
     this.stopMusic();
     this.setMusicPair("idle");
     this.startMusic();
   }
 
   startGameMusic(): void {
+    if (this.currentMode === "game" && this.isMusicPlaying()) return;
     this.stopMusic();
     this.setMusicPair("game");
     this.startMusic();
@@ -221,6 +231,7 @@ class SoundManager {
 
   // Остановка фоновой музыки
   stopMusic(): void {
+    this.currentMode = null;
     if (this.fadeTimer) {
       window.clearInterval(this.fadeTimer);
       this.fadeTimer = null;
