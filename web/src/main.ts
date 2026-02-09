@@ -85,12 +85,6 @@ const blackjackAmount = document.getElementById("blackjack-amount") as HTMLDivEl
 const soundToggle = document.getElementById("sound-toggle") as HTMLButtonElement;
 const homeBtn = document.getElementById("home-btn") as HTMLButtonElement;
 const soundIcon = document.getElementById("sound-icon") as HTMLSpanElement;
-const soundPanel = document.getElementById("sound-panel") as HTMLDivElement;
-const sliderMusic = document.getElementById("slider-music") as HTMLInputElement;
-const sliderSfx = document.getElementById("slider-sfx") as HTMLInputElement;
-const sliderMusicVal = document.getElementById("slider-music-val") as HTMLSpanElement;
-const sliderSfxVal = document.getElementById("slider-sfx-val") as HTMLSpanElement;
-const muteAllBtn = document.getElementById("mute-all-btn") as HTMLButtonElement;
 const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement;
 const gameResultAmount = document.getElementById("game-result-amount") as HTMLSpanElement;
 const rematchBtn = document.getElementById("rematch-btn") as HTMLButtonElement;
@@ -539,10 +533,6 @@ const I18N = {
     title_sound: "Sound",
     music: "MUSIC",
     effects: "EFFECTS",
-    snd_music: "MUSIC",
-    snd_sfx: "SFX",
-    snd_mute_all: "🔇 MUTE ALL",
-    snd_unmute: "🔊 UNMUTE",
     connect_wallet: "CONNECT WALLET",
     wallet_modal_title: "WALLET REQUIRED",
     wallet_modal_text: "Install Luffa to connect your Endless wallet.",
@@ -679,10 +669,6 @@ const I18N = {
     title_sound: "Звук",
     music: "МУЗЫКА",
     effects: "ЭФФЕКТЫ",
-    snd_music: "МУЗЫКА",
-    snd_sfx: "ЭФФЕКТЫ",
-    snd_mute_all: "🔇 БЕЗ ЗВУКА",
-    snd_unmute: "🔊 ВКЛЮЧИТЬ",
     connect_wallet: "ПОДКЛЮЧИТЬ КОШЕЛЁК",
     wallet_modal_title: "НУЖЕН КОШЕЛЁК",
     wallet_modal_text: "Установите Luffa для подключения кошелька Endless.",
@@ -769,109 +755,21 @@ function init() {
   betAccept.addEventListener("click", () => multiplayer.acceptBet());
   betDecline.addEventListener("click", () => multiplayer.declineBet());
 
-  // Sound panel
-  let soundPanelTimer: number | null = null;
-
-  function openSoundPanel() {
-    if (soundPanelTimer) { clearTimeout(soundPanelTimer); soundPanelTimer = null; }
-    soundPanel.classList.remove("closing");
-    soundPanel.classList.add("open");
-    scheduleSoundPanelClose();
-  }
-
-  function scheduleSoundPanelClose() {
-    if (soundPanelTimer) clearTimeout(soundPanelTimer);
-    soundPanelTimer = window.setTimeout(() => {
-      soundPanel.classList.add("closing");
-      soundPanel.classList.remove("open");
-      soundPanelTimer = null;
-    }, 2000);
-  }
-
-  function syncSoundPanel() {
-    const vol = soundManager.getVolume();
-    const muted = soundManager.getMuted();
-    sliderMusic.value = String(Math.round(vol.music * 100));
-    sliderSfx.value = String(Math.round(vol.sfx * 100));
-    sliderMusicVal.textContent = Math.round(vol.music * 100) + "%";
-    sliderSfxVal.textContent = Math.round(vol.sfx * 100) + "%";
-    muteAllBtn.classList.toggle("muted", muted);
-    muteAllBtn.textContent = muted ? I18N[currentLocale].snd_unmute : I18N[currentLocale].snd_mute_all;
-  }
-
+  // Sound
   soundToggle.addEventListener("click", () => {
-    void initAudio();
-    if (soundPanel.classList.contains("open")) {
-      if (soundPanelTimer) { clearTimeout(soundPanelTimer); soundPanelTimer = null; }
-      soundPanel.classList.add("closing");
-      soundPanel.classList.remove("open");
-    } else {
-      syncSoundPanel();
-      openSoundPanel();
-    }
-  });
-
-  sliderMusic.addEventListener("input", () => {
-    const val = parseInt(sliderMusic.value) / 100;
-    soundManager.setVolume(soundManager.getVolume().sfx, val);
-    sliderMusicVal.textContent = sliderMusic.value + "%";
-    if (soundManager.getMuted() && val > 0) {
-      soundManager.toggleMute();
-      updateSoundIcon();
-      if (gameMusicActive) { soundManager.startGameMusic(); } else { soundManager.startIdleMusic(); }
-    }
-    syncSoundPanel();
-    scheduleSoundPanelClose();
-  });
-
-  sliderSfx.addEventListener("input", () => {
-    const val = parseInt(sliderSfx.value) / 100;
-    soundManager.setVolume(val, soundManager.getVolume().music);
-    sliderSfxVal.textContent = sliderSfx.value + "%";
-    if (soundManager.getMuted() && val > 0) {
-      soundManager.toggleMute();
-      updateSoundIcon();
-    }
-    syncSoundPanel();
-    scheduleSoundPanelClose();
-  });
-
-  muteAllBtn.addEventListener("click", () => {
     const muted = soundManager.toggleMute();
     updateSoundIcon();
-    if (!muted) {
-      const vol = soundManager.getVolume();
-      if (vol.music === 0 && vol.sfx === 0) {
-        soundManager.setVolume(0.5, 0.3);
+    if (muted) {
+      soundManager.setVolume(0, 0);
+    } else {
+      soundManager.setVolume(0.5, 0.3);
+      if (gameMusicActive) {
+        soundManager.startGameMusic();
+      } else {
+        soundManager.startIdleMusic();
       }
-      if (gameMusicActive) { soundManager.startGameMusic(); } else { soundManager.startIdleMusic(); }
     }
-    syncSoundPanel();
-    scheduleSoundPanelClose();
   });
-
-  soundPanel.addEventListener("mouseenter", () => {
-    if (soundPanelTimer) { clearTimeout(soundPanelTimer); soundPanelTimer = null; }
-  });
-  soundPanel.addEventListener("mouseleave", () => {
-    scheduleSoundPanelClose();
-  });
-  soundPanel.addEventListener("touchstart", () => {
-    if (soundPanelTimer) { clearTimeout(soundPanelTimer); soundPanelTimer = null; }
-  }, { passive: true });
-  soundPanel.addEventListener("touchend", () => {
-    scheduleSoundPanelClose();
-  }, { passive: true });
-
-  document.addEventListener("click", (e) => {
-    if (!soundPanel.classList.contains("open")) return;
-    const target = e.target as HTMLElement;
-    if (soundPanel.contains(target) || soundToggle.contains(target)) return;
-    if (soundPanelTimer) { clearTimeout(soundPanelTimer); soundPanelTimer = null; }
-    soundPanel.classList.add("closing");
-    soundPanel.classList.remove("open");
-  });
-
   if (homeBtn) {
     homeBtn.addEventListener("click", () => {
       const startSection = document.getElementById("name-section");
@@ -1044,7 +942,7 @@ function init() {
   applyTheme();
   applyI18n();
   applyNetworkMode();
-  // Sound panel initialized via header controls.
+  // Sound sliders removed; toggle only.
 
   const params = new URLSearchParams(window.location.search);
   const inviteFrom = params.get("invite");
