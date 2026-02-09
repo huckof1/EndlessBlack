@@ -260,16 +260,17 @@ export async function getBankInfo(networkMode?: "testnet" | "mainnet"): Promise<
 
 export async function getWalletBalance(address: string, networkMode?: "testnet" | "mainnet"): Promise<number> {
   try {
-    const endless = await getEndless(networkMode);
-    const balance = await endless.getAccountEDSAmount({ accountAddress: address });
-    return toNumber(balance);
-  } catch {
-    // Fallback: direct view call
+    // Use direct view call — SDK getAccountEDSAmount returns wrong values
     const func = `0x1::endless_coin::balance` as `${string}::${string}::${string}`;
     const payload = { function: func, typeArguments: [], functionArguments: [address] };
     const endless = await getEndless(networkMode);
     const data = await endless.view({ payload });
     return toNumber(data[0]);
+  } catch {
+    // Fallback: SDK method
+    const endless = await getEndless(networkMode);
+    const balance = await endless.getAccountEDSAmount({ accountAddress: address });
+    return toNumber(balance);
   }
 }
 
