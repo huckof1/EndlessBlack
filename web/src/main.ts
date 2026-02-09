@@ -637,7 +637,7 @@ const I18N = {
     msg_perfect_21: "Идеальные 21!",
     msg_standing_21: "21! СТОП...",
     msg_error: "ОШИБКА!",
-    msg_draw: "НИЧЬЯ — СТАВКА ВОЗВРАЩЕНА. НАЖМИ CONTINUE ДЛЯ ПОВТОРА",
+    msg_draw: "НИЧЬЯ — СТАВКА ВОЗВРАЩЕНА. НАЖМИ ПРОДОЛЖИТЬ ДЛЯ ПОВТОРА",
     msg_win: "ПОБЕДА!",
     msg_lose: "ПРОИГРЫШ",
     msg_winner: "Победитель: {name}",
@@ -2133,7 +2133,7 @@ async function handleStand() {
         setMascotState(
           "thinking",
           "🤷",
-          currentLocale === "ru" ? "Ничья! Нажми CONTINUE для переигрыша" : "It's a tie! Tap Continue to rematch"
+          currentLocale === "ru" ? "Ничья! Нажми ПРОДОЛЖИТЬ для переигрыша" : "It's a tie! Tap Continue to rematch"
         );
         showMessage(I18N[currentLocale].msg_draw, "info");
         addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
@@ -2166,7 +2166,7 @@ async function handleStand() {
         setMascotState(
           "thinking",
           "🤷",
-          currentLocale === "ru" ? "Ничья! Нажми CONTINUE для переигрыша" : "It's a tie! Tap Continue to rematch"
+          currentLocale === "ru" ? "Ничья! Нажми ПРОДОЛЖИТЬ для переигрыша" : "It's a tie! Tap Continue to rematch"
         );
         showMessage(I18N[currentLocale].msg_draw, "info");
         addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
