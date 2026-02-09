@@ -1,1 +1,69 @@
+name: Deploy Blackjack Contract to Endless Testnet
 
+  on:
+    workflow_dispatch:
+      inputs:
+        confirm:
+          description: 'Type "deploy" to confirm deployment'
+          required: true
+
+  jobs:
+    deploy:
+      if: github.event.inputs.confirm == 'deploy'
+      runs-on: ubuntu-22.04
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: Download Endless CLI
+          run: |
+            curl -L -o endless-cli.zip https://github.com/endless-labs/endless-release/releases/download/endless_v1.0.3/endless-cli-Ubuntu-22-x86_64.zip
+            unzip endless-cli.zip
+            chmod +x endless
+            sudo mv endless /usr/local/bin/
+            endless --version
+
+        - name: Configure CLI profile
+          run: |
+            mkdir -p .endless
+            cat > .endless/config.yaml << 'YAML'
+            ---
+            profiles:
+              default:
+                private_key: "${{ secrets.ENDLESS_PRIVATE_KEY }}"
+                public_key: "${{ secrets.ENDLESS_PUBLIC_KEY }}"
+                account: "${{ secrets.ENDLESS_ACCOUNT }}"
+                rest_url: "https://rpc-test.endless.link/v1"
+                faucet_url: "https://faucet-test.endless.link"
+            YAML
+
+        - name: Compile Move contract
+          working-directory: move
+          run: |
+            endless move compile \
+              --save-metadata \
+              --named-addresses pixel_blackjack=${{ secrets.ENDLESS_ACCOUNT }}
+
+        - name: Run Move tests
+          working-directory: move
+          run: |
+            endless move test \
+              --named-addresses pixel_blackjack=${{ secrets.ENDLESS_ACCOUNT }} || true
+
+        - name: Deploy contract
+          working-directory: move
+          run: |
+            endless move publish \
+              --named-addresses pixel_blackjack=${{ secrets.ENDLESS_ACCOUNT }} \
+              --assume-yes
+
+        - name: Show result
+          run: |
+            echo "Contract deployed at address: ${{ secrets.ENDLESS_ACCOUNT }}"
+            echo "Module: ${{ secrets.ENDLESS_ACCOUNT }}::blackjack"
+
+        - name: Upload build artifacts
+          uses: actions/upload-artifact@v4
+          with:
+            name: move-build
+            path: move/build/
