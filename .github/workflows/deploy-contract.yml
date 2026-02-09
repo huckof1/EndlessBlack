@@ -1,13 +1,13 @@
 name: Deploy Blackjack Contract to Endless Testnet                                                                                                                 
                                                                                    
-  on:                                                                                                                                                                
+on:                                                                                                                                                                
     workflow_dispatch:                                                                                                                                               
       inputs:
         confirm:
           description: 'Type "deploy" to confirm deployment'
           required: true
 
-  jobs:
+jobs:
     deploy:
       if: github.event.inputs.confirm == 'deploy'
       runs-on: ubuntu-22.04
