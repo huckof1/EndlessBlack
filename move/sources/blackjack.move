@@ -207,7 +207,7 @@ module pixel_blackjack::blackjack {
 
         //  :  +  >= .  (2.5x)
         let bankroll_value = game_store.bankroll;
-        let max_payout = net_bet * 5 / 2;
+        let max_payout = bet_amount * 5 / 2;
         assert!(bankroll_value + net_bet >= max_payout, E_INSUFFICIENT_BANKROLL);
 
         //  transfer bet to owner and update accounting
@@ -258,8 +258,8 @@ module pixel_blackjack::blackjack {
             game.is_finished = true;
             game.result = 4; // !
 
-            //  2.5x 
-            let payout = net_bet * 5 / 2;
+            //  2.5x  ( ,   )
+            let payout = bet_amount * 5 / 2;
             game.payout_due = payout;
 
             //  
@@ -390,7 +390,7 @@ module pixel_blackjack::blackjack {
         let (result, payout) = determine_winner(
             game.player_score,
             game.dealer_score,
-            game.net_bet
+            game.bet_amount
         );
 
         game.is_finished = true;

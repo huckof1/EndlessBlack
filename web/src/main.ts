@@ -14,6 +14,8 @@ import {
   startGame as startGameOnChain,
   hit as hitOnChain,
   stand as standOnChain,
+  setWalletCallbacks,
+  isInLuffaApp,
   type ChainGame,
 } from "./chain";
 import { formatEDS, parseEDS, MIN_BET, MAX_BET, SUITS, RANKS, DEMO_MODE, RELEASE_MODE, LS_PUBLIC_KEY, LS_WS_URL } from "./config";
@@ -99,7 +101,6 @@ const demoBadge = document.getElementById("demo-badge") as HTMLSpanElement;
 
 const leaderboardList = document.getElementById("leaderboard-list") as HTMLDivElement;
 const feedEl = document.getElementById("feed") as HTMLDivElement;
-const feedSection = document.getElementById("feed-section") as HTMLDivElement;
 const activePlayersEl = document.getElementById("active-players") as HTMLDivElement;
 const resetDemoBtn = document.getElementById("reset-demo-btn") as HTMLButtonElement;
 const inviteBtnHeader = document.getElementById("invite-btn-header") as HTMLButtonElement;
@@ -375,17 +376,21 @@ let isRoomHost = false;
 let pendingInviteAutoAccept = false;
 
 function isDemoActive(): boolean {
-  return DEMO_MODE && networkMode !== "mainnet";
+  // Demo mode OFF when: wallet connected (any network) or mainnet selected
+  if (walletAddress) return false;
+  if (networkMode === "mainnet") return false;
+  return DEMO_MODE;
 }
 
 function isLuffaInApp(): boolean {
+  try { return isInLuffaApp(); } catch { /* fallback */ }
   const ua = navigator.userAgent || "";
   const w = window as any;
   return /luffa/i.test(ua) || Boolean(w.luffa);
 }
 
 function requestAutoConnectInLuffa() {
-  if (autoConnectAttempted || isDemoActive() || !isLuffaInApp()) return;
+  if (autoConnectAttempted || walletAddress || !isLuffaInApp()) return;
   autoConnectAttempted = true;
   setTimeout(async () => {
     if (!walletAddress) {
@@ -978,11 +983,6 @@ function init() {
   }
 
   updateSoundIcon();
-  if (!DEMO_MODE) {
-    if (demoBadge) demoBadge.style.display = "none";
-    if (resetDemoBtn) resetDemoBtn.style.display = "none";
-    if (feedSection) feedSection.style.display = "none";
-  }
   // allow network toggle even in demo for visibility
   if (RELEASE_MODE) {
     nameSection.style.display = "none";
@@ -1033,6 +1033,31 @@ function initAudio() {
   });
 }
 
+// ==================== WALLET EVENTS ====================
+setWalletCallbacks({
+  onConnect: (address) => {
+    walletAddress = address;
+    setWalletStatus(true);
+    const displayAddr = address.length > 12 ? address.slice(0, 6) + "..." + address.slice(-4) : address;
+    if (walletAddressEl) walletAddressEl.textContent = displayAddr;
+    void updateBalance();
+    updateUI();
+  },
+  onDisconnect: () => {
+    walletAddress = "";
+    setWalletStatus(false);
+    if (walletAddressEl) walletAddressEl.textContent = "—";
+    updateUI();
+  },
+  onAccountChange: (address) => {
+    walletAddress = address;
+    const displayAddr = address.length > 12 ? address.slice(0, 6) + "..." + address.slice(-4) : address;
+    if (walletAddressEl) walletAddressEl.textContent = displayAddr;
+    void updateBalance();
+    updateUI();
+  },
+});
+
 // ==================== SESSION ====================
 async function startSession() {
   if (RELEASE_MODE) {
@@ -1054,31 +1079,24 @@ async function startSession() {
   }
 
   // Connect wallet
-  if (isDemoActive()) {
+  try {
+    walletAddress = await connectWallet(networkMode);
+    await updateBalance();
+    await updateBank();
+    await updateStats();
+    setWalletStatus(true);
+    const displayAddr = walletAddress.length > 12
+      ? walletAddress.slice(0, 6) + "..." + walletAddress.slice(-4)
+      : walletAddress;
+    if (walletAddressEl) walletAddressEl.textContent = displayAddr;
+  } catch {
+    // Wallet not available — fall back to demo mode
     await game.connectWallet();
     await updateBalance();
     await updateBank();
     await updateStats();
     setWalletStatus(true);
     if (walletAddressEl) walletAddressEl.textContent = "DEMO";
-  } else {
-    try {
-      walletAddress = await connectWallet();
-    } catch (error) {
-      showMessage(I18N[currentLocale].msg_wallet_missing, "error");
-      if (walletModal) walletModal.style.display = "flex";
-      return;
-    }
-    try {
-      await updateBalance();
-      await updateBank();
-      await updateStats();
-      setWalletStatus(true);
-      if (walletAddressEl) walletAddressEl.textContent = walletAddress;
-    } catch {
-      showMessage(I18N[currentLocale].msg_wallet_failed, "error");
-      return;
-    }
   }
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
@@ -1807,7 +1825,7 @@ function setNetwork(mode: "testnet" | "mainnet") {
 }
 
 function applyNetworkMode() {
-  const networkLabel = networkMode === "mainnet" ? "TESTNET" : "TEST";
+  const networkLabel = networkMode === "mainnet" ? "MAINNET" : "TESTNET";
   if (walletNetworkEl) {
     walletNetworkEl.textContent = networkLabel;
   }
@@ -2668,19 +2686,27 @@ function updateUI() {
     rematchBtn.style.display = showRematch ? "inline-flex" : "none";
   }
   updateMpDebug("ui");
+  const demo = isDemoActive();
   if (headerStatus) {
-    headerStatus.style.display = isDemoActive() ? "none" : "flex";
+    headerStatus.style.display = "flex";
+  }
+  if (demoBadge) {
+    if (demo) {
+      demoBadge.textContent = I18N[currentLocale].demo_mode || "DEMO MODE";
+      demoBadge.style.display = "inline-block";
+    } else {
+      demoBadge.textContent = networkMode === "mainnet" ? "MAINNET" : "TESTNET";
+      demoBadge.style.display = "inline-block";
+    }
   }
   if (resetDemoBtn) {
-    resetDemoBtn.style.display = isDemoActive() ? "inline-flex" : "none";
+    resetDemoBtn.style.display = demo ? "inline-flex" : "none";
   }
   if (connectWalletBtn) {
-    connectWalletBtn.style.display = isDemoActive() ? "none" : "inline-flex";
-    connectWalletBtn.disabled = Boolean(walletAddress);
+    connectWalletBtn.style.display = walletAddress ? "none" : "inline-flex";
   }
   if (connectWalletHeader) {
-    connectWalletHeader.style.display = isDemoActive() ? "none" : "inline-flex";
-    connectWalletHeader.disabled = Boolean(walletAddress);
+    connectWalletHeader.style.display = walletAddress ? "none" : "inline-flex";
   }
   if (walletModal) {
     walletModal.style.display = "none";
@@ -2730,9 +2756,8 @@ function updateUI() {
 }
 
 async function handleConnectWallet() {
-  if (isDemoActive()) return;
   try {
-    walletAddress = await connectWallet();
+    walletAddress = await connectWallet(networkMode);
     await updateBalance();
     await updateBank();
     await updateStats();
