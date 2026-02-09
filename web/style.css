@@ -145,6 +145,8 @@ body {
 
   .table {
     min-height: 180px;
+    border-radius: 30px 30px 10px 10px;
+    padding-top: 20px;
   }
 
   .actions-hint {
@@ -1569,10 +1571,10 @@ body.invite-mode .mascot-right {
     linear-gradient(180deg, #0e6b45 0%, #0a5c3b 30%, #074a30 60%, #0a5c3b 100%);
   border: 6px solid #8b6914;
   border-image: linear-gradient(180deg, #d4a017, #8b6914 30%, #6b4f10 60%, #8b6914) 1;
-  border-radius: 140px 140px 20px 20px;
+  border-radius: 60px 60px 18px 18px;
   border-image: none;
   border-color: transparent;
-  padding: 18px 12px 14px;
+  padding: 28px 14px 14px;
   min-height: 220px;
   position: relative;
   box-shadow:
@@ -1582,7 +1584,7 @@ body.invite-mode .mascot-right {
     0 0 0 8px #6b4f10,
     0 0 0 10px rgba(0,0,0,0.4),
     0 8px 30px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .table::before {
@@ -1597,6 +1599,7 @@ body.invite-mode .mascot-right {
   letter-spacing: 8px;
   white-space: nowrap;
   pointer-events: none;
+  z-index: 0;
 }
 
 .table::after {
@@ -1611,6 +1614,7 @@ body.invite-mode .mascot-right {
   letter-spacing: 5px;
   white-space: nowrap;
   pointer-events: none;
+  z-index: 0;
 }
 
 .hand { margin: 6px 0; }
@@ -2165,7 +2169,7 @@ body.invite-mode .mascot-right {
   .logo-blackjack { font-size: 14px; }
   .bet-section { flex-direction: column; }
   .btn-deal { width: 100%; }
-  .table { border-radius: 40px 40px 10px 10px; min-height: 220px; }
+  .table { border-radius: 30px 30px 10px 10px; min-height: 220px; padding-top: 20px; }
   .effect-emoji { font-size: 60px; }
   .effect-text { font-size: 18px; }
 }
