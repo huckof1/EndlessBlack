@@ -491,6 +491,7 @@ const I18N = {
     msg_your_turn: "YOUR TURN!",
     msg_failed_start: "FAILED TO START!",
     msg_try_again: "Try again!",
+    msg_insufficient: "NOT ENOUGH BALANCE FOR THIS BET! TOP UP OR LOWER THE BET.",
     msg_good_luck: "Good luck!",
     msg_perfect_21: "Perfect 21!",
     msg_standing_21: "21! STANDING...",
@@ -626,6 +627,7 @@ const I18N = {
     msg_your_turn: "ТВОЙ ХОД!",
     msg_failed_start: "НЕ УДАЛОСЬ НАЧАТЬ!",
     msg_try_again: "Попробуй ещё раз!",
+    msg_insufficient: "НЕДОСТАТОЧНО БАЛАНСА ДЛЯ СТАВКИ! ПОПОЛНИТЕ БАЛАНС ИЛИ УМЕНЬШИТЕ СТАВКУ.",
     msg_good_luck: "Удачи!",
     msg_perfect_21: "Идеальные 21!",
     msg_standing_21: "21! СТОП...",
@@ -1990,8 +1992,14 @@ async function handleStartGame() {
     }
   } catch (error) {
     playSound("lose");
-    showMessage(I18N[currentLocale].msg_failed_start, "error");
-    setMascotState("sad", "😢", I18N[currentLocale].msg_try_again);
+    const errMsg = error instanceof Error ? error.message : "";
+    if (errMsg.includes("Недостаточно") || errMsg.toLowerCase().includes("insufficient")) {
+      showMessage(I18N[currentLocale].msg_insufficient, "error");
+      setMascotState("sad", "💸", currentLocale === "ru" ? "Не хватает средств!" : "Not enough funds!");
+    } else {
+      showMessage(I18N[currentLocale].msg_failed_start, "error");
+      setMascotState("sad", "😢", I18N[currentLocale].msg_try_again);
+    }
     startBtn.disabled = false;
     startBtn.classList.remove("btn-pulse");
     setTxStatus(null);
