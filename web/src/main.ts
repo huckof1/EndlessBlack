@@ -737,6 +737,14 @@ function init() {
   betMinus.addEventListener("click", () => adjustBet(-1));
   betPlus.addEventListener("click", () => adjustBet(1));
   betInput.addEventListener("change", validateBet);
+  betInput.addEventListener("blur", validateBet);
+  betInput.addEventListener("input", () => {
+    // Force value sync on every keystroke for mobile browsers
+    const val = parseFloat(betInput.value);
+    if (!isNaN(val) && val > 0) {
+      betInput.dataset.lastValue = val.toString();
+    }
+  });
   betAccept.addEventListener("click", () => multiplayer.acceptBet());
   betDecline.addEventListener("click", () => multiplayer.declineBet());
 
@@ -1804,10 +1812,19 @@ function applyNetworkMode() {
 }
 
 // ==================== BET ====================
-function adjustBet(delta: number) {
+function getBetStep(current: number): number {
+  if (current >= 1000) return 500;
+  if (current >= 100) return 50;
+  if (current >= 10) return 5;
+  if (current >= 1) return 1;
+  return 0.1;
+}
+
+function adjustBet(direction: number) {
   playSound("click");
   const current = parseFloat(betInput.value) || 1;
-  let newValue = Math.max(0.1, Math.min(10000, current + delta));
+  const step = getBetStep(current);
+  let newValue = Math.max(0.1, Math.min(10000, current + step * direction));
   newValue = Math.round(newValue * 10) / 10;
   betInput.value = newValue.toString();
   const phase = multiplayerSnapshot?.phase || "lobby";
@@ -1817,10 +1834,15 @@ function adjustBet(delta: number) {
 }
 
 function validateBet() {
-  let value = parseFloat(betInput.value) || 1;
-  value = Math.max(0.1, Math.min(10000, value));
+  let raw = parseFloat(betInput.value);
+  // Fallback: if input returns NaN, use last known good value
+  if (isNaN(raw) || raw <= 0) {
+    raw = parseFloat(betInput.dataset.lastValue || "1");
+  }
+  let value = Math.max(0.1, Math.min(10000, raw));
   value = Math.round(value * 10) / 10;
   betInput.value = value.toString();
+  betInput.dataset.lastValue = value.toString();
   const phase = multiplayerSnapshot?.phase || "lobby";
   if (multiplayerRoom && (phase === "lobby" || phase === "done")) {
     multiplayer.proposeBet(value);
@@ -1907,6 +1929,8 @@ async function handleStartGame() {
     }
   }
 
+  // Force re-read and validate the bet value
+  validateBet();
   const betValue = betInput.value;
   const betAmount = parseEDS(betValue);
 
@@ -1917,11 +1941,18 @@ async function handleStartGame() {
     return;
   }
 
+  const betEDS = (betAmount / 100000000).toFixed(2);
+
   try {
     playSound("chip");
     startBtn.disabled = true;
     setMascotState("thinking", "🤔", I18N[currentLocale].msg_dealing);
-    showMessage(I18N[currentLocale].msg_dealing, "info");
+    showMessage(
+      currentLocale === "ru"
+        ? `РАЗДАЧА... СТАВКА: ${betEDS} EDS`
+        : `DEALING... BET: ${betEDS} EDS`,
+      "info"
+    );
     startBtn.classList.add("btn-pulse");
 
     if (isDemoActive()) {
