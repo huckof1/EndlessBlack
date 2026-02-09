@@ -1818,7 +1818,7 @@ function setNetwork(mode: "testnet" | "mainnet") {
     renderLeaderboard();
     renderActivePlayers();
   }
-  if (networkMode === "mainnet" && !walletAddress) {
+  if (!walletAddress) {
     // Attempt connect on explicit onchain switch (user gesture)
     void handleConnectWallet();
   }
