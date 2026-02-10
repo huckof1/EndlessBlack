@@ -2876,22 +2876,22 @@ async function handleLuffaWalletConnect() {
     walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa;
   }
 
-  // Generate QR code with deep link
-  const pageUrl = encodeURIComponent(window.location.href);
-  const deepLink = `luffa://connect?url=${pageUrl}`;
+  // QR contains the page URL — Luffa scanner opens it in built-in browser
+  // where the SDK is available and auto-connect triggers
+  const qrUrl = window.location.href;
 
   if (walletQrContainer) {
     walletQrContainer.style.display = "flex";
     walletQrContainer.innerHTML = "";
     try {
-      const canvas = await QRCode.toCanvas(deepLink, {
+      const canvas = await QRCode.toCanvas(qrUrl, {
         width: 200,
         margin: 2,
         color: { dark: "#000000", light: "#ffffff" },
       });
       walletQrContainer.appendChild(canvas);
     } catch {
-      walletQrContainer.textContent = deepLink;
+      walletQrContainer.textContent = qrUrl;
     }
   }
   if (walletStatusText) {
