@@ -2878,32 +2878,20 @@ async function handleLuffaWalletConnect() {
     walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa;
   }
 
-  // QR contains the page URL — user scans in Luffa, page opens in Luffa browser,
-  // SDK detects Luffa env and auto-connects
   const qrUrl = window.location.href;
-  const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 
   if (walletQrContainer) {
     walletQrContainer.style.display = "flex";
     walletQrContainer.innerHTML = "";
-    if (isLocalhost) {
-      const note = document.createElement("div");
-      note.style.cssText = "font-family:'Press Start 2P';font-size:8px;color:#e94560;text-align:center;padding:8px;";
-      note.textContent = currentLocale === "ru"
-        ? "QR работает только на деплое (Vercel). На localhost телефон не сможет открыть страницу."
-        : "QR only works on deploy (Vercel). Phone cannot reach localhost.";
-      walletQrContainer.appendChild(note);
-    } else {
-      try {
-        const canvas = await QRCode.toCanvas(qrUrl, {
-          width: 200,
-          margin: 2,
-          color: { dark: "#000000", light: "#ffffff" },
-        });
-        walletQrContainer.appendChild(canvas);
-      } catch {
-        walletQrContainer.textContent = qrUrl;
-      }
+    try {
+      const canvas = await QRCode.toCanvas(qrUrl, {
+        width: 200,
+        margin: 2,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+      walletQrContainer.appendChild(canvas);
+    } catch {
+      walletQrContainer.textContent = qrUrl;
     }
   }
   if (walletStatusText) {
