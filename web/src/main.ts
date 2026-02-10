@@ -6,6 +6,8 @@ import {
   getBankInfo,
   claimPayout as claimPayoutOnChain,
   connectWallet,
+  connectEndlessExtension,
+  connectLuffa,
   getWalletBalance,
   getPlayerStats,
   getOwner,
@@ -18,6 +20,7 @@ import {
   isInLuffaApp,
   type ChainGame,
 } from "./chain";
+import QRCode from "qrcode";
 import { formatEDS, parseEDS, MIN_BET, MAX_BET, SUITS, RANKS, DEMO_MODE, RELEASE_MODE, LS_PUBLIC_KEY, LS_WS_URL } from "./config";
 import { soundManager, playSound } from "./sounds";
 import { MultiplayerClient } from "./multiplayer";
@@ -113,8 +116,15 @@ const inviteDecline = document.getElementById("invite-decline") as HTMLButtonEle
 const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
-const walletModalText = document.querySelector("#wallet-modal .modal-text") as HTMLDivElement;
 const walletInstallLink = document.getElementById("wallet-install-link") as HTMLAnchorElement;
+const walletPickerTitle = document.getElementById("wallet-picker-title") as HTMLDivElement;
+const walletPickerOptions = document.getElementById("wallet-picker-options") as HTMLDivElement;
+const walletOptEndless = document.getElementById("wallet-opt-endless") as HTMLButtonElement;
+const walletOptLuffa = document.getElementById("wallet-opt-luffa") as HTMLButtonElement;
+const walletConnectStatus = document.getElementById("wallet-connect-status") as HTMLDivElement;
+const walletStatusText = document.getElementById("wallet-status-text") as HTMLDivElement;
+const walletQrContainer = document.getElementById("wallet-qr-container") as HTMLDivElement;
+const walletPickerBack = document.getElementById("wallet-picker-back") as HTMLButtonElement;
 const devOverlay = document.getElementById("dev-overlay") as HTMLDivElement;
 const devOverlayKeys = document.getElementById("dev-overlay-keys") as HTMLPreElement;
 const devOverlayClose = document.getElementById("dev-overlay-close") as HTMLButtonElement;
@@ -539,6 +549,17 @@ const I18N = {
     music: "MUSIC",
     effects: "EFFECTS",
     connect_wallet: "CONNECT WALLET",
+    wallet_picker_title: "CHOOSE WALLET",
+    wallet_endless: "ENDLESS WALLET",
+    wallet_endless_desc: "Browser extension",
+    wallet_luffa: "LUFFA WALLET",
+    wallet_luffa_desc: "Scan QR code",
+    wallet_back: "BACK",
+    wallet_connecting: "CONNECTING...",
+    wallet_endless_missing: "ENDLESS WALLET NOT FOUND",
+    wallet_endless_install: "Install the browser extension to continue.",
+    wallet_luffa_qr: "SCAN QR CODE IN LUFFA APP",
+    wallet_luffa_connecting: "Connecting via Luffa...",
     wallet_modal_title: "WALLET REQUIRED",
     wallet_modal_text: "Install Luffa to connect your Endless wallet.",
     wallet_modal_text_inapp: "Approve the connection in your Luffa wallet.",
@@ -675,6 +696,17 @@ const I18N = {
     music: "МУЗЫКА",
     effects: "ЭФФЕКТЫ",
     connect_wallet: "ПОДКЛЮЧИТЬ КОШЕЛЁК",
+    wallet_picker_title: "ВЫБОР КОШЕЛЬКА",
+    wallet_endless: "ENDLESS WALLET",
+    wallet_endless_desc: "Расширение браузера",
+    wallet_luffa: "LUFFA WALLET",
+    wallet_luffa_desc: "Сканировать QR-код",
+    wallet_back: "НАЗАД",
+    wallet_connecting: "ПОДКЛЮЧЕНИЕ...",
+    wallet_endless_missing: "ENDLESS WALLET НЕ НАЙДЕН",
+    wallet_endless_install: "Установите расширение браузера для продолжения.",
+    wallet_luffa_qr: "СКАНИРУЙТЕ QR-КОД В ПРИЛОЖЕНИИ LUFFA",
+    wallet_luffa_connecting: "Подключение через Luffa...",
     wallet_modal_title: "НУЖЕН КОШЕЛЁК",
     wallet_modal_text: "Установите Luffa для подключения кошелька Endless.",
     wallet_modal_text_inapp: "Подтвердите подключение в кошельке Luffa.",
@@ -837,6 +869,15 @@ function init() {
   walletModalClose.addEventListener("click", () => {
     if (walletModal) walletModal.style.display = "none";
   });
+  if (walletOptEndless) {
+    walletOptEndless.addEventListener("click", handleEndlessWalletConnect);
+  }
+  if (walletOptLuffa) {
+    walletOptLuffa.addEventListener("click", handleLuffaWalletConnect);
+  }
+  if (walletPickerBack) {
+    walletPickerBack.addEventListener("click", showWalletPicker);
+  }
   if (devOverlayClose) {
     devOverlayClose.addEventListener("click", () => {
       if (devOverlay) devOverlay.style.display = "none";
@@ -2756,27 +2797,127 @@ function updateUI() {
 }
 
 async function handleConnectWallet() {
-  try {
-    walletAddress = await connectWallet(networkMode);
-    await updateBalance();
-    await updateBank();
-    await updateStats();
-    setWalletStatus(true);
-    if (walletAddressEl) walletAddressEl.textContent = walletAddress;
-    updateUI();
-  } catch {
-    showMessage(I18N[currentLocale].msg_wallet_missing, "error");
-    const inApp = isLuffaInApp();
-    if (walletModalText) {
-      walletModalText.textContent = inApp
-        ? I18N[currentLocale].wallet_modal_text_inapp
-        : I18N[currentLocale].wallet_modal_text;
+  // If inside Luffa app, auto-connect via SDK directly
+  if (isLuffaInApp()) {
+    try {
+      walletAddress = await connectLuffa(networkMode);
+      onWalletConnectSuccess();
+      return;
+    } catch {
+      // Fall through to show picker
     }
-    if (walletInstallLink) {
-      walletInstallLink.style.display = inApp ? "none" : "inline-flex";
-    }
-    if (walletModal) walletModal.style.display = "flex";
   }
+  showWalletPicker();
+}
+
+function showWalletPicker() {
+  if (!walletModal) return;
+  // Reset to options view
+  if (walletPickerOptions) walletPickerOptions.style.display = "flex";
+  if (walletConnectStatus) walletConnectStatus.style.display = "none";
+  if (walletPickerBack) walletPickerBack.style.display = "none";
+  if (walletInstallLink) walletInstallLink.style.display = "none";
+  if (walletQrContainer) {
+    walletQrContainer.style.display = "none";
+    walletQrContainer.innerHTML = "";
+  }
+  if (walletPickerTitle) {
+    walletPickerTitle.textContent = I18N[currentLocale].wallet_picker_title;
+  }
+  walletModal.style.display = "flex";
+}
+
+async function handleEndlessWalletConnect() {
+  if (!walletModal) return;
+  // Switch to status view
+  if (walletPickerOptions) walletPickerOptions.style.display = "none";
+  if (walletConnectStatus) walletConnectStatus.style.display = "flex";
+  if (walletPickerBack) walletPickerBack.style.display = "inline-flex";
+  if (walletQrContainer) walletQrContainer.style.display = "none";
+  if (walletInstallLink) walletInstallLink.style.display = "none";
+  if (walletStatusText) {
+    walletStatusText.textContent = I18N[currentLocale].wallet_connecting;
+  }
+  if (walletPickerTitle) {
+    walletPickerTitle.textContent = I18N[currentLocale].wallet_endless;
+  }
+
+  try {
+    walletAddress = await connectEndlessExtension(networkMode);
+    onWalletConnectSuccess();
+  } catch (err: any) {
+    if (err?.message === "ENDLESS_NOT_INSTALLED") {
+      if (walletStatusText) {
+        walletStatusText.textContent = I18N[currentLocale].wallet_endless_install;
+      }
+      if (walletPickerTitle) {
+        walletPickerTitle.textContent = I18N[currentLocale].wallet_endless_missing;
+      }
+      if (walletInstallLink) {
+        walletInstallLink.href = "https://chromewebstore.google.com/detail/endless-wallet/efbglgofoippbgcjepnhiblaibstcdool";
+        walletInstallLink.style.display = "inline-flex";
+      }
+    } else {
+      if (walletStatusText) {
+        walletStatusText.textContent = I18N[currentLocale].msg_wallet_failed;
+      }
+    }
+  }
+}
+
+async function handleLuffaWalletConnect() {
+  if (!walletModal) return;
+  // Switch to QR view
+  if (walletPickerOptions) walletPickerOptions.style.display = "none";
+  if (walletConnectStatus) walletConnectStatus.style.display = "flex";
+  if (walletPickerBack) walletPickerBack.style.display = "inline-flex";
+  if (walletInstallLink) walletInstallLink.style.display = "none";
+  if (walletPickerTitle) {
+    walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa;
+  }
+
+  // Generate QR code with deep link
+  const pageUrl = encodeURIComponent(window.location.href);
+  const deepLink = `luffa://connect?url=${pageUrl}`;
+
+  if (walletQrContainer) {
+    walletQrContainer.style.display = "flex";
+    walletQrContainer.innerHTML = "";
+    try {
+      const canvas = await QRCode.toCanvas(deepLink, {
+        width: 200,
+        margin: 2,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+      walletQrContainer.appendChild(canvas);
+    } catch {
+      walletQrContainer.textContent = deepLink;
+    }
+  }
+  if (walletStatusText) {
+    walletStatusText.textContent = I18N[currentLocale].wallet_luffa_qr;
+  }
+
+  // Also try SDK connect in parallel (in case user is in Luffa webview)
+  try {
+    walletAddress = await connectLuffa(networkMode);
+    onWalletConnectSuccess();
+  } catch {
+    // QR code is shown — user needs to scan it
+  }
+}
+
+async function onWalletConnectSuccess() {
+  await updateBalance();
+  await updateBank();
+  await updateStats();
+  setWalletStatus(true);
+  const displayAddr = walletAddress.length > 12
+    ? walletAddress.slice(0, 6) + "..." + walletAddress.slice(-4)
+    : walletAddress;
+  if (walletAddressEl) walletAddressEl.textContent = displayAddr;
+  if (walletModal) walletModal.style.display = "none";
+  updateUI();
 }
 
 async function handleClaim() {

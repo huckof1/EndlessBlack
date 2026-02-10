@@ -50,6 +50,15 @@ function getContractAddress(mode?: "testnet" | "mainnet"): string {
   return CONTRACT_ADDRESS_TESTNET;
 }
 
+// ==================== WALLET TYPE ====================
+
+export type WalletType = "endless" | "luffa" | null;
+let activeWalletType: WalletType = null;
+
+export function getActiveWalletType(): WalletType {
+  return activeWalletType;
+}
+
 // ==================== LUFFA SDK ====================
 
 let luffaSdk: EndlessLuffaSdk | null = null;
@@ -117,6 +126,7 @@ export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<strin
     const res = await sdk.connect();
     if (res.status === UserResponseStatus.APPROVED) {
       connectedAddress = res.args.address;
+      activeWalletType = "luffa";
       return res.args.address;
     }
     throw new Error("Connection rejected by user");
@@ -125,9 +135,54 @@ export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<strin
     const address = await tryInjectedProvider();
     if (address) {
       connectedAddress = address;
+      activeWalletType = "endless";
       return address;
     }
     throw new Error("Wallet not found. Open this page in Luffa app or install Luffa wallet.");
+  }
+}
+
+/** Connect via Endless browser extension (window.endless) */
+export async function connectEndlessExtension(_mode?: "testnet" | "mainnet"): Promise<string> {
+  const w = window as any;
+  const endless = w.endless;
+  if (!endless) {
+    throw new Error("ENDLESS_NOT_INSTALLED");
+  }
+  try {
+    const res = endless.connect ? await endless.connect() : null;
+    if (res?.address) {
+      connectedAddress = res.address;
+      activeWalletType = "endless";
+      return res.address;
+    }
+    if (endless.account) {
+      const account = await endless.account();
+      if (account?.address) {
+        connectedAddress = account.address;
+        activeWalletType = "endless";
+        return account.address;
+      }
+    }
+  } catch {
+    // fall through
+  }
+  throw new Error("ENDLESS_CONNECT_FAILED");
+}
+
+/** Connect via Luffa SDK (inside Luffa app or via QR handshake) */
+export async function connectLuffa(mode?: "testnet" | "mainnet"): Promise<string> {
+  const sdk = getLuffaSdk(mode);
+  try {
+    const res = await sdk.connect();
+    if (res.status === UserResponseStatus.APPROVED) {
+      connectedAddress = res.args.address;
+      activeWalletType = "luffa";
+      return res.args.address;
+    }
+    throw new Error("Connection rejected by user");
+  } catch (err) {
+    throw new Error("LUFFA_CONNECT_FAILED");
   }
 }
 
@@ -136,6 +191,7 @@ export async function disconnectWallet(): Promise<void> {
     await luffaSdk.disconnect();
   }
   connectedAddress = null;
+  activeWalletType = null;
 }
 
 // Legacy fallback for injected providers
@@ -189,12 +245,37 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     functionArguments: strArgs,
   };
 
-  // Primary: use Luffa SDK
+  // Route based on active wallet type
+  if (activeWalletType === "endless") {
+    const wallet = getInjectedWallet();
+    if (wallet?.signAndSubmitTransaction) {
+      const fallbackPayload = {
+        function: func,
+        typeArguments: [],
+        functionArguments: args,
+        type_arguments: [],
+        arguments: args,
+      };
+      try {
+        const result = await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+        const hash = result?.hash || result?.args?.hash;
+        if (hash) {
+          const endless = await getEndless(mode);
+          await endless.waitForTransaction({ transactionHash: hash });
+        }
+        return result;
+      } catch {
+        return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
+      }
+    }
+    throw new Error("Endless extension not available");
+  }
+
+  // Default: use Luffa SDK
   const sdk = getLuffaSdk(mode);
   try {
     const res = await sdk.signAndSubmitTransaction({ payload });
     if (res.status === UserResponseStatus.APPROVED) {
-      // Wait for tx confirmation
       const endless = await getEndless(mode);
       await endless.waitForTransaction({ transactionHash: res.args.hash });
       return res.args;

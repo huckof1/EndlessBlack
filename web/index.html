@@ -228,11 +228,32 @@
     </div>
 
     <div id="wallet-modal" class="modal" style="display: none;">
-      <div class="modal-content">
-        <div class="modal-title" data-i18n="wallet_modal_title">WALLET REQUIRED</div>
-        <div class="modal-text" data-i18n="wallet_modal_text">Install Luffa to connect your Endless wallet.</div>
+      <div class="modal-content wallet-picker-content">
+        <div class="modal-title" id="wallet-picker-title" data-i18n="wallet_picker_title">CHOOSE WALLET</div>
+
+        <!-- Wallet selection step -->
+        <div id="wallet-picker-options" class="wallet-options">
+          <button id="wallet-opt-endless" class="wallet-option">
+            <span class="wallet-option-icon">🔗</span>
+            <span class="wallet-option-name" data-i18n="wallet_endless">ENDLESS WALLET</span>
+            <span class="wallet-option-desc" data-i18n="wallet_endless_desc">Browser extension</span>
+          </button>
+          <button id="wallet-opt-luffa" class="wallet-option">
+            <span class="wallet-option-icon">📱</span>
+            <span class="wallet-option-name" data-i18n="wallet_luffa">LUFFA WALLET</span>
+            <span class="wallet-option-desc" data-i18n="wallet_luffa_desc">Scan QR code</span>
+          </button>
+        </div>
+
+        <!-- Connection status step (shown after choosing) -->
+        <div id="wallet-connect-status" class="wallet-connect-status" style="display: none;">
+          <div id="wallet-status-text" class="modal-text"></div>
+          <div id="wallet-qr-container" class="wallet-qr-container" style="display: none;"></div>
+          <a id="wallet-install-link" class="btn btn-success" href="https://chromewebstore.google.com/detail/endless-wallet/efbglgofoippbgcjepnhiblaibstcdool" target="_blank" rel="noopener" data-i18n="wallet_modal_install" style="display: none;">DOWNLOAD WALLET</a>
+        </div>
+
         <div class="modal-actions">
-          <a id="wallet-install-link" class="btn btn-success" href="https://www.luffa.im/" target="_blank" rel="noopener" data-i18n="wallet_modal_install">DOWNLOAD WALLET</a>
+          <button id="wallet-picker-back" class="btn btn-small" data-i18n="wallet_back" style="display: none;">BACK</button>
           <button id="wallet-modal-close" class="btn btn-small" data-i18n="wallet_modal_close">CLOSE</button>
         </div>
       </div>
