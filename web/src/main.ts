@@ -2854,7 +2854,7 @@ async function handleEndlessWalletConnect() {
         walletPickerTitle.textContent = I18N[currentLocale].wallet_endless_missing;
       }
       if (walletInstallLink) {
-        walletInstallLink.href = "https://chromewebstore.google.com/detail/endless-wallet/efbglgofoippbgcjepnhiblaibstcdool";
+        walletInstallLink.href = "https://wallet.endless.link/";
         walletInstallLink.style.display = "inline-flex";
       }
     } else {
