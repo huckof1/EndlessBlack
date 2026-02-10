@@ -4,16 +4,16 @@ on:
     push:
       branches: [main]
 
-  permissions:
+permissions:
     contents: read
     pages: write
     id-token: write
 
-  concurrency:
+concurrency:
     group: pages
     cancel-in-progress: true
 
-  jobs:
+jobs:
     build:
       runs-on: ubuntu-latest
       steps:
