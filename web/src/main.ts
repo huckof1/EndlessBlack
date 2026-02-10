@@ -559,6 +559,7 @@ const I18N = {
     wallet_endless_missing: "ENDLESS WALLET NOT FOUND",
     wallet_endless_install: "Install the browser extension to continue.",
     wallet_luffa_qr: "SCAN QR CODE IN LUFFA APP",
+    wallet_luffa_qr_hint: "SCAN QR IN LUFFA APP. THE PAGE WILL OPEN IN LUFFA BROWSER AND WALLET CONNECTS AUTOMATICALLY.",
     wallet_luffa_connecting: "Connecting via Luffa...",
     wallet_modal_title: "WALLET REQUIRED",
     wallet_modal_text: "Install Luffa to connect your Endless wallet.",
@@ -706,6 +707,7 @@ const I18N = {
     wallet_endless_missing: "ENDLESS WALLET НЕ НАЙДЕН",
     wallet_endless_install: "Установите расширение браузера для продолжения.",
     wallet_luffa_qr: "СКАНИРУЙТЕ QR-КОД В ПРИЛОЖЕНИИ LUFFA",
+    wallet_luffa_qr_hint: "СКАНИРУЙТЕ QR В LUFFA. СТРАНИЦА ОТКРОЕТСЯ В БРАУЗЕРЕ LUFFA И КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ.",
     wallet_luffa_connecting: "Подключение через Luffa...",
     wallet_modal_title: "НУЖЕН КОШЕЛЁК",
     wallet_modal_text: "Установите Luffa для подключения кошелька Endless.",
@@ -2876,26 +2878,36 @@ async function handleLuffaWalletConnect() {
     walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa;
   }
 
-  // QR contains the page URL — Luffa scanner opens it in built-in browser
-  // where the SDK is available and auto-connect triggers
+  // QR contains the page URL — user scans in Luffa, page opens in Luffa browser,
+  // SDK detects Luffa env and auto-connects
   const qrUrl = window.location.href;
+  const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 
   if (walletQrContainer) {
     walletQrContainer.style.display = "flex";
     walletQrContainer.innerHTML = "";
-    try {
-      const canvas = await QRCode.toCanvas(qrUrl, {
-        width: 200,
-        margin: 2,
-        color: { dark: "#000000", light: "#ffffff" },
-      });
-      walletQrContainer.appendChild(canvas);
-    } catch {
-      walletQrContainer.textContent = qrUrl;
+    if (isLocalhost) {
+      const note = document.createElement("div");
+      note.style.cssText = "font-family:'Press Start 2P';font-size:8px;color:#e94560;text-align:center;padding:8px;";
+      note.textContent = currentLocale === "ru"
+        ? "QR работает только на деплое (Vercel). На localhost телефон не сможет открыть страницу."
+        : "QR only works on deploy (Vercel). Phone cannot reach localhost.";
+      walletQrContainer.appendChild(note);
+    } else {
+      try {
+        const canvas = await QRCode.toCanvas(qrUrl, {
+          width: 200,
+          margin: 2,
+          color: { dark: "#000000", light: "#ffffff" },
+        });
+        walletQrContainer.appendChild(canvas);
+      } catch {
+        walletQrContainer.textContent = qrUrl;
+      }
     }
   }
   if (walletStatusText) {
-    walletStatusText.textContent = I18N[currentLocale].wallet_luffa_qr;
+    walletStatusText.textContent = I18N[currentLocale].wallet_luffa_qr_hint;
   }
 
   // Also try SDK connect in parallel (in case user is in Luffa webview)
