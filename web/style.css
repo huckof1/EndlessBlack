@@ -2032,7 +2032,7 @@ body.invite-mode .mascot-right {
 
 .leaderboard-header {
   display: grid;
-  grid-template-columns: 30px 1fr 50px 70px;
+  grid-template-columns: 30px 1fr 65px 80px;
   gap: 4px;
   padding: 6px 8px;
   background: linear-gradient(180deg, rgba(26,26,46,0.9), rgba(22,33,62,0.9));
@@ -2047,7 +2047,7 @@ body.invite-mode .mascot-right {
 
 .lb-row {
   display: grid;
-  grid-template-columns: 30px 1fr 50px 70px;
+  grid-template-columns: 30px 1fr 65px 80px;
   gap: 4px;
   padding: 6px 8px;
   font-size: var(--font-size-small);
@@ -2247,7 +2247,7 @@ body.invite-mode .mascot-right {
 
   .leaderboard-header,
   .lb-row {
-    grid-template-columns: 28px 1fr 52px 64px;
+    grid-template-columns: 28px 1fr 60px 74px;
     padding: 8px;
   }
 
