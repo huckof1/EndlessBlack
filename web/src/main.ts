@@ -551,20 +551,21 @@ const I18N = {
     connect_wallet: "CONNECT WALLET",
     wallet_picker_title: "CHOOSE WALLET",
     wallet_endless: "ENDLESS WALLET",
-    wallet_endless_desc: "Browser extension",
+    wallet_endless_desc: "Web wallet",
     wallet_luffa: "LUFFA WALLET",
     wallet_luffa_desc: "Scan QR code",
     wallet_back: "BACK",
     wallet_connecting: "CONNECTING...",
     wallet_endless_missing: "ENDLESS WALLET NOT FOUND",
-    wallet_endless_install: "Install the browser extension to continue.",
+    wallet_endless_install: "Open Endless Wallet and connect manually.",
+    wallet_endless_open: "OPEN ENDLESS WALLET",
     wallet_luffa_qr: "SCAN QR CODE IN LUFFA APP",
     wallet_luffa_qr_hint: "SCAN QR IN LUFFA APP. THE PAGE WILL OPEN IN LUFFA BROWSER AND WALLET CONNECTS AUTOMATICALLY.",
     wallet_luffa_connecting: "Connecting via Luffa...",
     wallet_modal_title: "WALLET REQUIRED",
     wallet_modal_text: "Install Luffa to connect your Endless wallet.",
     wallet_modal_text_inapp: "Approve the connection in your Luffa wallet.",
-    wallet_modal_install: "DOWNLOAD WALLET",
+    wallet_modal_install: "OPEN ENDLESS WALLET",
     wallet_modal_close: "CLOSE",
     invite_modal_title: "INVITE BET",
     invite_modal_text: "Enter the bet to propose.",
@@ -699,20 +700,21 @@ const I18N = {
     connect_wallet: "ПОДКЛЮЧИТЬ КОШЕЛЁК",
     wallet_picker_title: "ВЫБОР КОШЕЛЬКА",
     wallet_endless: "ENDLESS WALLET",
-    wallet_endless_desc: "Расширение браузера",
+    wallet_endless_desc: "Веб-кошелёк",
     wallet_luffa: "LUFFA WALLET",
     wallet_luffa_desc: "Сканировать QR-код",
     wallet_back: "НАЗАД",
     wallet_connecting: "ПОДКЛЮЧЕНИЕ...",
     wallet_endless_missing: "ENDLESS WALLET НЕ НАЙДЕН",
-    wallet_endless_install: "Установите расширение браузера для продолжения.",
+    wallet_endless_install: "Откройте Endless Wallet и подключитесь вручную.",
+    wallet_endless_open: "ОТКРЫТЬ ENDLESS WALLET",
     wallet_luffa_qr: "СКАНИРУЙТЕ QR-КОД В ПРИЛОЖЕНИИ LUFFA",
     wallet_luffa_qr_hint: "СКАНИРУЙТЕ QR В LUFFA. СТРАНИЦА ОТКРОЕТСЯ В БРАУЗЕРЕ LUFFA И КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ.",
     wallet_luffa_connecting: "Подключение через Luffa...",
     wallet_modal_title: "НУЖЕН КОШЕЛЁК",
     wallet_modal_text: "Установите Luffa для подключения кошелька Endless.",
     wallet_modal_text_inapp: "Подтвердите подключение в кошельке Luffa.",
-    wallet_modal_install: "СКАЧАТЬ КОШЕЛЁК",
+    wallet_modal_install: "ОТКРЫТЬ ENDLESS WALLET",
     wallet_modal_close: "ЗАКРЫТЬ",
     invite_modal_title: "СТАВКА ДЛЯ ПРИГЛАШЕНИЯ",
     invite_modal_text: "Введите ставку для игры.",
@@ -2848,21 +2850,16 @@ async function handleEndlessWalletConnect() {
     walletAddress = await connectEndlessExtension(networkMode);
     onWalletConnectSuccess();
   } catch (err: any) {
-    if (err?.message === "ENDLESS_NOT_INSTALLED") {
-      if (walletStatusText) {
-        walletStatusText.textContent = I18N[currentLocale].wallet_endless_install;
-      }
-      if (walletPickerTitle) {
-        walletPickerTitle.textContent = I18N[currentLocale].wallet_endless_missing;
-      }
-      if (walletInstallLink) {
-        walletInstallLink.href = "https://wallet.endless.link/";
-        walletInstallLink.style.display = "inline-flex";
-      }
-    } else {
-      if (walletStatusText) {
-        walletStatusText.textContent = I18N[currentLocale].msg_wallet_failed;
-      }
+    if (walletStatusText) {
+      walletStatusText.textContent = I18N[currentLocale].wallet_endless_install;
+    }
+    if (walletPickerTitle) {
+      walletPickerTitle.textContent = I18N[currentLocale].wallet_endless_missing;
+    }
+    if (walletInstallLink) {
+      walletInstallLink.href = "https://wallet.endless.link/";
+      walletInstallLink.textContent = I18N[currentLocale].wallet_endless_open;
+      walletInstallLink.style.display = "inline-flex";
     }
   }
 }
