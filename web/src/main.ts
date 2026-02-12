@@ -3214,14 +3214,16 @@ async function onWalletConnectSuccess() {
   if (walletAddressEl) walletAddressEl.textContent = displayAddr;
   if (walletModal) walletModal.style.display = "none";
   // Check if connected wallet is contract owner
-  // Owner = contract deployer address. Compare with config address directly.
-  const CONTRACT_ADDR = "0x1329ceb3251b7593e20755b5ac2a4ee848ef1430c71d18b8bddff6510d81a792";
+  const CONTRACT_ADDR_HEX = "0x1329ceb3251b7593e20755b5ac2a4ee848ef1430c71d18b8bddff6510d81a792";
+  const CONTRACT_ADDR_B58 = "2HoipHVpJG5fuKsfPymt5v4KdNqgrkmTcKkchUGLHqJh";
   const normWallet = normalizeAddress(walletAddress);
-  isContractOwner = normWallet === CONTRACT_ADDR;
+  isContractOwner = normWallet === CONTRACT_ADDR_HEX
+    || walletAddress === CONTRACT_ADDR_B58
+    || walletAddress.toLowerCase() === CONTRACT_ADDR_HEX;
   showMessage(
     currentLocale === "ru"
-      ? `Кошелёк подключён. ${isContractOwner ? "(Владелец)" : ""} Адрес: ${walletAddress.slice(0, 12)}...`
-      : `Wallet connected. ${isContractOwner ? "(Owner)" : ""} Addr: ${walletAddress.slice(0, 12)}...`,
+      ? `Кошелёк подключён. ${isContractOwner ? "(Владелец)" : ""} Адрес: ${walletAddress}`
+      : `Wallet connected. ${isContractOwner ? "(Owner)" : ""} Addr: ${walletAddress}`,
     "success"
   );
   updateUI();
