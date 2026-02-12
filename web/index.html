@@ -451,7 +451,12 @@
     </footer>
   </div>
 
+  <script>
+    // Contract address override — loaded from HTML (not cached JS bundle)
+    window.__CONTRACT_TESTNET = "0x1329ceb3251b7593e20755b5ac2a4ee848ef1430c71d18b8bddff6510d81a792";
+    window.__APP_VERSION = "2.2";
+  </script>
   <script type="module" src="/src/main.ts"></script>
-  <div style="position:fixed;bottom:2px;right:4px;color:#555;font-size:10px;z-index:9999">v2.1</div>
+  <div style="position:fixed;bottom:2px;right:4px;color:#555;font-size:10px;z-index:9999" id="app-ver">v2.2</div>
 </body>
 </html>

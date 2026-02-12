@@ -59,6 +59,9 @@ function extractAddress(data: any): string | null {
 
 function getContractAddress(mode?: "testnet" | "mainnet"): string {
   if (mode === "mainnet") return CONTRACT_ADDRESS_MAINNET;
+  // Priority: HTML global > config (handles stale JS cache)
+  const htmlOverride = (window as any).__CONTRACT_TESTNET;
+  if (htmlOverride) return htmlOverride;
   return CONTRACT_ADDRESS_TESTNET;
 }
 
