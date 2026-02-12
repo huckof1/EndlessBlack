@@ -2895,8 +2895,8 @@ async function handleDisconnectWallet() {
   updateUI();
   showMessage(
     currentLocale === "ru"
-      ? "Кошелёк отключён. Тестовый режим."
-      : "Wallet disconnected. Test mode.",
+      ? "Кошелёк отключён."
+      : "Wallet disconnected.",
     "info"
   );
 }
@@ -2927,7 +2927,10 @@ async function startDemoSession() {
   if (walletAddressEl) walletAddressEl.textContent = "TEST";
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
-  showMessage(I18N[currentLocale].msg_place_bet, "info");
+  showMessage(
+    currentLocale === "ru" ? "Тестовый режим. Сделай ставку!" : "Test mode. Place your bet!",
+    "info"
+  );
   updateUI();
   initFeed();
   renderLeaderboard();
@@ -3063,6 +3066,10 @@ async function onWalletConnectSuccess() {
     : walletAddress;
   if (walletAddressEl) walletAddressEl.textContent = displayAddr;
   if (walletModal) walletModal.style.display = "none";
+  showMessage(
+    currentLocale === "ru" ? "Кошелёк подключён." : "Wallet connected.",
+    "success"
+  );
   updateUI();
 }
 
