@@ -1870,10 +1870,6 @@ function setNetwork(mode: "testnet" | "mainnet") {
     renderLeaderboard();
     renderActivePlayers();
   }
-  if (!walletAddress) {
-    // Attempt connect on explicit onchain switch (user gesture)
-    void handleConnectWallet();
-  }
 }
 
 function applyNetworkMode() {
@@ -2808,17 +2804,18 @@ function updateUI() {
 }
 
 async function handleConnectWallet() {
-  // If inside Luffa app, auto-connect via SDK directly
-  if (isLuffaInApp()) {
-    try {
-      walletAddress = await connectLuffa(networkMode);
-      onWalletConnectSuccess();
-      return;
-    } catch {
-      // Fall through to show picker
-    }
+  try {
+    walletAddress = await connectWallet(networkMode);
+    onWalletConnectSuccess();
+  } catch (err) {
+    console.warn("Wallet connect failed:", err);
+    showMessage(
+      currentLocale === "ru"
+        ? "Не удалось подключить кошелёк. Попробуйте ещё раз."
+        : "Failed to connect wallet. Please try again.",
+      "error"
+    );
   }
-  showWalletPicker();
 }
 
 function showWalletPicker() {
