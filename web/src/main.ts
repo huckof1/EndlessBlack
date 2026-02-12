@@ -3068,6 +3068,21 @@ async function handleFundBankroll() {
   const octas = Math.floor(edsAmount * 100000000);
   try {
     if (fundBankrollBtn) fundBankrollBtn.disabled = true;
+    // Pre-check: does user have enough balance?
+    try {
+      const bal = await getWalletBalance(walletAddress, networkMode);
+      if (bal < octas) {
+        showMessage(
+          currentLocale === "ru"
+            ? `Недостаточно EDS. Баланс: ${(bal / 100000000).toFixed(2)} EDS, нужно: ${edsAmount} EDS`
+            : `Insufficient EDS. Balance: ${(bal / 100000000).toFixed(2)} EDS, need: ${edsAmount} EDS`,
+          "error"
+        );
+        return;
+      }
+    } catch (balErr) {
+      console.warn("Balance pre-check failed, trying anyway:", balErr);
+    }
     showMessage(
       currentLocale === "ru"
         ? "Пополнение банкролла... Подтвердите в кошельке."
@@ -3078,9 +3093,15 @@ async function handleFundBankroll() {
     await updateBank();
     await updateBalance();
     showMessage(I18N[currentLocale].fund_bank_success, "success");
-  } catch (err) {
-    console.warn("Fund bankroll failed:", err);
-    showMessage(I18N[currentLocale].fund_bank_fail, "error");
+  } catch (err: any) {
+    console.error("Fund bankroll failed:", err);
+    const errMsg = err?.message || err?.toString?.() || String(err);
+    showMessage(
+      currentLocale === "ru"
+        ? `Ошибка пополнения: ${errMsg}`
+        : `Fund error: ${errMsg}`,
+      "error"
+    );
   } finally {
     if (fundBankrollBtn) fundBankrollBtn.disabled = false;
   }

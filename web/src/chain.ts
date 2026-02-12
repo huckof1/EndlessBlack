@@ -327,13 +327,24 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
 
   // Web3 SDK (iframe wallet)
   if (activeWalletType === "web3" && web3Sdk) {
-    const res = await web3Sdk.signAndSubmitTransaction({ payload });
+    let res: any;
+    try {
+      res = await web3Sdk.signAndSubmitTransaction({ payload });
+    } catch (sdkErr: any) {
+      console.error("Web3 SDK signAndSubmitTransaction error:", sdkErr);
+      throw new Error(`Wallet SDK error: ${sdkErr?.message || sdkErr}`);
+    }
     if (res.status === UserResponseStatus.APPROVED) {
-      const endless = await getEndless(mode);
-      await endless.waitForTransaction({ transactionHash: res.args.hash });
+      try {
+        const endless = await getEndless(mode);
+        await endless.waitForTransaction({ transactionHash: res.args.hash });
+      } catch (waitErr: any) {
+        console.error("Transaction on-chain error:", waitErr);
+        throw new Error(`On-chain error: ${waitErr?.message || waitErr}`);
+      }
       return res.args;
     }
-    throw new Error("Transaction rejected by user");
+    throw new Error(`Transaction not approved (status: ${res.status})`);
   }
 
   // Luffa SDK
