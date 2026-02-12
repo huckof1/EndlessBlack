@@ -3086,27 +3086,14 @@ async function executeFundBankroll() {
   try {
     if (fundBankrollBtn) fundBankrollBtn.disabled = true;
     if (fundBankHeader) fundBankHeader.disabled = true;
-    // Pre-check balance
-    try {
-      const bal = await getWalletBalance(walletAddress, networkMode);
-      if (bal < octas) {
-        showMessage(
-          currentLocale === "ru"
-            ? `Недостаточно EDS. Баланс: ${(bal / 100000000).toFixed(2)} EDS, нужно: ${edsAmount} EDS`
-            : `Insufficient EDS. Balance: ${(bal / 100000000).toFixed(2)} EDS, need: ${edsAmount} EDS`,
-          "error"
-        );
-        return;
-      }
-    } catch (balErr) {
-      console.warn("Balance pre-check failed, trying anyway:", balErr);
-    }
     showMessage(
       currentLocale === "ru"
         ? "Пополнение банкролла... Подтвердите в кошельке."
         : "Funding bankroll... Confirm in wallet.",
       "info"
     );
+    // Call transaction IMMEDIATELY — no async before this!
+    // Mobile Safari blocks wallet popup if user gesture context is lost.
     await fundBankroll(octas, networkMode);
     await updateBank();
     await updateBalance();

@@ -292,11 +292,11 @@ function getInjectedWallet(): WalletProvider | null {
 
 async function submitEntryFunction(functionName: string, args: any[], mode?: "testnet" | "mainnet") {
   const func = `${getContractAddress(mode)}::${MODULE_NAME}::${functionName}`;
-  const strArgs = args.map((a) => String(a));
+  // Pass args as-is — SDK expects BigInt for u128, strings for addresses, etc.
   const payload = {
     function: func as `${string}::${string}::${string}`,
     typeArguments: [] as string[],
-    functionArguments: strArgs,
+    functionArguments: args,
   };
 
   // Route based on active wallet type
@@ -556,7 +556,7 @@ export async function getOwner(networkMode?: "testnet" | "mainnet"): Promise<str
 }
 
 export async function startGame(betAmount: number, networkMode?: "testnet" | "mainnet") {
-  return await submitEntryFunction("start_game", [betAmount], networkMode);
+  return await submitEntryFunction("start_game", [BigInt(betAmount)], networkMode);
 }
 
 export async function hit(gameId: number, networkMode?: "testnet" | "mainnet") {
@@ -572,7 +572,7 @@ export async function claimPayout(playerAddress: string, gameId: number, network
 }
 
 export async function fundBankroll(amount: number, networkMode?: "testnet" | "mainnet") {
-  return await submitEntryFunction("fund_bankroll", [amount], networkMode);
+  return await submitEntryFunction("fund_bankroll", [BigInt(amount)], networkMode);
 }
 
 export async function withdrawFees(amount: number, toAddress: string, networkMode?: "testnet" | "mainnet") {
