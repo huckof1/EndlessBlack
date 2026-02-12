@@ -291,7 +291,9 @@ function getInjectedWallet(): WalletProvider | null {
 // ==================== TRANSACTION SUBMISSION ====================
 
 async function submitEntryFunction(functionName: string, args: any[], mode?: "testnet" | "mainnet") {
-  const func = `${getContractAddress(mode)}::${MODULE_NAME}::${functionName}`;
+  const contractAddr = getContractAddress(mode);
+  const func = `${contractAddr}::${MODULE_NAME}::${functionName}`;
+  console.log("submitEntryFunction:", func, "args:", args, "contractAddr:", contractAddr);
   // Pass args as-is — SDK expects BigInt for u128, strings for addresses, etc.
   const payload = {
     function: func as `${string}::${string}::${string}`,

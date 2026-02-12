@@ -3101,10 +3101,12 @@ async function executeFundBankroll() {
   } catch (err: any) {
     console.error("Fund bankroll failed:", err);
     const errMsg = err?.message || err?.toString?.() || String(err);
+    // Show contract address in error for debugging
+    const { CONTRACT_ADDRESS_TESTNET } = await import("./config");
     showMessage(
       currentLocale === "ru"
-        ? `Ошибка пополнения: ${errMsg}`
-        : `Fund error: ${errMsg}`,
+        ? `Ошибка: ${errMsg} [контракт: ${CONTRACT_ADDRESS_TESTNET.slice(0, 10)}...]`
+        : `Error: ${errMsg} [contract: ${CONTRACT_ADDRESS_TESTNET.slice(0, 10)}...]`,
       "error"
     );
   } finally {
