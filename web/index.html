@@ -260,6 +260,24 @@
       </div>
     </div>
 
+    <div id="fund-modal" class="modal" style="display: none;">
+      <div class="modal-content wallet-picker-content">
+        <div class="modal-title">FUND BANKROLL</div>
+        <div style="padding: 16px; text-align: center;">
+          <label style="color: #ccc; font-size: 14px; display: block; margin-bottom: 8px;">EDS:</label>
+          <input id="fund-amount-input" type="number" min="0.1" step="0.1" value="5" style="
+            width: 120px; padding: 8px 12px; font-size: 18px; text-align: center;
+            background: #1a1a2e; color: #fff; border: 2px solid #ffd700;
+            border-radius: 8px; outline: none; font-family: inherit;
+          " />
+        </div>
+        <div class="modal-actions">
+          <button id="fund-modal-confirm" class="btn btn-small" style="background: #28a745;">OK</button>
+          <button id="fund-modal-cancel" class="btn btn-small">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
     <div id="dev-overlay" class="modal dev-overlay" style="display: none;">
       <div class="modal-content">
         <div class="modal-title">Debug keys</div>

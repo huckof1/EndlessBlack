@@ -121,6 +121,10 @@ const inviteText = document.getElementById("invite-text") as HTMLDivElement;
 const inviteAccept = document.getElementById("invite-accept") as HTMLButtonElement;
 const inviteDecline = document.getElementById("invite-decline") as HTMLButtonElement;
 const fundBankrollBtn = document.getElementById("fund-bankroll-btn") as HTMLButtonElement;
+const fundModal = document.getElementById("fund-modal") as HTMLDivElement;
+const fundAmountInput = document.getElementById("fund-amount-input") as HTMLInputElement;
+const fundModalConfirm = document.getElementById("fund-modal-confirm") as HTMLButtonElement;
+const fundModalCancel = document.getElementById("fund-modal-cancel") as HTMLButtonElement;
 const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
@@ -931,6 +935,15 @@ function init() {
   }
   if (fundBankHeader) {
     fundBankHeader.addEventListener("click", () => handleFundBankroll());
+  }
+  // Fund modal confirm/cancel
+  if (fundModalConfirm) {
+    fundModalConfirm.addEventListener("click", () => executeFundBankroll());
+  }
+  if (fundModalCancel) {
+    fundModalCancel.addEventListener("click", () => {
+      if (fundModal) fundModal.style.display = "none";
+    });
   }
 
   // Reset demo
@@ -3054,21 +3067,26 @@ async function handleFaucet() {
   }
 }
 
-async function handleFundBankroll() {
+function handleFundBankroll() {
   if (!walletAddress) return;
-  const amountStr = prompt(
-    currentLocale === "ru"
-      ? "Сколько EDS внести в банкролл?"
-      : "How many EDS to fund bankroll?",
-    "5"
-  );
-  if (!amountStr) return;
-  const edsAmount = parseFloat(amountStr);
+  // Show HTML modal instead of prompt() — prompt() blocks wallet iframe on mobile
+  if (fundModal) {
+    if (fundAmountInput) fundAmountInput.value = "5";
+    fundModal.style.display = "flex";
+  }
+}
+
+async function executeFundBankroll() {
+  if (!walletAddress) return;
+  const edsAmount = parseFloat(fundAmountInput?.value || "0");
   if (isNaN(edsAmount) || edsAmount <= 0) return;
   const octas = Math.floor(edsAmount * 100000000);
+  // Hide modal first so it doesn't block wallet popup
+  if (fundModal) fundModal.style.display = "none";
   try {
     if (fundBankrollBtn) fundBankrollBtn.disabled = true;
-    // Pre-check: does user have enough balance?
+    if (fundBankHeader) fundBankHeader.disabled = true;
+    // Pre-check balance
     try {
       const bal = await getWalletBalance(walletAddress, networkMode);
       if (bal < octas) {
@@ -3104,6 +3122,7 @@ async function handleFundBankroll() {
     );
   } finally {
     if (fundBankrollBtn) fundBankrollBtn.disabled = false;
+    if (fundBankHeader) fundBankHeader.disabled = false;
   }
 }
 
