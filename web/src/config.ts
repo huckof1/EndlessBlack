@@ -10,9 +10,9 @@ export const DEMO_MODE = !RELEASE_MODE;
 export const CONTRACT_ADDRESS =
   (import.meta as any).env?.VITE_CONTRACT_ADDRESS || "";
 
-// Адреса по сетям
+// Адреса по сетям (hardcoded fallback для GitHub Pages где .env недоступен)
 export const CONTRACT_ADDRESS_TESTNET =
-  (import.meta as any).env?.VITE_CONTRACT_ADDRESS_TESTNET || CONTRACT_ADDRESS;
+  (import.meta as any).env?.VITE_CONTRACT_ADDRESS_TESTNET || "0x1329ceb3251b7593e20755b5ac2a4ee848ef1430c71d18b8bddff6510d81a792";
 export const CONTRACT_ADDRESS_MAINNET =
   (import.meta as any).env?.VITE_CONTRACT_ADDRESS_MAINNET || CONTRACT_ADDRESS;
 
