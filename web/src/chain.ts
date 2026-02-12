@@ -334,6 +334,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       console.error("Web3 SDK signAndSubmitTransaction error:", sdkErr);
       throw new Error(`Wallet SDK error: ${sdkErr?.message || sdkErr}`);
     }
+    console.log("signAndSubmitTransaction response:", JSON.stringify(res, null, 2));
     if (res.status === UserResponseStatus.APPROVED) {
       try {
         const endless = await getEndless(mode);
@@ -344,7 +345,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       }
       return res.args;
     }
-    throw new Error(`Transaction not approved (status: ${res.status})`);
+    throw new Error(`Rejected: ${res.message || res.status}`);
   }
 
   // Luffa SDK
