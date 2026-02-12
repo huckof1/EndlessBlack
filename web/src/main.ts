@@ -105,6 +105,7 @@ const networkMainnetBtn = document.getElementById("network-mainnet") as HTMLButt
 const connectWalletHeader = document.getElementById("connect-wallet-header") as HTMLButtonElement;
 const demoPlayBtn = document.getElementById("demo-play-btn") as HTMLButtonElement;
 const switchWalletBtn = document.getElementById("switch-wallet-btn") as HTMLButtonElement;
+const fundBankHeader = document.getElementById("fund-bank-header") as HTMLButtonElement;
 const faucetBtn = document.getElementById("faucet-btn") as HTMLButtonElement;
 const demoBadge = document.getElementById("demo-badge") as HTMLSpanElement;
 
@@ -926,9 +927,10 @@ function init() {
 
   // Fund bankroll button — owner only
   if (fundBankrollBtn) {
-    fundBankrollBtn.addEventListener("click", () => {
-      handleFundBankroll();
-    });
+    fundBankrollBtn.addEventListener("click", () => handleFundBankroll());
+  }
+  if (fundBankHeader) {
+    fundBankHeader.addEventListener("click", () => handleFundBankroll());
   }
 
   // Reset demo
@@ -2893,9 +2895,12 @@ function updateUI() {
     faucetBtn.textContent = I18N[currentLocale].faucet;
   }
   if (fundBankrollBtn) {
-    // Show fund bankroll button only when wallet connected and is owner
     fundBankrollBtn.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
     fundBankrollBtn.textContent = I18N[currentLocale].fund_bank;
+  }
+  if (fundBankHeader) {
+    fundBankHeader.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
+    fundBankHeader.textContent = I18N[currentLocale].fund_bank;
   }
   if (walletModal) {
     walletModal.style.display = "none";
@@ -3191,8 +3196,12 @@ async function onWalletConnectSuccess() {
   // Check if connected wallet is contract owner
   try {
     const owner = await getOwner(networkMode);
-    isContractOwner = normalizeAddress(walletAddress) === normalizeAddress(owner);
-  } catch {
+    const normWallet = normalizeAddress(walletAddress);
+    const normOwner = normalizeAddress(owner);
+    console.log("Owner check:", { walletAddress, owner, normWallet, normOwner, match: normWallet === normOwner });
+    isContractOwner = normWallet === normOwner;
+  } catch (e) {
+    console.warn("Owner check failed:", e);
     isContractOwner = false;
   }
   showMessage(
