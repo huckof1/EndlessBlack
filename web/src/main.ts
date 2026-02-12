@@ -473,13 +473,13 @@ const FEED_EVENTS = [
 const I18N = {
   en: {
     subtitle: "WEB3 MULTIPLAYER",
-    demo_mode: "DEMO",
+    demo_mode: "TEST MODE",
     enter_name: "ENTER YOUR NAME:",
     player_placeholder: "Player",
     start: "START",
     player: "PLAYER:",
     balance: "BALANCE:",
-    reset_demo: "RESET DEMO",
+    reset_demo: "RESET TEST",
     mascot_idle: "Let's play?",
     bet: "BET",
     bet_hint: "MIN 0.1 EDS · MAX 10000 EDS",
@@ -538,8 +538,8 @@ const I18N = {
     turn_dealer: "DEALER TURN",
     turn_of: "TURN:",
     bet_offer: "Bet offer",
-    msg_demo_reset: "DEMO DATA RESET",
-    msg_demo_reset_mascot: "Demo reset",
+    msg_demo_reset: "TEST DATA RESET",
+    msg_demo_reset_mascot: "Test reset",
     feed_empty: "No events yet. Play your first hand!",
     feed_draw: "played a draw",
     feed_win: "won",
@@ -588,7 +588,7 @@ const I18N = {
     title_deal: "Start dealing",
     title_hit: "Take a card",
     title_stand: "Stand and pass to dealer",
-    msg_release_lock: "Release mode: demo and wallet features are disabled.",
+    msg_release_lock: "Release mode: test and wallet features are disabled.",
     claim: "CLAIM WINNINGS",
     msg_claimed: "PAYOUT CLAIMED",
     msg_no_payout: "NO PAYOUT AVAILABLE",
@@ -613,7 +613,7 @@ const I18N = {
     invited_by: "Invited by",
     invite_accept: "ACCEPT",
     invite_decline: "DECLINE",
-    invite_mode_demo: "DEMO",
+    invite_mode_demo: "TEST",
     invite_mode_testnet: "TESTNET",
     invite_mode_mainnet: "MAINNET",
     invite_bet: "Bet",
@@ -627,13 +627,13 @@ const I18N = {
   },
   ru: {
     subtitle: "WEB3 МУЛЬТИПЛЕЕР",
-    demo_mode: "ДЕМО",
+    demo_mode: "ТЕСТОВЫЙ РЕЖИМ",
     enter_name: "ВВЕДИТЕ ИМЯ:",
     player_placeholder: "Игрок",
     start: "СТАРТ",
     player: "ИГРОК:",
     balance: "БАЛАНС:",
-    reset_demo: "СБРОС ДЕМО",
+    reset_demo: "СБРОС ТЕСТА",
     mascot_idle: "Играем?",
     bet: "СТАВКА",
     bet_hint: "МИН 0.1 EDS · МАКС 10000 EDS",
@@ -692,8 +692,8 @@ const I18N = {
     turn_dealer: "ХОД ДИЛЕРА",
     turn_of: "ХОД:",
     bet_offer: "Предложение ставки",
-    msg_demo_reset: "ДЕМО ДАННЫЕ СБРОШЕНЫ",
-    msg_demo_reset_mascot: "Демо сброшено",
+    msg_demo_reset: "ТЕСТОВЫЕ ДАННЫЕ СБРОШЕНЫ",
+    msg_demo_reset_mascot: "Тест сброшен",
     feed_empty: "Пока пусто. Сыграй первую раздачу!",
     feed_draw: "сыграл вничью",
     feed_win: "выиграл",
@@ -742,7 +742,7 @@ const I18N = {
     title_deal: "Начать раздачу",
     title_hit: "Взять карту",
     title_stand: "Остановиться и передать ход дилеру",
-    msg_release_lock: "Режим релиза: демо и кошельки отключены.",
+    msg_release_lock: "Режим релиза: тест и кошельки отключены.",
     claim: "ЗАБРАТЬ ВЫИГРЫШ",
     msg_claimed: "ВЫИГРЫШ ПОЛУЧЕН",
     msg_no_payout: "НЕТ ВЫПЛАТЫ",
@@ -767,7 +767,7 @@ const I18N = {
     invited_by: "Пригласил",
     invite_accept: "ПРИНЯТЬ",
     invite_decline: "ОТКЛОНИТЬ",
-    invite_mode_demo: "ДЕМО",
+    invite_mode_demo: "ТЕСТ",
     invite_mode_testnet: "ТЕСТНЕТ",
     invite_mode_mainnet: "МАЙННЕТ",
     invite_bet: "Ставка",
@@ -1175,8 +1175,8 @@ async function startSession() {
     console.warn("Wallet connect failed:", err);
     showMessage(
       currentLocale === "ru"
-        ? "Кошелёк не подключён. Откройте страницу в приложении Luffa или установите расширение Endless Wallet. Запущен демо-режим."
-        : "Wallet not connected. Open this page in Luffa app or install Endless Wallet extension. Running in demo mode.",
+        ? "Кошелёк не подключён. Запущен тестовый режим."
+        : "Wallet not connected. Running in test mode.",
       "error"
     );
     await game.connectWallet();
@@ -1184,7 +1184,7 @@ async function startSession() {
     await updateBank();
     await updateStats();
     setWalletStatus(false);
-    if (walletAddressEl) walletAddressEl.textContent = "DEMO";
+    if (walletAddressEl) walletAddressEl.textContent = "TEST";
   }
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
@@ -2776,7 +2776,7 @@ function updateUI() {
   }
   if (demoBadge) {
     if (demo) {
-      demoBadge.textContent = I18N[currentLocale].demo_mode || "DEMO MODE";
+      demoBadge.textContent = I18N[currentLocale].demo_mode || "TEST MODE";
       demoBadge.style.display = "inline-block";
     } else {
       demoBadge.textContent = "TESTNET";
@@ -2889,14 +2889,14 @@ async function handleDisconnectWallet() {
   await updateBank();
   await updateStats();
   if (demoBadge) {
-    demoBadge.textContent = I18N[currentLocale].demo_mode || "DEMO MODE";
+    demoBadge.textContent = I18N[currentLocale].demo_mode || "TEST MODE";
     demoBadge.style.display = "inline-block";
   }
   updateUI();
   showMessage(
     currentLocale === "ru"
-      ? "Кошелёк отключён. Вы в демо-режиме."
-      : "Wallet disconnected. You are in demo mode.",
+      ? "Кошелёк отключён. Тестовый режим."
+      : "Wallet disconnected. Test mode.",
     "info"
   );
 }
@@ -2924,7 +2924,7 @@ async function startDemoSession() {
   await updateBank();
   await updateStats();
   setWalletStatus(false);
-  if (walletAddressEl) walletAddressEl.textContent = "DEMO";
+  if (walletAddressEl) walletAddressEl.textContent = "TEST";
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
   showMessage(I18N[currentLocale].msg_place_bet, "info");
