@@ -3187,18 +3187,14 @@ async function onWalletConnectSuccess() {
   if (walletAddressEl) walletAddressEl.textContent = displayAddr;
   if (walletModal) walletModal.style.display = "none";
   // Check if connected wallet is contract owner
-  try {
-    const owner = await getOwner(networkMode);
-    const normWallet = normalizeAddress(walletAddress);
-    const normOwner = normalizeAddress(owner);
-    console.log("Owner check:", { walletAddress, owner, normWallet, normOwner, match: normWallet === normOwner });
-    isContractOwner = normWallet === normOwner;
-  } catch (e) {
-    console.warn("Owner check failed:", e);
-    isContractOwner = false;
-  }
+  // Owner = contract deployer address. Compare with config address directly.
+  const CONTRACT_ADDR = "0x1329ceb3251b7593e20755b5ac2a4ee848ef1430c71d18b8bddff6510d81a792";
+  const normWallet = normalizeAddress(walletAddress);
+  isContractOwner = normWallet === CONTRACT_ADDR;
   showMessage(
-    currentLocale === "ru" ? "Кошелёк подключён." : "Wallet connected.",
+    currentLocale === "ru"
+      ? `Кошелёк подключён. ${isContractOwner ? "(Владелец)" : ""} Адрес: ${walletAddress.slice(0, 12)}...`
+      : `Wallet connected. ${isContractOwner ? "(Owner)" : ""} Addr: ${walletAddress.slice(0, 12)}...`,
     "success"
   );
   updateUI();
