@@ -1212,14 +1212,7 @@ async function startSession() {
   // Connect wallet
   try {
     walletAddress = await connectWallet(networkMode);
-    await updateBalance();
-    await updateBank();
-    await updateStats();
-    setWalletStatus(true);
-    const displayAddr = walletAddress.length > 12
-      ? walletAddress.slice(0, 6) + "..." + walletAddress.slice(-4)
-      : walletAddress;
-    if (walletAddressEl) walletAddressEl.textContent = displayAddr;
+    await onWalletConnectSuccess();
   } catch (err) {
     // Wallet not available — show error and fall back to demo mode
     console.warn("Wallet connect failed:", err);
