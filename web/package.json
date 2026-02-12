@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@endlesslab/endless-ts-sdk": "^1.0.0",
+    "@endlesslab/endless-web3-sdk": "^1.0.9",
     "@luffalab/luffa-endless-sdk": "^1.1.9",
     "qrcode": "^1.5.4"
   },

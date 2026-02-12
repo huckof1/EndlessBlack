@@ -1,8 +1,14 @@
 import { CONTRACT_ADDRESS_TESTNET, CONTRACT_ADDRESS_MAINNET, MODULE_NAME, NETWORK } from "./config";
+import { Network } from "@endlesslab/endless-ts-sdk";
 import {
-  EndlessLuffaSdk,
+  EndlessJsSdk,
   UserResponseStatus,
   EndLessSDKEvent,
+} from "@endlesslab/endless-web3-sdk";
+import {
+  EndlessLuffaSdk,
+  UserResponseStatus as LuffaUserResponseStatus,
+  EndLessSDKEvent as LuffaSDKEvent,
   isLuffa,
 } from "@luffalab/luffa-endless-sdk";
 
@@ -45,17 +51,6 @@ function toNumber(value: any): number {
   return Number(value);
 }
 
-// Таймаут для промисов (SDK может зависнуть вне Luffa webview)
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(message)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
-const CONNECT_TIMEOUT_MS = 8000;
-
 // Извлечь адрес из ответа SDK (поле может быть address или account)
 function extractAddress(data: any): string | null {
   if (!data) return null;
@@ -69,23 +64,61 @@ function getContractAddress(mode?: "testnet" | "mainnet"): string {
 
 // ==================== WALLET TYPE ====================
 
-export type WalletType = "endless" | "luffa" | null;
+export type WalletType = "endless" | "luffa" | "web3" | null;
 let activeWalletType: WalletType = null;
 
 export function getActiveWalletType(): WalletType {
   return activeWalletType;
 }
 
-// ==================== LUFFA SDK ====================
+// ==================== ENDLESS WEB3 SDK (primary — iframe wallet) ====================
+
+let web3Sdk: EndlessJsSdk | null = null;
+let web3SdkNetwork: string | null = null;
+
+function getWeb3Sdk(mode?: "testnet" | "mainnet"): EndlessJsSdk {
+  const network = mode === "mainnet" ? Network.MAINNET : Network.TESTNET;
+  const networkKey = mode === "mainnet" ? "mainnet" : "testnet";
+
+  if (!web3Sdk) {
+    web3SdkNetwork = networkKey;
+    web3Sdk = new EndlessJsSdk({
+      network,
+      colorMode: "dark",
+    });
+
+    web3Sdk.on(EndLessSDKEvent.CONNECT, (info: any) => {
+      const addr = extractAddress(info);
+      if (addr) {
+        connectedAddress = addr;
+        onWalletConnect?.(addr);
+      }
+    });
+
+    web3Sdk.on(EndLessSDKEvent.DISCONNECT, () => {
+      connectedAddress = null;
+      onWalletDisconnect?.();
+    });
+
+    web3Sdk.on(EndLessSDKEvent.ACCOUNT_CHANGE, (info: any) => {
+      const addr = extractAddress(info);
+      if (addr) {
+        connectedAddress = addr;
+        onAccountChange?.(addr);
+      }
+    });
+  } else if (web3SdkNetwork !== networkKey) {
+    web3SdkNetwork = networkKey;
+    web3Sdk.changeNetwork({ network });
+  }
+
+  return web3Sdk;
+}
+
+// ==================== LUFFA SDK (fallback — inside Luffa app) ====================
 
 let luffaSdk: EndlessLuffaSdk | null = null;
 let luffaSdkNetwork: string | null = null;
-let connectedAddress: string | null = null;
-
-// Event callbacks for main.ts to subscribe
-let onWalletConnect: ((address: string) => void) | null = null;
-let onWalletDisconnect: (() => void) | null = null;
-let onAccountChange: ((address: string) => void) | null = null;
 
 function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
   const network = mode === "mainnet" ? "mainnet" : "testnet";
@@ -97,7 +130,7 @@ function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
       miniprogram: false,
     });
 
-    luffaSdk.on(EndLessSDKEvent.CONNECT, (info) => {
+    luffaSdk.on(LuffaSDKEvent.CONNECT, (info) => {
       const addr = extractAddress(info);
       if (addr) {
         connectedAddress = addr;
@@ -105,12 +138,12 @@ function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
       }
     });
 
-    luffaSdk.on(EndLessSDKEvent.DISCONNECT, () => {
+    luffaSdk.on(LuffaSDKEvent.DISCONNECT, () => {
       connectedAddress = null;
       onWalletDisconnect?.();
     });
 
-    luffaSdk.on(EndLessSDKEvent.ACCOUNT_CHANGE, (info) => {
+    luffaSdk.on(LuffaSDKEvent.ACCOUNT_CHANGE, (info) => {
       const addr = extractAddress(info);
       if (addr) {
         connectedAddress = addr;
@@ -118,13 +151,21 @@ function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
       }
     });
   } else if (luffaSdkNetwork !== network) {
-    // Сеть изменилась — переключаем через SDK
     luffaSdkNetwork = network;
     luffaSdk.changeNetwork({ network });
   }
 
   return luffaSdk;
 }
+
+// ==================== SHARED STATE ====================
+
+let connectedAddress: string | null = null;
+
+// Event callbacks for main.ts to subscribe
+let onWalletConnect: ((address: string) => void) | null = null;
+let onWalletDisconnect: (() => void) | null = null;
+let onAccountChange: ((address: string) => void) | null = null;
 
 export function setWalletCallbacks(callbacks: {
   onConnect?: (address: string) => void;
@@ -146,35 +187,26 @@ export function getConnectedAddress(): string | null {
 
 // ==================== WALLET CONNECTION ====================
 
+/** Primary: connect via Endless Web3 SDK (iframe wallet — works in any browser) */
 export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<string> {
-  const sdk = getLuffaSdk(mode);
-
-  try {
-    const res = await withTimeout(
-      sdk.connect(),
-      CONNECT_TIMEOUT_MS,
-      "Luffa SDK connect timeout — open this page inside Luffa app"
-    );
-    if (res.status === UserResponseStatus.APPROVED) {
-      const addr = extractAddress(res.args);
-      if (addr) {
-        connectedAddress = addr;
-        activeWalletType = "luffa";
-        return addr;
-      }
-      throw new Error("Wallet returned empty address");
-    }
-    throw new Error("Connection rejected by user");
-  } catch (err) {
-    // Fallback: try injected provider directly (legacy)
-    const address = await tryInjectedProvider();
-    if (address) {
-      connectedAddress = address;
-      activeWalletType = "endless";
-      return address;
-    }
-    throw new Error("Wallet not found. Open this page in Luffa app or install Luffa wallet.");
+  // Inside Luffa app — use Luffa SDK directly
+  if (isInLuffaApp()) {
+    return connectLuffa(mode);
   }
+
+  // Otherwise use Web3 SDK (opens iframe modal with wallet.endless.link)
+  const sdk = getWeb3Sdk(mode);
+  const res = await sdk.connect();
+  if (res.status === UserResponseStatus.APPROVED) {
+    const addr = extractAddress(res.args);
+    if (addr) {
+      connectedAddress = addr;
+      activeWalletType = "web3";
+      return addr;
+    }
+    throw new Error("Wallet returned empty address");
+  }
+  throw new Error("Connection rejected by user");
 }
 
 /** Connect via Endless browser extension (window.endless) */
@@ -205,32 +237,26 @@ export async function connectEndlessExtension(_mode?: "testnet" | "mainnet"): Pr
   throw new Error("ENDLESS_CONNECT_FAILED");
 }
 
-/** Connect via Luffa SDK (inside Luffa app or via QR handshake) */
+/** Connect via Luffa SDK (inside Luffa app) */
 export async function connectLuffa(mode?: "testnet" | "mainnet"): Promise<string> {
   const sdk = getLuffaSdk(mode);
-  try {
-    const res = await withTimeout(
-      sdk.connect(),
-      CONNECT_TIMEOUT_MS,
-      "Luffa connect timeout"
-    );
-    if (res.status === UserResponseStatus.APPROVED) {
-      const addr = extractAddress(res.args);
-      if (addr) {
-        connectedAddress = addr;
-        activeWalletType = "luffa";
-        return addr;
-      }
-      throw new Error("Wallet returned empty address");
+  const res = await sdk.connect();
+  if (res.status === LuffaUserResponseStatus.APPROVED) {
+    const addr = extractAddress(res.args);
+    if (addr) {
+      connectedAddress = addr;
+      activeWalletType = "luffa";
+      return addr;
     }
-    throw new Error("Connection rejected by user");
-  } catch (err) {
-    throw new Error("LUFFA_CONNECT_FAILED");
+    throw new Error("Wallet returned empty address");
   }
+  throw new Error("LUFFA_CONNECT_FAILED");
 }
 
 export async function disconnectWallet(): Promise<void> {
-  if (luffaSdk) {
+  if (activeWalletType === "web3" && web3Sdk) {
+    await web3Sdk.disconnect();
+  } else if (luffaSdk) {
     await luffaSdk.disconnect();
   }
   connectedAddress = null;
@@ -256,25 +282,8 @@ function getInjectedWallet(): WalletProvider | null {
     (luffa?.provider as WalletProvider) ||
     (luffa?.providers?.endless as WalletProvider) ||
     (w.luffaWallet as WalletProvider) ||
-    (w.endlessWallet as WalletProvider) ||
     null
   );
-}
-
-async function tryInjectedProvider(): Promise<string | null> {
-  for (let i = 0; i < 3; i++) {
-    const wallet = getInjectedWallet();
-    if (wallet) {
-      const res = wallet.connect ? await wallet.connect() : null;
-      if (res?.address) return res.address;
-      if (wallet.account) {
-        const account = await wallet.account();
-        if (account?.address) return account.address;
-      }
-    }
-    await new Promise((r) => setTimeout(r, 300));
-  }
-  return null;
 }
 
 // ==================== TRANSACTION SUBMISSION ====================
@@ -314,11 +323,22 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     throw new Error("Endless extension not available");
   }
 
-  // Default: use Luffa SDK
+  // Web3 SDK (iframe wallet)
+  if (activeWalletType === "web3" && web3Sdk) {
+    const res = await web3Sdk.signAndSubmitTransaction({ payload });
+    if (res.status === UserResponseStatus.APPROVED) {
+      const endless = await getEndless(mode);
+      await endless.waitForTransaction({ transactionHash: res.args.hash });
+      return res.args;
+    }
+    throw new Error("Transaction rejected by user");
+  }
+
+  // Luffa SDK
   const sdk = getLuffaSdk(mode);
   try {
     const res = await sdk.signAndSubmitTransaction({ payload });
-    if (res.status === UserResponseStatus.APPROVED) {
+    if (res.status === LuffaUserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
       await endless.waitForTransaction({ transactionHash: res.args.hash });
       return res.args;
@@ -384,14 +404,12 @@ export async function getBankInfo(networkMode?: "testnet" | "mainnet"): Promise<
 
 export async function getWalletBalance(address: string, networkMode?: "testnet" | "mainnet"): Promise<number> {
   try {
-    // Use direct view call — SDK getAccountEDSAmount returns wrong values
     const func = `0x1::endless_coin::balance` as `${string}::${string}::${string}`;
     const payload = { function: func, typeArguments: [], functionArguments: [address] };
     const endless = await getEndless(networkMode);
     const data = await endless.view({ payload });
     return toNumber(data[0]);
   } catch {
-    // Fallback: SDK method
     const endless = await getEndless(networkMode);
     const balance = await endless.getAccountEDSAmount({ accountAddress: address });
     return toNumber(balance);
