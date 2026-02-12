@@ -393,6 +393,27 @@ let multiplayerHost: string | null = null;
 let isRoomHost = false;
 let pendingInviteAutoAccept = false;
 
+// Normalize address: convert base58 to hex if needed, lowercase
+function normalizeAddress(addr: string): string {
+  if (!addr) return "";
+  // Already hex
+  if (addr.startsWith("0x")) return addr.toLowerCase();
+  // Try base58 decode
+  try {
+    const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    let n = BigInt(0);
+    for (const c of addr) {
+      n = n * 58n + BigInt(ALPHABET.indexOf(c));
+    }
+    let hex = n.toString(16);
+    // Pad to 64 chars (32 bytes)
+    while (hex.length < 64) hex = "0" + hex;
+    return ("0x" + hex).toLowerCase();
+  } catch {
+    return addr.toLowerCase();
+  }
+}
+
 function isDemoActive(): boolean {
   // Demo mode OFF when: wallet connected (any network) or mainnet selected
   if (walletAddress) return false;
@@ -3170,7 +3191,7 @@ async function onWalletConnectSuccess() {
   // Check if connected wallet is contract owner
   try {
     const owner = await getOwner(networkMode);
-    isContractOwner = walletAddress.toLowerCase() === owner.toLowerCase();
+    isContractOwner = normalizeAddress(walletAddress) === normalizeAddress(owner);
   } catch {
     isContractOwner = false;
   }
