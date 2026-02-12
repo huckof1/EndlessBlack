@@ -18,6 +18,8 @@ import {
   stand as standOnChain,
   setWalletCallbacks,
   isInLuffaApp,
+  disconnectWallet,
+  requestFaucet,
   type ChainGame,
 } from "./chain";
 import QRCode from "qrcode";
@@ -100,6 +102,8 @@ const langIcon = document.getElementById("lang-icon") as HTMLSpanElement;
 const networkTestnetBtn = document.getElementById("network-testnet") as HTMLButtonElement;
 const networkMainnetBtn = document.getElementById("network-mainnet") as HTMLButtonElement;
 const connectWalletHeader = document.getElementById("connect-wallet-header") as HTMLButtonElement;
+const demoPlayBtn = document.getElementById("demo-play-btn") as HTMLButtonElement;
+const faucetBtn = document.getElementById("faucet-btn") as HTMLButtonElement;
 const demoBadge = document.getElementById("demo-badge") as HTMLSpanElement;
 
 const leaderboardList = document.getElementById("leaderboard-list") as HTMLDivElement;
@@ -615,6 +619,11 @@ const I18N = {
     invite_bet: "Bet",
     wallet_connected: "CONNECTED",
     wallet_off: "OFF",
+    disconnect_wallet: "DISCONNECT",
+    demo_play: "TEST",
+    faucet: "GET EDS",
+    faucet_success: "Test EDS received! Balance updated.",
+    faucet_fail: "Failed to get test EDS. Try again.",
   },
   ru: {
     subtitle: "WEB3 МУЛЬТИПЛЕЕР",
@@ -764,6 +773,11 @@ const I18N = {
     invite_bet: "Ставка",
     wallet_connected: "ПОДКЛЮЧЁН",
     wallet_off: "ВЫКЛ",
+    disconnect_wallet: "ОТКЛЮЧИТЬ",
+    demo_play: "ТЕСТ",
+    faucet: "ПОЛУЧИТЬ EDS",
+    faucet_success: "Тестовые EDS получены! Баланс обновлён.",
+    faucet_fail: "Не удалось получить EDS. Попробуйте ещё раз.",
   },
 };
 
@@ -852,8 +866,22 @@ function init() {
   }
   themeToggle.addEventListener("click", toggleTheme);
   langToggle.addEventListener("click", toggleLanguage);
-  networkTestnetBtn.addEventListener("click", () => setNetwork("testnet"));
-  networkMainnetBtn.addEventListener("click", () => setNetwork("mainnet"));
+  if (networkTestnetBtn) networkTestnetBtn.addEventListener("click", () => setNetwork("testnet"));
+  if (networkMainnetBtn) networkMainnetBtn.addEventListener("click", () => setNetwork("mainnet"));
+
+  // Demo play button — start session in demo mode without wallet
+  if (demoPlayBtn) {
+    demoPlayBtn.addEventListener("click", () => {
+      startDemoSession();
+    });
+  }
+
+  // Faucet button — get test EDS on testnet
+  if (faucetBtn) {
+    faucetBtn.addEventListener("click", () => {
+      handleFaucet();
+    });
+  }
 
   // Reset demo
   resetDemoBtn.addEventListener("click", handleResetDemo);
@@ -943,7 +971,12 @@ function init() {
       nicknameInput.focus();
     }
   });
-  connectWalletHeader.addEventListener("click", () => {
+  connectWalletHeader.addEventListener("click", async () => {
+    if (walletAddress) {
+      // Already connected — disconnect
+      await handleDisconnectWallet();
+      return;
+    }
     if (!isSessionStarted) {
       startSession();
       return;
@@ -1054,6 +1087,9 @@ function init() {
       }
     }
   });
+
+  // Initial UI update to show/hide buttons correctly
+  updateUI();
 
   // Console branding
   console.log(`
@@ -1880,8 +1916,8 @@ function applyNetworkMode() {
   if (walletNetworkPill) {
     walletNetworkPill.textContent = networkLabel;
   }
-  networkTestnetBtn.classList.toggle("active", networkMode === "testnet");
-  networkMainnetBtn.classList.toggle("active", networkMode === "mainnet");
+  if (networkTestnetBtn) networkTestnetBtn.classList.toggle("active", networkMode === "testnet");
+  if (networkMainnetBtn) networkMainnetBtn.classList.toggle("active", networkMode === "mainnet");
 }
 
 // ==================== BET ====================
@@ -2754,7 +2790,23 @@ function updateUI() {
     connectWalletBtn.style.display = walletAddress ? "none" : "inline-flex";
   }
   if (connectWalletHeader) {
-    connectWalletHeader.style.display = walletAddress ? "none" : "inline-flex";
+    // Always visible — toggles between connect and disconnect
+    connectWalletHeader.style.display = "inline-flex";
+    if (walletAddress) {
+      connectWalletHeader.textContent = I18N[currentLocale].disconnect_wallet;
+    } else {
+      connectWalletHeader.textContent = I18N[currentLocale].connect_wallet;
+    }
+  }
+  if (demoPlayBtn) {
+    // Show demo button only when wallet is NOT connected
+    demoPlayBtn.style.display = walletAddress ? "none" : "inline-flex";
+    demoPlayBtn.textContent = I18N[currentLocale].demo_play;
+  }
+  if (faucetBtn) {
+    // Show faucet button only when wallet connected on testnet
+    faucetBtn.style.display = (walletAddress && networkMode === "testnet") ? "inline-flex" : "none";
+    faucetBtn.textContent = I18N[currentLocale].faucet;
   }
   if (walletModal) {
     walletModal.style.display = "none";
@@ -2815,6 +2867,99 @@ async function handleConnectWallet() {
         : "Failed to connect wallet. Please try again.",
       "error"
     );
+  }
+}
+
+async function handleDisconnectWallet() {
+  try {
+    await disconnectWallet();
+  } catch (err) {
+    console.warn("Disconnect error:", err);
+  }
+  walletAddress = "";
+  chainGameId = 0;
+  chainGame = null;
+  isPlaying = false;
+  pendingResume = null;
+  setWalletStatus(false);
+  if (walletAddressEl) walletAddressEl.textContent = "—";
+  // Switch to demo mode
+  await game.connectWallet();
+  await updateBalance();
+  await updateBank();
+  await updateStats();
+  if (demoBadge) {
+    demoBadge.textContent = I18N[currentLocale].demo_mode || "DEMO MODE";
+    demoBadge.style.display = "inline-block";
+  }
+  updateUI();
+  showMessage(
+    currentLocale === "ru"
+      ? "Кошелёк отключён. Вы в демо-режиме."
+      : "Wallet disconnected. You are in demo mode.",
+    "info"
+  );
+}
+
+async function startDemoSession() {
+  if (RELEASE_MODE) {
+    showMessage(I18N[currentLocale].msg_release_lock, "info");
+    return;
+  }
+  const name = playerNameInput?.value?.trim() || localStorage.getItem("playerName") || I18N[currentLocale].player_placeholder;
+  playerName = name.slice(0, 12);
+  localStorage.setItem("playerName", playerName);
+
+  nameSection.style.display = "none";
+  walletSection.style.display = "block";
+  gameArea.style.display = "block";
+  isSessionStarted = true;
+
+  if (playerDisplayName) playerDisplayName.textContent = playerName;
+  if (playerHandNameEl) playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
+
+  // Start in demo mode without wallet
+  await game.connectWallet();
+  await updateBalance();
+  await updateBank();
+  await updateStats();
+  setWalletStatus(false);
+  if (walletAddressEl) walletAddressEl.textContent = "DEMO";
+
+  setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
+  showMessage(I18N[currentLocale].msg_place_bet, "info");
+  updateUI();
+  initFeed();
+  renderLeaderboard();
+  renderActivePlayers();
+}
+
+async function handleFaucet() {
+  if (!walletAddress) {
+    showMessage(
+      currentLocale === "ru"
+        ? "Сначала подключите кошелёк."
+        : "Connect wallet first.",
+      "error"
+    );
+    return;
+  }
+  try {
+    if (faucetBtn) faucetBtn.disabled = true;
+    showMessage(
+      currentLocale === "ru"
+        ? "Запрос тестовых EDS... Подтвердите в кошельке."
+        : "Requesting test EDS... Confirm in wallet.",
+      "info"
+    );
+    await requestFaucet(walletAddress, networkMode);
+    await updateBalance();
+    showMessage(I18N[currentLocale].faucet_success, "success");
+  } catch (err) {
+    console.warn("Faucet failed:", err);
+    showMessage(I18N[currentLocale].faucet_fail, "error");
+  } finally {
+    if (faucetBtn) faucetBtn.disabled = false;
   }
 }
 

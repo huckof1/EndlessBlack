@@ -367,6 +367,62 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   }
 }
 
+// ==================== FAUCET (testnet only) ====================
+
+export async function requestFaucet(address: string, mode?: "testnet" | "mainnet") {
+  const func = "0x1::faucet::fund" as `${string}::${string}::${string}`;
+  const payload = {
+    function: func,
+    typeArguments: [] as string[],
+    functionArguments: [address],
+  };
+
+  // Route based on active wallet type (same logic as submitEntryFunction)
+  if (activeWalletType === "endless") {
+    const wallet = getInjectedWallet();
+    if (wallet?.signAndSubmitTransaction) {
+      const fallbackPayload = {
+        function: "0x1::faucet::fund",
+        typeArguments: [],
+        functionArguments: [address],
+        type_arguments: [],
+        arguments: [address],
+      };
+      try {
+        const result = await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+        const hash = result?.hash || result?.args?.hash;
+        if (hash) {
+          const endless = await getEndless(mode);
+          await endless.waitForTransaction({ transactionHash: hash });
+        }
+        return result;
+      } catch {
+        return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
+      }
+    }
+    throw new Error("Endless extension not available");
+  }
+
+  if (activeWalletType === "web3" && web3Sdk) {
+    const res = await web3Sdk.signAndSubmitTransaction({ payload });
+    if (res.status === UserResponseStatus.APPROVED) {
+      const endless = await getEndless(mode);
+      await endless.waitForTransaction({ transactionHash: res.args.hash });
+      return res.args;
+    }
+    throw new Error("Transaction rejected by user");
+  }
+
+  const sdk = getLuffaSdk(mode);
+  const res = await sdk.signAndSubmitTransaction({ payload });
+  if (res.status === LuffaUserResponseStatus.APPROVED) {
+    const endless = await getEndless(mode);
+    await endless.waitForTransaction({ transactionHash: res.args.hash });
+    return res.args;
+  }
+  throw new Error("Faucet transaction rejected");
+}
+
 // ==================== VIEW FUNCTIONS ====================
 
 async function viewU64(functionName: string, mode?: "testnet" | "mainnet"): Promise<number> {
