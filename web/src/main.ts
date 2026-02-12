@@ -3220,12 +3220,26 @@ async function onWalletConnectSuccess() {
   isContractOwner = normWallet === CONTRACT_ADDR_HEX
     || walletAddress === CONTRACT_ADDR_B58
     || walletAddress.toLowerCase() === CONTRACT_ADDR_HEX;
-  showMessage(
-    currentLocale === "ru"
-      ? `Кошелёк подключён. ${isContractOwner ? "(Владелец)" : ""} Адрес: ${walletAddress}`
-      : `Wallet connected. ${isContractOwner ? "(Owner)" : ""} Addr: ${walletAddress}`,
-    "success"
-  );
+  console.log("Wallet address raw:", walletAddress);
+  console.log("Normalized:", normWallet);
+  console.log("Owner hex:", CONTRACT_ADDR_HEX);
+  console.log("Owner b58:", CONTRACT_ADDR_B58);
+  console.log("isContractOwner:", isContractOwner);
+  if (!isContractOwner) {
+    showMessage(
+      currentLocale === "ru"
+        ? `Кошелёк подключён. Ваш адрес: ${walletAddress} | Владелец: ${CONTRACT_ADDR_B58}`
+        : `Wallet connected. Your addr: ${walletAddress} | Owner: ${CONTRACT_ADDR_B58}`,
+      "info"
+    );
+  } else {
+    showMessage(
+      currentLocale === "ru"
+        ? `Кошелёк подключён. (Владелец) Адрес: ${walletAddress}`
+        : `Wallet connected. (Owner) Addr: ${walletAddress}`,
+      "success"
+    );
+  }
   updateUI();
 }
 
