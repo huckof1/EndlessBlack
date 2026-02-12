@@ -1873,7 +1873,7 @@ function setNetwork(mode: "testnet" | "mainnet") {
 }
 
 function applyNetworkMode() {
-  const networkLabel = networkMode === "mainnet" ? "MAINNET" : "TESTNET";
+  const networkLabel = "TESTNET";
   if (walletNetworkEl) {
     walletNetworkEl.textContent = networkLabel;
   }
@@ -2743,7 +2743,7 @@ function updateUI() {
       demoBadge.textContent = I18N[currentLocale].demo_mode || "DEMO MODE";
       demoBadge.style.display = "inline-block";
     } else {
-      demoBadge.textContent = networkMode === "mainnet" ? "MAINNET" : "TESTNET";
+      demoBadge.textContent = "TESTNET";
       demoBadge.style.display = "inline-block";
     }
   }

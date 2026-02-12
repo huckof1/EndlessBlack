@@ -196,6 +196,8 @@ export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<strin
 
   // Otherwise use Web3 SDK (opens iframe modal with wallet.endless.link)
   const sdk = getWeb3Sdk(mode);
+  // Force wallet to testnet
+  sdk.changeNetwork({ network: mode === "mainnet" ? Network.MAINNET : Network.TESTNET });
   const res = await sdk.connect();
   if (res.status === UserResponseStatus.APPROVED) {
     const addr = extractAddress(res.args);
