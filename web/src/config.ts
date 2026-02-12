@@ -7,9 +7,10 @@ export const RELEASE_MODE = false;
 export const DEMO_MODE = !RELEASE_MODE;
 
 // Адрес контракта (общий, если не указаны testnet/mainnet отдельно)
-export const CONTRACT_ADDRESS = "YOUR_CONTRACT_ADDRESS_HERE";
+export const CONTRACT_ADDRESS =
+  (import.meta as any).env?.VITE_CONTRACT_ADDRESS || "";
 
-// Адреса по сетям (опционально)
+// Адреса по сетям
 export const CONTRACT_ADDRESS_TESTNET =
   (import.meta as any).env?.VITE_CONTRACT_ADDRESS_TESTNET || CONTRACT_ADDRESS;
 export const CONTRACT_ADDRESS_MAINNET =

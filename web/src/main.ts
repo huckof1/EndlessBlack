@@ -1134,13 +1134,20 @@ async function startSession() {
       ? walletAddress.slice(0, 6) + "..." + walletAddress.slice(-4)
       : walletAddress;
     if (walletAddressEl) walletAddressEl.textContent = displayAddr;
-  } catch {
-    // Wallet not available — fall back to demo mode
+  } catch (err) {
+    // Wallet not available — show error and fall back to demo mode
+    console.warn("Wallet connect failed:", err);
+    showMessage(
+      currentLocale === "ru"
+        ? "Кошелёк не подключён. Откройте страницу в приложении Luffa или установите расширение Endless Wallet. Запущен демо-режим."
+        : "Wallet not connected. Open this page in Luffa app or install Endless Wallet extension. Running in demo mode.",
+      "error"
+    );
     await game.connectWallet();
     await updateBalance();
     await updateBank();
     await updateStats();
-    setWalletStatus(true);
+    setWalletStatus(false);
     if (walletAddressEl) walletAddressEl.textContent = "DEMO";
   }
 

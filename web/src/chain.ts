@@ -45,6 +45,23 @@ function toNumber(value: any): number {
   return Number(value);
 }
 
+// Таймаут для промисов (SDK может зависнуть вне Luffa webview)
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+const CONNECT_TIMEOUT_MS = 8000;
+
+// Извлечь адрес из ответа SDK (поле может быть address или account)
+function extractAddress(data: any): string | null {
+  if (!data) return null;
+  return data.address || data.account || null;
+}
+
 function getContractAddress(mode?: "testnet" | "mainnet"): string {
   if (mode === "mainnet") return CONTRACT_ADDRESS_MAINNET;
   return CONTRACT_ADDRESS_TESTNET;
@@ -62,6 +79,7 @@ export function getActiveWalletType(): WalletType {
 // ==================== LUFFA SDK ====================
 
 let luffaSdk: EndlessLuffaSdk | null = null;
+let luffaSdkNetwork: string | null = null;
 let connectedAddress: string | null = null;
 
 // Event callbacks for main.ts to subscribe
@@ -70,17 +88,20 @@ let onWalletDisconnect: (() => void) | null = null;
 let onAccountChange: ((address: string) => void) | null = null;
 
 function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
+  const network = mode === "mainnet" ? "mainnet" : "testnet";
+
   if (!luffaSdk) {
-    const network = mode === "mainnet" ? "mainnet" : "testnet";
+    luffaSdkNetwork = network;
     luffaSdk = new EndlessLuffaSdk({
       network,
       miniprogram: false,
     });
 
     luffaSdk.on(EndLessSDKEvent.CONNECT, (info) => {
-      if (info && info.address) {
-        connectedAddress = info.address;
-        onWalletConnect?.(info.address);
+      const addr = extractAddress(info);
+      if (addr) {
+        connectedAddress = addr;
+        onWalletConnect?.(addr);
       }
     });
 
@@ -90,12 +111,18 @@ function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
     });
 
     luffaSdk.on(EndLessSDKEvent.ACCOUNT_CHANGE, (info) => {
-      if (info && info.address) {
-        connectedAddress = info.address;
-        onAccountChange?.(info.address);
+      const addr = extractAddress(info);
+      if (addr) {
+        connectedAddress = addr;
+        onAccountChange?.(addr);
       }
     });
+  } else if (luffaSdkNetwork !== network) {
+    // Сеть изменилась — переключаем через SDK
+    luffaSdkNetwork = network;
+    luffaSdk.changeNetwork({ network });
   }
+
   return luffaSdk;
 }
 
@@ -123,11 +150,19 @@ export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<strin
   const sdk = getLuffaSdk(mode);
 
   try {
-    const res = await sdk.connect();
+    const res = await withTimeout(
+      sdk.connect(),
+      CONNECT_TIMEOUT_MS,
+      "Luffa SDK connect timeout — open this page inside Luffa app"
+    );
     if (res.status === UserResponseStatus.APPROVED) {
-      connectedAddress = res.args.address;
-      activeWalletType = "luffa";
-      return res.args.address;
+      const addr = extractAddress(res.args);
+      if (addr) {
+        connectedAddress = addr;
+        activeWalletType = "luffa";
+        return addr;
+      }
+      throw new Error("Wallet returned empty address");
     }
     throw new Error("Connection rejected by user");
   } catch (err) {
@@ -174,11 +209,19 @@ export async function connectEndlessExtension(_mode?: "testnet" | "mainnet"): Pr
 export async function connectLuffa(mode?: "testnet" | "mainnet"): Promise<string> {
   const sdk = getLuffaSdk(mode);
   try {
-    const res = await sdk.connect();
+    const res = await withTimeout(
+      sdk.connect(),
+      CONNECT_TIMEOUT_MS,
+      "Luffa connect timeout"
+    );
     if (res.status === UserResponseStatus.APPROVED) {
-      connectedAddress = res.args.address;
-      activeWalletType = "luffa";
-      return res.args.address;
+      const addr = extractAddress(res.args);
+      if (addr) {
+        connectedAddress = addr;
+        activeWalletType = "luffa";
+        return addr;
+      }
+      throw new Error("Wallet returned empty address");
     }
     throw new Error("Connection rejected by user");
   } catch (err) {
