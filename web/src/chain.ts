@@ -559,3 +559,11 @@ export async function stand(gameId: number, networkMode?: "testnet" | "mainnet")
 export async function claimPayout(playerAddress: string, gameId: number, networkMode?: "testnet" | "mainnet") {
   return await submitEntryFunction("claim_payout", [playerAddress, gameId], networkMode);
 }
+
+export async function fundBankroll(amount: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("fund_bankroll", [amount], networkMode);
+}
+
+export async function withdrawFees(amount: number, toAddress: string, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("withdraw_fees", [amount, toAddress], networkMode);
+}

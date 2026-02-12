@@ -20,6 +20,7 @@ import {
   isInLuffaApp,
   disconnectWallet,
   requestFaucet,
+  fundBankroll,
   type ChainGame,
 } from "./chain";
 import QRCode from "qrcode";
@@ -117,6 +118,7 @@ const inviteBanner = document.getElementById("invite-banner") as HTMLDivElement;
 const inviteText = document.getElementById("invite-text") as HTMLDivElement;
 const inviteAccept = document.getElementById("invite-accept") as HTMLButtonElement;
 const inviteDecline = document.getElementById("invite-decline") as HTMLButtonElement;
+const fundBankrollBtn = document.getElementById("fund-bankroll-btn") as HTMLButtonElement;
 const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
@@ -165,6 +167,7 @@ let currentLocale: "en" | "ru" = "en";
 let currentTheme: "dark" | "light" = "dark";
 let networkMode: "testnet" | "mainnet" = "testnet";
 let walletAddress = "";
+let isContractOwner = false;
 let chainGameId: number | null = null;
 let chainGame: ChainGame | null = null;
 let gameMusicActive = false;
@@ -624,6 +627,9 @@ const I18N = {
     faucet: "GET EDS",
     faucet_success: "Test EDS received! Balance updated.",
     faucet_fail: "Failed to get test EDS. Try again.",
+    fund_bank: "FUND BANK",
+    fund_bank_success: "Bankroll funded!",
+    fund_bank_fail: "Failed to fund bankroll.",
   },
   ru: {
     subtitle: "WEB3 МУЛЬТИПЛЕЕР",
@@ -778,6 +784,9 @@ const I18N = {
     faucet: "ПОЛУЧИТЬ EDS",
     faucet_success: "Тестовые EDS получены! Баланс обновлён.",
     faucet_fail: "Не удалось получить EDS. Попробуйте ещё раз.",
+    fund_bank: "ПОПОЛНИТЬ БАНК",
+    fund_bank_success: "Банкролл пополнен!",
+    fund_bank_fail: "Не удалось пополнить банкролл.",
   },
 };
 
@@ -880,6 +889,13 @@ function init() {
   if (faucetBtn) {
     faucetBtn.addEventListener("click", () => {
       handleFaucet();
+    });
+  }
+
+  // Fund bankroll button — owner only
+  if (fundBankrollBtn) {
+    fundBankrollBtn.addEventListener("click", () => {
+      handleFundBankroll();
     });
   }
 
@@ -2052,6 +2068,38 @@ async function handleStartGame() {
 
   const betEDS = (betAmount / 100000000).toFixed(2);
 
+  // Check balance before starting (on-chain mode)
+  if (!isDemoActive() && walletAddress) {
+    try {
+      const bal = await getWalletBalance(walletAddress, networkMode);
+      if (bal < betAmount) {
+        playSound("lose");
+        showMessage(
+          currentLocale === "ru"
+            ? `Недостаточно средств. Баланс: ${(bal / 100000000).toFixed(2)} EDS. Пополните баланс.`
+            : `Insufficient balance: ${(bal / 100000000).toFixed(2)} EDS. Top up your balance.`,
+          "error"
+        );
+        setMascotState("sad", "💸", currentLocale === "ru" ? "Пополните баланс!" : "Top up balance!");
+        return;
+      }
+      const bank = await getBankInfo(networkMode);
+      if (bank.bankroll < betAmount * 2) {
+        playSound("lose");
+        showMessage(
+          currentLocale === "ru"
+            ? `Банкролл пуст. Владелец должен пополнить банк для игры на блокчейне.`
+            : `Bankroll empty. Owner must fund the bankroll for on-chain play.`,
+          "error"
+        );
+        setMascotState("sad", "🏦", currentLocale === "ru" ? "Банк пуст!" : "Bank empty!");
+        return;
+      }
+    } catch {
+      // balance check failed, try to start anyway
+    }
+  }
+
   try {
     playSound("chip");
     startBtn.disabled = true;
@@ -2808,6 +2856,11 @@ function updateUI() {
     faucetBtn.style.display = (walletAddress && networkMode === "testnet") ? "inline-flex" : "none";
     faucetBtn.textContent = I18N[currentLocale].faucet;
   }
+  if (fundBankrollBtn) {
+    // Show fund bankroll button only when wallet connected and is owner
+    fundBankrollBtn.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
+    fundBankrollBtn.textContent = I18N[currentLocale].fund_bank;
+  }
   if (walletModal) {
     walletModal.style.display = "none";
   }
@@ -2877,6 +2930,7 @@ async function handleDisconnectWallet() {
     console.warn("Disconnect error:", err);
   }
   walletAddress = "";
+  isContractOwner = false;
   chainGameId = 0;
   chainGame = null;
   isPlaying = false;
@@ -2963,6 +3017,38 @@ async function handleFaucet() {
     showMessage(I18N[currentLocale].faucet_fail, "error");
   } finally {
     if (faucetBtn) faucetBtn.disabled = false;
+  }
+}
+
+async function handleFundBankroll() {
+  if (!walletAddress) return;
+  const amountStr = prompt(
+    currentLocale === "ru"
+      ? "Сколько EDS внести в банкролл?"
+      : "How many EDS to fund bankroll?",
+    "5"
+  );
+  if (!amountStr) return;
+  const edsAmount = parseFloat(amountStr);
+  if (isNaN(edsAmount) || edsAmount <= 0) return;
+  const octas = Math.floor(edsAmount * 100000000);
+  try {
+    if (fundBankrollBtn) fundBankrollBtn.disabled = true;
+    showMessage(
+      currentLocale === "ru"
+        ? "Пополнение банкролла... Подтвердите в кошельке."
+        : "Funding bankroll... Confirm in wallet.",
+      "info"
+    );
+    await fundBankroll(octas, networkMode);
+    await updateBank();
+    await updateBalance();
+    showMessage(I18N[currentLocale].fund_bank_success, "success");
+  } catch (err) {
+    console.warn("Fund bankroll failed:", err);
+    showMessage(I18N[currentLocale].fund_bank_fail, "error");
+  } finally {
+    if (fundBankrollBtn) fundBankrollBtn.disabled = false;
   }
 }
 
@@ -3066,6 +3152,13 @@ async function onWalletConnectSuccess() {
     : walletAddress;
   if (walletAddressEl) walletAddressEl.textContent = displayAddr;
   if (walletModal) walletModal.style.display = "none";
+  // Check if connected wallet is contract owner
+  try {
+    const owner = await getOwner(networkMode);
+    isContractOwner = walletAddress.toLowerCase() === owner.toLowerCase();
+  } catch {
+    isContractOwner = false;
+  }
   showMessage(
     currentLocale === "ru" ? "Кошелёк подключён." : "Wallet connected.",
     "success"
