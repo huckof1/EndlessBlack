@@ -999,6 +999,22 @@ body[data-theme="light"] .player-name-display {
   font-size: 0.7em;
 }
 
+.wallet-item--fee {
+  grid-column: 1 / -1;
+  max-width: 220px;
+  margin: 0 auto;
+  padding: 3px 6px;
+}
+
+.wallet-item--fee .label {
+  font-size: 0.5em;
+  margin-bottom: 2px;
+}
+
+.wallet-item--fee span:not(.label) {
+  font-size: 0.62em;
+}
+
 .wallet-item--primary {
   display: flex;
   flex-direction: column;
