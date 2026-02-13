@@ -452,7 +452,9 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     function: func as `${string}::${string}::${string}`,
     typeArguments: [] as string[],
     functionArguments: luffaArgs,
-  };
+    type_arguments: [] as string[],
+    arguments: luffaArgs,
+  } as any;
   try {
     const res = await sdk.signAndSubmitTransaction({ payload: luffaPayload });
     if (res.status === LuffaUserResponseStatus.APPROVED) {
