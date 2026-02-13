@@ -1000,6 +1000,10 @@ body[data-theme="light"] .player-name-display {
 }
 
 .wallet-item--primary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 8px 10px;
   border: 1px solid rgba(0, 217, 255, 0.35);
   background: linear-gradient(180deg, rgba(8, 18, 28, 0.9), rgba(18, 34, 58, 0.9));
@@ -1011,7 +1015,7 @@ body[data-theme="light"] .player-name-display {
   letter-spacing: 0.08em;
   color: var(--secondary);
   text-shadow: 0 1px 0 rgba(0,0,0,0.6);
-  margin-bottom: 4px;
+  margin-bottom: 10px;
 }
 
 .wallet-item--primary span:not(.label) {
