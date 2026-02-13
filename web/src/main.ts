@@ -560,7 +560,7 @@ function renderDarkVeil(time: number) {
   const ctx = veilCtx;
   const w = veilCanvas.width / (window.devicePixelRatio || 1);
   const h = veilCanvas.height / (window.devicePixelRatio || 1);
-  const t = time * 0.000333;
+  const t = time * 0.000666;
   const isLight = document.body.getAttribute("data-theme") === "light";
   const lowW = Math.max(140, Math.floor(w / 4.5));
   const lowH = Math.max(240, Math.floor(h / 4.5));
