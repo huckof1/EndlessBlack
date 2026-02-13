@@ -128,10 +128,9 @@ function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
 
   if (!luffaSdk) {
     luffaSdkNetwork = network;
-    const inLuffa = isLuffa();
     luffaSdk = new EndlessLuffaSdk({
       network,
-      miniprogram: inLuffa,
+      miniprogram: false,
     });
 
     luffaSdk.on(LuffaSDKEvent.CONNECT, (info) => {
