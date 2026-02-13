@@ -693,6 +693,17 @@ body[data-theme="light"] .wallet-item span:not(.label) {
   color: #2a1a00;
 }
 
+body[data-theme="light"] .wallet-item--primary {
+  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(235,227,210,0.9));
+  border-color: rgba(12, 123, 179, 0.35);
+  box-shadow: 0 4px 14px rgba(12, 123, 179, 0.12), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+
+body[data-theme="light"] .wallet-item--primary .label {
+  color: #0c7bb3;
+  text-shadow: none;
+}
+
 body[data-theme="light"] #wallet-address {
   color: #0c7bb3;
 }
@@ -986,6 +997,25 @@ body[data-theme="light"] .player-name-display {
 
 .wallet-item span:not(.label) {
   font-size: 0.7em;
+}
+
+.wallet-item--primary {
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 217, 255, 0.35);
+  background: linear-gradient(180deg, rgba(8, 18, 28, 0.9), rgba(18, 34, 58, 0.9));
+  box-shadow: 0 4px 14px rgba(0, 217, 255, 0.15), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.wallet-item--primary .label {
+  font-size: 0.68em;
+  letter-spacing: 0.08em;
+  color: var(--secondary);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+  margin-bottom: 4px;
+}
+
+.wallet-item--primary span:not(.label) {
+  font-size: 0.9em;
 }
 
 #wallet-address {
