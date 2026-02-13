@@ -59,6 +59,7 @@ const betDisplay = document.querySelector(".bet-display") as HTMLDivElement;
 const betOfferText = document.getElementById("bet-offer-text") as HTMLDivElement;
 const betAccept = document.getElementById("bet-accept") as HTMLButtonElement;
 const betDecline = document.getElementById("bet-decline") as HTMLButtonElement;
+const betHintEl = document.querySelector(".bet-hint") as HTMLDivElement;
 const startBtn = document.getElementById("start-btn") as HTMLButtonElement;
 const hitBtn = document.getElementById("hit-btn") as HTMLButtonElement;
 const standBtn = document.getElementById("stand-btn") as HTMLButtonElement;
@@ -204,6 +205,7 @@ let pendingResume: { mode: "demo" | "chain"; game: any; gameId?: number } | null
 let inGameBalance: number = 0; // Player's in-game balance (octas) from contract
 let isWalletConnecting = false;
 let currentFeeBps = 200;
+let currentBankrollOctas = 0;
 let debugEnabled = false;
 let debugLog: string[] = [];
 let multiplayerRoom: string | null = null;
@@ -1736,6 +1738,7 @@ function applyI18n() {
       el.title = dict[key] as string;
     }
   });
+  updateBetLimitsUI();
   langIcon.textContent = currentLocale.toUpperCase();
   setWalletStatus(Boolean(walletAddress));
   showInviteBanner();
@@ -2372,6 +2375,38 @@ function updateFeeFromBet() {
   if (betFeeEl) betFeeEl.textContent = formatEDS(feeOctas);
 }
 
+function getBetLimits(): { minOctas: number; maxOctas: number } {
+  if (currentBankrollOctas <= 0) {
+    return { minOctas: 0, maxOctas: 0 };
+  }
+  const feeRate = currentFeeBps / 10000;
+  const maxPayoutMultiplier = 2.5; // blackjack pays 2.5x
+  const safetyMultiplier = 1.2; // 20% reserve buffer
+  const lossMultiplier = (maxPayoutMultiplier - 1) + feeRate;
+  const safeMax = lossMultiplier > 0
+    ? Math.floor(currentBankrollOctas / (lossMultiplier * safetyMultiplier))
+    : MAX_BET;
+  let maxOctas = Math.max(0, Math.min(MAX_BET, safeMax));
+  let minOctas = MIN_BET;
+  if (maxOctas > 0 && maxOctas < MIN_BET) {
+    minOctas = maxOctas;
+  }
+  return { minOctas, maxOctas };
+}
+
+function updateBetLimitsUI() {
+  const { minOctas, maxOctas } = getBetLimits();
+  if (betHintEl) {
+    const minText = (minOctas / 100000000).toFixed(2);
+    const maxText = (maxOctas / 100000000).toFixed(2);
+    betHintEl.textContent = currentLocale === "ru"
+      ? `МИН ${minText} EDS · МАКС ${maxText} EDS`
+      : `MIN ${minText} EDS · MAX ${maxText} EDS`;
+  }
+  betInput.min = (minOctas / 100000000).toString();
+  betInput.max = (maxOctas / 100000000).toString();
+}
+
 // ==================== BET ====================
 function getBetStep(current: number): number {
   if (current >= 1000) return 500;
@@ -2385,7 +2420,10 @@ function adjustBet(direction: number) {
   playSound("click");
   const current = parseFloat(betInput.value) || 1;
   const step = getBetStep(current);
-  let newValue = Math.max(0.1, Math.min(10000, current + step * direction));
+  const { minOctas, maxOctas } = getBetLimits();
+  const minEds = minOctas / 100000000;
+  const maxEds = maxOctas / 100000000;
+  let newValue = Math.max(minEds, Math.min(maxEds, current + step * direction));
   newValue = Math.round(newValue * 10) / 10;
   betInput.value = newValue.toString();
   const phase = multiplayerSnapshot?.phase || "lobby";
@@ -2401,7 +2439,10 @@ function validateBet() {
   if (isNaN(raw) || raw <= 0) {
     raw = parseFloat(betInput.dataset.lastValue || "1");
   }
-  let value = Math.max(0.1, Math.min(10000, raw));
+  const { minOctas, maxOctas } = getBetLimits();
+  const minEds = minOctas / 100000000;
+  const maxEds = maxOctas / 100000000;
+  let value = Math.max(minEds, Math.min(maxEds, raw));
   value = Math.round(value * 10) / 10;
   betInput.value = value.toString();
   betInput.dataset.lastValue = value.toString();
@@ -2502,6 +2543,13 @@ async function handleStartGame() {
   const betAmount = parseEDS(betValue);
 
   if (betAmount < MIN_BET || betAmount > MAX_BET) {
+    playSound("lose");
+    showMessage(I18N[currentLocale].msg_invalid_bet, "error");
+    setMascotState("sad", "😕", I18N[currentLocale].msg_check_bet);
+    return;
+  }
+  const { minOctas, maxOctas } = getBetLimits();
+  if (betAmount < minOctas || betAmount > maxOctas) {
     playSound("lose");
     showMessage(I18N[currentLocale].msg_invalid_bet, "error");
     setMascotState("sad", "😕", I18N[currentLocale].msg_check_bet);
@@ -2972,21 +3020,25 @@ async function updateBalance() {
 
 async function updateBank() {
   if (isDemoActive()) {
-    bankrollEl.textContent = formatEDS(game.getBankroll());
+    currentBankrollOctas = game.getBankroll();
+    bankrollEl.textContent = formatEDS(currentBankrollOctas);
     if (betFeeEl) betFeeEl.textContent = formatEDS(0);
     currentFeeBps = game.getFeeBps();
     feeEl.textContent = (currentFeeBps / 100).toFixed(2) + "%";
     updateFeeFromBet();
+    updateBetLimitsUI();
     return;
   }
 
   try {
     const info = await getBankInfo(networkMode);
-    bankrollEl.textContent = formatEDS(info.bankroll);
+    currentBankrollOctas = info.bankroll;
+    bankrollEl.textContent = formatEDS(currentBankrollOctas);
     if (betFeeEl) betFeeEl.textContent = formatEDS(0);
     currentFeeBps = info.feeBps;
     feeEl.textContent = (currentFeeBps / 100).toFixed(2) + "%";
     updateFeeFromBet();
+    updateBetLimitsUI();
   } catch {
     bankrollEl.textContent = "—";
     if (betFeeEl) betFeeEl.textContent = "—";
