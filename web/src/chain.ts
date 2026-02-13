@@ -456,6 +456,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   try {
     dbg?.("Luffa args sanitized");
     const res = await sdk.signAndSubmitTransaction({ payload: luffaPayload });
+    dbg?.(`Luffa response status: ${res?.status || "unknown"}`);
     if (res.status === LuffaUserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
       await endless.waitForTransaction({ transactionHash: res.args.hash });
