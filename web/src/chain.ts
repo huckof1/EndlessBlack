@@ -300,14 +300,18 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   const dbg = (window as any).__debugLog as ((msg: string) => void) | undefined;
   const safeArgs = JSON.stringify(args, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
   dbg?.(`TX ${functionName} args=${safeArgs}`);
+  dbg?.(`Wallet state: active=${activeWalletType || "null"} connected=${connectedAddress ? "yes" : "no"}`);
   // Ensure we have an active wallet session before trying to sign
   if (!activeWalletType || !connectedAddress) {
     const w = window as any;
     if (w?.endless) {
+      dbg?.("Connecting via endless extension...");
       await connectEndlessExtension(mode);
     } else {
+      dbg?.("Connecting via web3 sdk...");
       await connectWallet(mode);
     }
+    dbg?.(`Post-connect: active=${activeWalletType || "null"} connected=${connectedAddress ? "yes" : "no"}`);
   }
   // Pass args as-is — SDK expects BigInt for u128, strings for addresses, etc.
   const payload = {
@@ -318,6 +322,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
 
   // Route based on active wallet type
   if (activeWalletType === "endless") {
+    dbg?.("TX route: endless extension");
     const wallet = getInjectedWallet();
     if (wallet?.signAndSubmitTransaction) {
       const fallbackPayload = {
@@ -344,6 +349,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
 
   // Web3 SDK (iframe wallet)
   if (activeWalletType === "web3" && web3Sdk) {
+    dbg?.("TX route: web3 sdk");
     let res: any;
     try {
       res = await web3Sdk.signAndSubmitTransaction({ payload });
@@ -353,6 +359,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       // Fallback to injected wallet if available (browser extension)
       const wallet = getInjectedWallet();
       if (wallet?.signAndSubmitTransaction) {
+        dbg?.("Web3 SDK failed; fallback to injected wallet");
         const fallbackPayload = {
           function: func,
           typeArguments: [],
@@ -390,6 +397,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
 
   // Luffa SDK
   const sdk = getLuffaSdk(mode);
+  dbg?.("TX route: luffa sdk");
   try {
     const res = await sdk.signAndSubmitTransaction({ payload });
     if (res.status === LuffaUserResponseStatus.APPROVED) {
