@@ -915,8 +915,10 @@ body[data-theme="light"] .powered-by {
 }
 
 body[data-theme="light"] .endless-brand {
-  color: #6d28d9;
-  text-shadow: 1px 1px 0 #a78bfa;
+  color: #1a1a2e;
+  text-shadow:
+    0 0 6px rgba(255, 215, 0, 0.45),
+    0 0 12px rgba(255, 215, 0, 0.25);
 }
 
 body[data-theme="light"] .by-author {
@@ -2394,7 +2396,15 @@ body.invite-mode .mascot-right {
 
 .footer-brand { margin-bottom: 6px; }
 .powered-by { font-size: var(--font-size-small); color: var(--gray); margin-bottom: 2px; }
-.endless-brand { font-size: var(--font-size-small); color: var(--endless-purple); text-shadow: 2px 2px 0 var(--endless-blue); }
+.endless-brand {
+  font-size: var(--font-size-small);
+  color: #e9f2ff;
+  text-shadow:
+    0 0 6px rgba(109, 40, 217, 0.6),
+    0 0 14px rgba(59, 130, 246, 0.5),
+    0 0 22px rgba(125, 249, 255, 0.35);
+  letter-spacing: 1px;
+}
 .footer-author { margin-bottom: 8px; }
 .by-author { font-size: var(--font-size-small); color: var(--gray); }
 .author-name { color: var(--white); text-shadow: none; }
