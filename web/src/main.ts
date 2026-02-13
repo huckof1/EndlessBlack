@@ -518,6 +518,153 @@ function debugLogLine(message: string) {
   if (debugLogEl) debugLogEl.textContent = debugLog.join("\n");
 }
 
+// ==================== MAIN VEIL (HOME ONLY) ====================
+let veilRaf: number | null = null;
+let veilRunning = false;
+let veilCanvas: HTMLCanvasElement | null = null;
+let veilCtx: CanvasRenderingContext2D | null = null;
+let veilNoiseCanvas: HTMLCanvasElement | null = null;
+
+const veilConfig = {
+  hueShift: 0,
+  noiseIntensity: 0,
+  scanlineIntensity: 0,
+  scanlineFrequency: 0,
+  speed: 0.5,
+  warpAmount: 0,
+};
+
+function initDarkVeil() {
+  if (!mainVeil) return;
+  if (veilCanvas) return;
+  veilCanvas = document.createElement("canvas");
+  veilCanvas.className = "dark-veil-canvas";
+  mainVeil.appendChild(veilCanvas);
+  veilCtx = veilCanvas.getContext("2d");
+  const onResize = () => resizeDarkVeil();
+  window.addEventListener("resize", onResize);
+  resizeDarkVeil();
+}
+
+function resizeDarkVeil() {
+  if (!veilCanvas || !veilCtx) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, window.innerWidth);
+  const height = Math.max(1, window.innerHeight);
+  veilCanvas.width = Math.floor(width * dpr);
+  veilCanvas.height = Math.floor(height * dpr);
+  veilCanvas.style.width = `${width}px`;
+  veilCanvas.style.height = `${height}px`;
+  veilCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function renderDarkVeil(time: number) {
+  if (!veilCanvas || !veilCtx) return;
+  const ctx = veilCtx;
+  const w = veilCanvas.width / (window.devicePixelRatio || 1);
+  const h = veilCanvas.height / (window.devicePixelRatio || 1);
+  const t = time * 0.0002 * veilConfig.speed;
+  const hue = 220 + veilConfig.hueShift;
+
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w * (0.5 + 0.08 * Math.sin(t * 1.1));
+  const cy = h * (0.45 + 0.08 * Math.cos(t * 0.9));
+  const r = Math.max(w, h) * 0.9;
+  const grad = ctx.createRadialGradient(cx, cy, 0, w * 0.5, h * 0.5, r);
+  grad.addColorStop(0, `hsla(${hue + 20}, 55%, 18%, 0.95)`);
+  grad.addColorStop(0.5, `hsla(${hue + 10}, 60%, 12%, 0.98)`);
+  grad.addColorStop(1, `hsla(${hue}, 65%, 6%, 1)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Subtle moving light bands (veil feel)
+  ctx.globalAlpha = 0.12;
+  ctx.strokeStyle = `hsla(${hue + 40}, 70%, 45%, 0.35)`;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 6; i++) {
+    const y = (h / 6) * i + Math.sin(t * 2 + i) * 14;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(w * 0.3, y + 10, w * 0.7, y - 10, w, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Vignette
+  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.5, r * 0.2, w * 0.5, h * 0.5, r * 0.9);
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, w, h);
+
+  // Optional scanlines
+  if (veilConfig.scanlineIntensity > 0 && veilConfig.scanlineFrequency > 0) {
+    ctx.globalAlpha = veilConfig.scanlineIntensity;
+    ctx.fillStyle = "rgba(255,255,255,0.02)";
+    const gap = Math.max(2, Math.floor(6 / veilConfig.scanlineFrequency));
+    for (let y = 0; y < h; y += gap) {
+      ctx.fillRect(0, y, w, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Optional noise
+  if (veilConfig.noiseIntensity > 0) {
+    const noiseOpacity = Math.min(veilConfig.noiseIntensity, 0.35);
+    ctx.globalAlpha = noiseOpacity;
+    const size = 120;
+    if (!veilNoiseCanvas) {
+      veilNoiseCanvas = document.createElement("canvas");
+      veilNoiseCanvas.width = size;
+      veilNoiseCanvas.height = size;
+    }
+    const noiseCtx = veilNoiseCanvas.getContext("2d");
+    if (noiseCtx) {
+      const imageData = noiseCtx.createImageData(size, size);
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const v = Math.random() * 255;
+        imageData.data[i] = v;
+        imageData.data[i + 1] = v;
+        imageData.data[i + 2] = v;
+        imageData.data[i + 3] = 255;
+      }
+      noiseCtx.putImageData(imageData, 0, 0);
+      ctx.drawImage(veilNoiseCanvas, 0, 0, size, size, 0, 0, w, h);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function startDarkVeil() {
+  if (veilRunning) return;
+  veilRunning = true;
+  const loop = (time: number) => {
+    if (!veilRunning) return;
+    renderDarkVeil(time);
+    veilRaf = requestAnimationFrame(loop);
+  };
+  veilRaf = requestAnimationFrame(loop);
+}
+
+function stopDarkVeil() {
+  veilRunning = false;
+  if (veilRaf) {
+    cancelAnimationFrame(veilRaf);
+    veilRaf = null;
+  }
+}
+
+function setDarkVeilVisible(show: boolean) {
+  if (!mainVeil) return;
+  mainVeil.style.display = show ? "block" : "none";
+  if (show) {
+    startDarkVeil();
+  } else {
+    stopDarkVeil();
+  }
+}
+
 
 
 function resetCurrentGameState() {
@@ -541,7 +688,7 @@ function returnToStartScreen() {
   walletSection.style.display = "none";
   gameArea.style.display = "none";
   isSessionStarted = false;
-  if (mainVeil) mainVeil.style.display = "block";
+  setDarkVeilVisible(true);
   resetCurrentGameState();
   startIdleMusic();
   mpPayoutBucket = 0;
@@ -939,7 +1086,8 @@ const I18N = {
 function init() {
   initDebug();
   (window as any).__openWalletPicker = showWalletPicker;
-  if (mainVeil) mainVeil.style.display = isSessionStarted ? "none" : "block";
+  initDarkVeil();
+  setDarkVeilVisible(!isSessionStarted);
   // Name input
   startSessionBtn.addEventListener("click", startDemoSession);
   playerNameInput.addEventListener("keypress", (e) => {
@@ -1323,7 +1471,7 @@ async function startSession() {
   walletSection.style.display = "block";
   gameArea.style.display = "block";
   isSessionStarted = true;
-  if (mainVeil) mainVeil.style.display = "none";
+  setDarkVeilVisible(false);
 
   playerDisplayName.textContent = playerName;
   if (playerHandNameEl) {
@@ -3051,7 +3199,7 @@ async function startDemoSession() {
   walletSection.style.display = "block";
   gameArea.style.display = "block";
   isSessionStarted = true;
-  if (mainVeil) mainVeil.style.display = "none";
+  setDarkVeilVisible(false);
 
   if (playerDisplayName) playerDisplayName.textContent = playerName;
   if (playerHandNameEl) playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
