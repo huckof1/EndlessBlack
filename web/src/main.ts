@@ -126,6 +126,7 @@ const fundModalCancel = document.getElementById("fund-modal-cancel") as HTMLButt
 const depositBtnHeader = document.getElementById("deposit-btn-header") as HTMLButtonElement;
 const withdrawBtnHeader = document.getElementById("withdraw-btn-header") as HTMLButtonElement;
 const openWalletBtnHeader = document.getElementById("open-wallet-btn-header") as HTMLButtonElement;
+const openLuffaBtnHeader = document.getElementById("open-luffa-btn-header") as HTMLButtonElement;
 const depositModal = document.getElementById("deposit-modal") as HTMLDivElement;
 const depositAmountInput = document.getElementById("deposit-amount-input") as HTMLInputElement;
 const depositModalConfirm = document.getElementById("deposit-modal-confirm") as HTMLButtonElement;
@@ -770,6 +771,7 @@ const I18N = {
     withdraw_fail: "Withdrawal failed.",
     ingame_balance: "IN-GAME:",
     open_wallet: "OPEN WALLET",
+    open_luffa: "OPEN LUFFA",
   },
   ru: {
     subtitle: "WEB3 МУЛЬТИПЛЕЕР",
@@ -936,6 +938,7 @@ const I18N = {
     withdraw_fail: "Ошибка вывода.",
     ingame_balance: "В ИГРЕ:",
     open_wallet: "ОТКРЫТЬ КОШЕЛЁК",
+    open_luffa: "ОТКРЫТЬ LUFFA",
   },
 };
 
@@ -1056,6 +1059,11 @@ function init() {
   if (openWalletBtnHeader) {
     openWalletBtnHeader.addEventListener("click", () => {
       window.open("https://wallet.endless.link/", "_blank");
+    });
+  }
+  if (openLuffaBtnHeader) {
+    openLuffaBtnHeader.addEventListener("click", () => {
+      openLuffaDeepLink();
     });
   }
   if (depositModalConfirm) depositModalConfirm.addEventListener("click", executeDeposit);
@@ -2975,6 +2983,11 @@ function updateUI() {
     openWalletBtnHeader.style.display = walletAddress ? "inline-flex" : "none";
     openWalletBtnHeader.textContent = I18N[currentLocale].open_wallet;
   }
+  if (openLuffaBtnHeader) {
+    const isMobileDevice = /iphone|ipad|ipod|android/i.test(navigator.userAgent || "");
+    openLuffaBtnHeader.style.display = (walletAddress && isMobileDevice) ? "inline-flex" : "none";
+    openLuffaBtnHeader.textContent = I18N[currentLocale].open_luffa;
+  }
   if (ingameBalanceRow) {
     ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
   }
@@ -3234,8 +3247,8 @@ async function executeDeposit() {
     if (String(msg).toLowerCase().includes("wallet closed") || String(msg).includes("WALLET_PICKER_REQUIRED")) {
       showMessage(
         currentLocale === "ru"
-          ? "Кошелёк закрылся. Откройте кошелёк через QR/приложение и повторите."
-          : "Wallet closed. Open wallet via QR/app and try again.",
+          ? "Кошелёк закрылся. Откройте LUFFA (кнопка вверху) или QR и повторите."
+          : "Wallet closed. Open LUFFA (top button) or use QR, then try again.",
         "error"
       );
       showWalletPicker();
@@ -3274,8 +3287,8 @@ async function executeWithdraw() {
     if (String(msg).toLowerCase().includes("wallet closed") || String(msg).includes("WALLET_PICKER_REQUIRED")) {
       showMessage(
         currentLocale === "ru"
-          ? "Кошелёк закрылся. Откройте кошелёк через QR/приложение и повторите."
-          : "Wallet closed. Open wallet via QR/app and try again.",
+          ? "Кошелёк закрылся. Откройте LUFFA (кнопка вверху) или QR и повторите."
+          : "Wallet closed. Open LUFFA (top button) or use QR, then try again.",
         "error"
       );
       showWalletPicker();
