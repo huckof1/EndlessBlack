@@ -3266,6 +3266,10 @@ function updateUI() {
   if (resetDemoBtn) {
     resetDemoBtn.style.display = demo ? "inline-flex" : "none";
   }
+  if (inviteBtnHeader) {
+    inviteBtnHeader.style.display = isSessionStarted ? "inline-flex" : "none";
+    inviteBtnHeader.textContent = I18N[currentLocale].invite;
+  }
   if (connectWalletHeader) {
     // Always visible — toggles between connect and disconnect
     connectWalletHeader.style.display = "inline-flex";
