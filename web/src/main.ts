@@ -196,6 +196,7 @@ let pendingInvite: { name: string; mode: "demo" | "testnet" | "mainnet"; bet: nu
 let pendingResume: { mode: "demo" | "chain"; game: any; gameId?: number } | null = null;
 let inGameBalance: number = 0; // Player's in-game balance (octas) from contract
 let isWalletConnecting = false;
+let currentFeeBps = 200;
 let multiplayerRoom: string | null = null;
 let multiplayerState: { players: string[]; turnIndex: number | null } | null = null;
 type MultiplayerSnapshot = {
@@ -868,9 +869,11 @@ function init() {
     if (!isNaN(val) && val > 0) {
       betInput.dataset.lastValue = val.toString();
     }
+    updateFeeFromBet();
   });
   betAccept.addEventListener("click", () => multiplayer.acceptBet());
   betDecline.addEventListener("click", () => multiplayer.declineBet());
+  updateFeeFromBet();
 
   // Sound
   soundToggle.addEventListener("click", () => {
@@ -1991,6 +1994,18 @@ function applyNetworkMode() {
   if (networkMainnetBtn) networkMainnetBtn.classList.toggle("active", networkMode === "mainnet");
 }
 
+function updateFeeFromBet() {
+  if (!feeEl) return;
+  const betValue = parseFloat(betInput.value);
+  if (isNaN(betValue) || betValue <= 0) {
+    feeEl.textContent = "0.00 EDS";
+    return;
+  }
+  const betOctas = Math.floor(betValue * 100000000);
+  const feeOctas = Math.floor((betOctas * currentFeeBps) / 10000);
+  feeEl.textContent = formatEDS(feeOctas);
+}
+
 // ==================== BET ====================
 function getBetStep(current: number): number {
   if (current >= 1000) return 500;
@@ -2011,6 +2026,7 @@ function adjustBet(direction: number) {
   if (multiplayerRoom && (phase === "lobby" || phase === "done")) {
     multiplayer.proposeBet(newValue);
   }
+  updateFeeFromBet();
 }
 
 function validateBet() {
@@ -2027,6 +2043,7 @@ function validateBet() {
   if (multiplayerRoom && (phase === "lobby" || phase === "done")) {
     multiplayer.proposeBet(value);
   }
+  updateFeeFromBet();
 }
 
 // ==================== GAME ====================
@@ -2582,8 +2599,8 @@ async function updateBank() {
   if (isDemoActive()) {
     bankrollEl.textContent = formatEDS(game.getBankroll());
     treasuryEl.textContent = formatEDS(game.getTreasury());
-    const feeBps = game.getFeeBps();
-    feeEl.textContent = (feeBps / 100).toFixed(2) + "%";
+    currentFeeBps = game.getFeeBps();
+    updateFeeFromBet();
     return;
   }
 
@@ -2591,7 +2608,8 @@ async function updateBank() {
     const info = await getBankInfo(networkMode);
     bankrollEl.textContent = formatEDS(info.bankroll);
     treasuryEl.textContent = formatEDS(info.treasury);
-    feeEl.textContent = (info.feeBps / 100).toFixed(2) + "%";
+    currentFeeBps = info.feeBps;
+    updateFeeFromBet();
   } catch {
     bankrollEl.textContent = "—";
     treasuryEl.textContent = "—";
