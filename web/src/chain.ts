@@ -447,20 +447,13 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   // Luffa SDK
   const sdk = getLuffaSdk(mode);
   dbg?.("TX route: luffa sdk");
-  const luffaArgs = args.map(a => {
-    if (typeof a === "bigint") return a.toString();
-    if (typeof a === "number") return a.toString();
-    return a;
-  });
+  const luffaArgs = args.map(a => (typeof a === "bigint" ? a.toString() : a));
   const luffaPayload = {
     function: func as `${string}::${string}::${string}`,
     typeArguments: [] as string[],
     functionArguments: luffaArgs,
-    type_arguments: [] as string[],
-    arguments: luffaArgs,
-  } as any;
+  };
   try {
-    dbg?.(`Luffa args types: ${luffaArgs.map(a => typeof a).join(",")}`);
     const res = await sdk.signAndSubmitTransaction({ payload: luffaPayload });
     if (res.status === LuffaUserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
