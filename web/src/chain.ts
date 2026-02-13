@@ -457,7 +457,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     function: func,
     type_arguments: [] as string[],
     arguments: luffaArgs,
-  };
+  } as any;
   try {
     dbg?.("Luffa args sanitized");
     try {
