@@ -138,6 +138,10 @@ const ingameBalanceEl = document.getElementById("ingame-balance") as HTMLSpanEle
 const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
+const debugModal = document.getElementById("debug-modal") as HTMLDivElement;
+const debugLogEl = document.getElementById("debug-log") as HTMLDivElement;
+const debugCloseBtn = document.getElementById("debug-close") as HTMLButtonElement;
+const debugCopyBtn = document.getElementById("debug-copy") as HTMLButtonElement;
 const walletInstallLink = document.getElementById("wallet-install-link") as HTMLAnchorElement;
 const walletPickerTitle = document.getElementById("wallet-picker-title") as HTMLDivElement;
 const walletPickerOptions = document.getElementById("wallet-picker-options") as HTMLDivElement;
@@ -199,6 +203,8 @@ let pendingResume: { mode: "demo" | "chain"; game: any; gameId?: number } | null
 let inGameBalance: number = 0; // Player's in-game balance (octas) from contract
 let isWalletConnecting = false;
 let currentFeeBps = 200;
+let debugEnabled = false;
+let debugLog: string[] = [];
 let multiplayerRoom: string | null = null;
 let multiplayerState: { players: string[]; turnIndex: number | null } | null = null;
 type MultiplayerSnapshot = {
@@ -471,6 +477,47 @@ function focusBetArea() {
     betDisplay.classList.add("bet-pulse");
     window.setTimeout(() => betDisplay.classList.remove("bet-pulse"), 3800);
   }
+}
+
+function initDebug() {
+  const params = new URLSearchParams(window.location.search);
+  debugEnabled = params.get("debug") === "1";
+  (window as any).__debugLog = debugLogLine;
+  if (!debugEnabled) return;
+  const btn = document.createElement("button");
+  btn.textContent = "DEBUG";
+  btn.className = "btn btn-small";
+  btn.style.position = "fixed";
+  btn.style.right = "10px";
+  btn.style.bottom = "10px";
+  btn.style.zIndex = "4000";
+  btn.addEventListener("click", () => {
+    if (debugModal) debugModal.style.display = "flex";
+  });
+  document.body.appendChild(btn);
+  if (debugCloseBtn) {
+    debugCloseBtn.addEventListener("click", () => {
+      if (debugModal) debugModal.style.display = "none";
+    });
+  }
+  if (debugCopyBtn) {
+    debugCopyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(debugLog.join("\n"));
+        showMessage("DEBUG COPIED", "success");
+      } catch {
+        // ignore
+      }
+    });
+  }
+}
+
+function debugLogLine(message: string) {
+  if (!debugEnabled) return;
+  const ts = new Date().toISOString().slice(11, 19);
+  debugLog.push(`[${ts}] ${message}`);
+  if (debugLog.length > 200) debugLog = debugLog.slice(-200);
+  if (debugLogEl) debugLogEl.textContent = debugLog.join("\n");
 }
 
 function resetCurrentGameState() {
@@ -891,6 +938,7 @@ const I18N = {
 
 // ==================== INIT ====================
 function init() {
+  initDebug();
   // Name input
   startSessionBtn.addEventListener("click", startDemoSession);
   playerNameInput.addEventListener("keypress", (e) => {
@@ -3126,6 +3174,7 @@ function handleShowDeposit() {
       }
     });
   }
+  debugLogLine("DEPOSIT modal opened");
 }
 
 function handleShowWithdraw() {
@@ -3154,6 +3203,7 @@ async function executeDeposit() {
   const octas = Math.floor(edsAmount * 100000000);
   if (depositModal) depositModal.style.display = "none";
   try {
+    debugLogLine(`DEPOSIT submit: ${edsAmount} EDS (${octas} octas)`);
     showMessage(
       currentLocale === "ru"
         ? "Депозит... Подтвердите в кошельке."
@@ -3166,6 +3216,7 @@ async function executeDeposit() {
     showMessage(I18N[currentLocale].deposit_success, "success");
   } catch (err: any) {
     console.error("Deposit failed:", err);
+    debugLogLine(`DEPOSIT error: ${err?.message || err}`);
     showMessage(I18N[currentLocale].deposit_fail + " " + (err?.message || ""), "error");
   }
 }
@@ -3181,6 +3232,7 @@ async function executeWithdraw() {
   const octas = Math.floor(edsAmount * 100000000);
   if (withdrawModal) withdrawModal.style.display = "none";
   try {
+    debugLogLine(`WITHDRAW submit: ${edsAmount} EDS (${octas} octas)`);
     showMessage(
       currentLocale === "ru"
         ? "Вывод... Подтвердите в кошельке."
@@ -3193,6 +3245,7 @@ async function executeWithdraw() {
     showMessage(I18N[currentLocale].withdraw_success, "success");
   } catch (err: any) {
     console.error("Withdraw failed:", err);
+    debugLogLine(`WITHDRAW error: ${err?.message || err}`);
     showMessage(I18N[currentLocale].withdraw_fail + " " + (err?.message || ""), "error");
   }
 }

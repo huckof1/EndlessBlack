@@ -297,6 +297,8 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   const contractAddr = getContractAddress(mode);
   const func = `${contractAddr}::${MODULE_NAME}::${functionName}`;
   console.log("submitEntryFunction:", func, "args:", args, "contractAddr:", contractAddr);
+  const dbg = (window as any).__debugLog as ((msg: string) => void) | undefined;
+  dbg?.(`TX ${functionName} args=${JSON.stringify(args)}`);
   // Ensure we have an active wallet session before trying to sign
   if (!activeWalletType || !connectedAddress) {
     const w = window as any;
@@ -346,6 +348,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       res = await web3Sdk.signAndSubmitTransaction({ payload });
     } catch (sdkErr: any) {
       console.error("Web3 SDK signAndSubmitTransaction error:", sdkErr);
+      dbg?.(`Web3 SDK error: ${sdkErr?.message || sdkErr}`);
       // Fallback to injected wallet if available (browser extension)
       const wallet = getInjectedWallet();
       if (wallet?.signAndSubmitTransaction) {
@@ -395,6 +398,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     }
     throw new Error("Transaction rejected by user");
   } catch (err) {
+    dbg?.(`Luffa SDK error: ${err instanceof Error ? err.message : String(err)}`);
     // Fallback: try injected provider
     const wallet = getInjectedWallet();
     if (wallet?.signAndSubmitTransaction) {
