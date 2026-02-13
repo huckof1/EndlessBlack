@@ -134,8 +134,8 @@ body[data-theme="light"] .shadow-bars-canvas {
 
 body[data-theme="light"] .aurora-btn::before,
 body[data-theme="light"] .aurora-btn::after {
-  opacity: 0.65;
-  filter: blur(14px) saturate(150%) brightness(0.8);
+  opacity: 0.55;
+  filter: blur(14px) saturate(140%) brightness(0.6);
 }
 
 body[data-theme="light"] .aurora-btn::before {
@@ -1579,8 +1579,8 @@ body.invite-mode .mascot-right {
   position: absolute;
   inset: -25%;
   border-radius: 50%;
-  filter: blur(14px) saturate(160%) brightness(0.85);
-  opacity: 0.95;
+  filter: blur(14px) saturate(150%) brightness(0.55);
+  opacity: 0.8;
   z-index: 1;
   pointer-events: none;
 }
