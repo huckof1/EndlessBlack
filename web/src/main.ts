@@ -2831,7 +2831,7 @@ function updateUI() {
       demoBadge.textContent = I18N[currentLocale].demo_mode || "TEST MODE";
       demoBadge.style.display = "inline-block";
     } else {
-      demoBadge.textContent = "TESTNET";
+      demoBadge.textContent = "DEMO";
       demoBadge.style.display = "inline-block";
     }
   }
