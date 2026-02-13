@@ -97,6 +97,23 @@ body > .container {
   display: block;
 }
 
+/* ==================== SHADOW BARS (GAME ONLY) ==================== */
+.shadow-bars {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #05060b;
+}
+
+.shadow-bars-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
 
 @media (max-width: 430px) {
   body {

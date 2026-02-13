@@ -28,6 +28,7 @@ import { MultiplayerClient } from "./multiplayer";
 // ==================== DOM ELEMENTS ====================
 const nameSection = document.getElementById("name-section") as HTMLDivElement;
 const mainVeil = document.getElementById("main-veil") as HTMLDivElement;
+const gameShadowBars = document.getElementById("game-shadow-bars") as HTMLDivElement;
 const playerNameInput = document.getElementById("player-name") as HTMLInputElement;
 const startSessionBtn = document.getElementById("start-session-btn") as HTMLButtonElement;
 const walletSection = document.getElementById("wallet-section") as HTMLDivElement;
@@ -656,6 +657,122 @@ function setDarkVeilVisible(show: boolean) {
   }
 }
 
+// ==================== SHADOW BARS (GAME ONLY) ====================
+let shadowBarsRaf: number | null = null;
+let shadowBarsRunning = false;
+let shadowBarsCanvas: HTMLCanvasElement | null = null;
+let shadowBarsCtx: CanvasRenderingContext2D | null = null;
+let shadowBarsLowCanvas: HTMLCanvasElement | null = null;
+let shadowBarsLowCtx: CanvasRenderingContext2D | null = null;
+let shadowBarsLowData: ImageData | null = null;
+
+function initShadowBars() {
+  if (!gameShadowBars) return;
+  if (shadowBarsCanvas) return;
+  shadowBarsCanvas = document.createElement("canvas");
+  shadowBarsCanvas.className = "shadow-bars-canvas";
+  gameShadowBars.appendChild(shadowBarsCanvas);
+  shadowBarsCtx = shadowBarsCanvas.getContext("2d");
+  const onResize = () => resizeShadowBars();
+  window.addEventListener("resize", onResize);
+  resizeShadowBars();
+}
+
+function resizeShadowBars() {
+  if (!shadowBarsCanvas || !shadowBarsCtx) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, window.innerWidth);
+  const height = Math.max(1, window.innerHeight);
+  shadowBarsCanvas.width = Math.floor(width * dpr);
+  shadowBarsCanvas.height = Math.floor(height * dpr);
+  shadowBarsCanvas.style.width = `${width}px`;
+  shadowBarsCanvas.style.height = `${height}px`;
+  shadowBarsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function renderShadowBars(time: number) {
+  if (!shadowBarsCanvas || !shadowBarsCtx) return;
+  const ctx = shadowBarsCtx;
+  const w = shadowBarsCanvas.width / (window.devicePixelRatio || 1);
+  const h = shadowBarsCanvas.height / (window.devicePixelRatio || 1);
+  const t = time * 0.0007;
+  const lowW = Math.max(120, Math.floor(w / 6));
+  const lowH = Math.max(220, Math.floor(h / 6));
+
+  if (!shadowBarsLowCanvas) shadowBarsLowCanvas = document.createElement("canvas");
+  if (!shadowBarsLowCtx) shadowBarsLowCtx = shadowBarsLowCanvas.getContext("2d");
+  if (!shadowBarsLowCtx) return;
+  if (shadowBarsLowCanvas.width !== lowW || shadowBarsLowCanvas.height !== lowH || !shadowBarsLowData) {
+    shadowBarsLowCanvas.width = lowW;
+    shadowBarsLowCanvas.height = lowH;
+    shadowBarsLowData = shadowBarsLowCtx.createImageData(lowW, lowH);
+  }
+
+  const data = shadowBarsLowData.data;
+  for (let y = 0; y < lowH; y++) {
+    const ny = y / lowH;
+    const fadeY = 0.25 + 0.75 * Math.sin(ny * Math.PI);
+    for (let x = 0; x < lowW; x++) {
+      const nx = x / lowW;
+      const wave =
+        Math.sin(nx * 7.5 + t * 1.2) * 0.55 +
+        Math.sin(nx * 15.0 - t * 0.9) * 0.35 +
+        Math.sin((nx + ny * 0.25) * 11.0 + t * 0.6) * 0.25;
+      let v = wave * 0.5 + 0.5;
+      v = Math.pow(Math.max(0, v - 0.2), 2.0) * 1.35;
+      v *= fadeY;
+
+      const base = 6;
+      const r = base + v * 90;
+      const g = base + v * 20;
+      const b = 18 + v * 170;
+
+      const idx = (y * lowW + x) * 4;
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
+      data[idx + 3] = 255;
+    }
+  }
+
+  shadowBarsLowCtx.putImageData(shadowBarsLowData, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(shadowBarsLowCanvas, 0, 0, w, h);
+
+  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.max(w, h) * 0.2, w * 0.5, h * 0.5, Math.max(w, h) * 0.8);
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.65)");
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, w, h);
+}
+
+function startShadowBars() {
+  if (shadowBarsRunning) return;
+  shadowBarsRunning = true;
+  const loop = (time: number) => {
+    if (!shadowBarsRunning) return;
+    renderShadowBars(time);
+    shadowBarsRaf = requestAnimationFrame(loop);
+  };
+  shadowBarsRaf = requestAnimationFrame(loop);
+}
+
+function stopShadowBars() {
+  shadowBarsRunning = false;
+  if (shadowBarsRaf) {
+    cancelAnimationFrame(shadowBarsRaf);
+    shadowBarsRaf = null;
+  }
+}
+
+function setShadowBarsVisible(show: boolean) {
+  if (!gameShadowBars) return;
+  gameShadowBars.style.display = show ? "block" : "none";
+  if (show) startShadowBars();
+  else stopShadowBars();
+}
+
 
 
 function resetCurrentGameState() {
@@ -680,6 +797,7 @@ function returnToStartScreen() {
   gameArea.style.display = "none";
   isSessionStarted = false;
   setDarkVeilVisible(true);
+  setShadowBarsVisible(false);
   resetCurrentGameState();
   startIdleMusic();
   mpPayoutBucket = 0;
@@ -1078,7 +1196,9 @@ function init() {
   initDebug();
   (window as any).__openWalletPicker = showWalletPicker;
   initDarkVeil();
+  initShadowBars();
   setDarkVeilVisible(!isSessionStarted);
+  setShadowBarsVisible(isSessionStarted);
   // Name input
   startSessionBtn.addEventListener("click", startDemoSession);
   playerNameInput.addEventListener("keypress", (e) => {
@@ -1463,6 +1583,7 @@ async function startSession() {
   gameArea.style.display = "block";
   isSessionStarted = true;
   setDarkVeilVisible(false);
+  setShadowBarsVisible(true);
 
   playerDisplayName.textContent = playerName;
   if (playerHandNameEl) {
@@ -3191,6 +3312,7 @@ async function startDemoSession() {
   gameArea.style.display = "block";
   isSessionStarted = true;
   setDarkVeilVisible(false);
+  setShadowBarsVisible(true);
 
   if (playerDisplayName) playerDisplayName.textContent = playerName;
   if (playerHandNameEl) playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
