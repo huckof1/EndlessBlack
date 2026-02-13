@@ -3173,7 +3173,6 @@ async function handleInviteAccept() {
     }
     return;
   }
-  const mode = "demo";
   setNetwork("testnet");
   betInput.value = pendingInvite.bet.toString();
 
