@@ -474,13 +474,8 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     throw new Error("Transaction rejected by user");
   } catch (err) {
     dbg?.(`Luffa SDK error: ${err instanceof Error ? err.message : String(err)}`);
-    if (String(err).includes("LUFFA_TIMEOUT")) {
-      const openLuffa = (window as any).__openLuffa as (() => void) | undefined;
-      openLuffa?.();
-    }
     // Fallback: try injected provider
     const wallet = getInjectedWallet();
-    dbg?.(`Injected wallet available: ${wallet?.signAndSubmitTransaction ? "yes" : "no"}`);
     if (wallet?.signAndSubmitTransaction) {
       const fallbackPayload = {
         function: func,
