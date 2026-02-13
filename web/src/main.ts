@@ -2374,6 +2374,11 @@ function showGameResult(amount: number, type: "win" | "lose" | "draw") {
     gameResultAmount.textContent = `0 EDS`;
     gameResultAmount.className = "game-result-amount result-draw";
   }
+  if (continueBtn) {
+    continueBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+  } else {
+    scrollToGameArea();
+  }
 }
 
 function hideGameResult() {
