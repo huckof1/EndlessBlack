@@ -1015,6 +1015,16 @@ body[data-theme="light"] .player-name-display {
   font-size: 0.62em;
 }
 
+body[data-demo="true"] .wallet-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body[data-demo="true"] .wallet-item--fee {
+  grid-column: auto;
+  max-width: none;
+  margin: 0;
+}
+
 .wallet-item--primary {
   display: flex;
   flex-direction: column;

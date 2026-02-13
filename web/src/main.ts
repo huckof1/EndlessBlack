@@ -680,7 +680,7 @@ const I18N = {
     msg_no_payout: "NO PAYOUT AVAILABLE",
     bankroll: "BANKROLL:",
     bet_fee: "BET FEE:",
-    fee: "FEE:",
+    game_fee: "GAME FEE:",
     payout_due: "Payout due:",
     title_network: "Network",
     title_testnet: "Testnet",
@@ -845,7 +845,7 @@ const I18N = {
     msg_no_payout: "НЕТ ВЫПЛАТЫ",
     bankroll: "БАНК:",
     bet_fee: "КОМИССИЯ:",
-    fee: "КОМИССИЯ:",
+    game_fee: "КОМИССИЯ ИГРЫ:",
     payout_due: "К выплате:",
     title_network: "Сеть",
     title_testnet: "Тестнет",
@@ -2871,6 +2871,7 @@ function updateUI() {
       demoBadge.style.display = "inline-block";
     }
   }
+  document.body.dataset.demo = demo ? "true" : "false";
   if (resetDemoBtn) {
     resetDemoBtn.style.display = demo ? "inline-flex" : "none";
   }
