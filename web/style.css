@@ -82,8 +82,8 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(circle at 25% 20%, rgba(70, 120, 190, 0.22), transparent 60%);
-  opacity: 0.95;
+  background: #07080f;
+  opacity: 1;
 }
 
 body > .container {

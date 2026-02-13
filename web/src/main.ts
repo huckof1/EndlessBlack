@@ -524,13 +524,16 @@ let veilRunning = false;
 let veilCanvas: HTMLCanvasElement | null = null;
 let veilCtx: CanvasRenderingContext2D | null = null;
 let veilNoiseCanvas: HTMLCanvasElement | null = null;
+let veilLowCanvas: HTMLCanvasElement | null = null;
+let veilLowCtx: CanvasRenderingContext2D | null = null;
+let veilLowData: ImageData | null = null;
 
 const veilConfig = {
   hueShift: 0,
-  noiseIntensity: 0.08,
-  scanlineIntensity: 0.06,
-  scanlineFrequency: 1.1,
-  speed: 0.9,
+  noiseIntensity: 0,
+  scanlineIntensity: 0,
+  scanlineFrequency: 0,
+  speed: 0.85,
   warpAmount: 0,
 };
 
@@ -563,86 +566,66 @@ function renderDarkVeil(time: number) {
   const ctx = veilCtx;
   const w = veilCanvas.width / (window.devicePixelRatio || 1);
   const h = veilCanvas.height / (window.devicePixelRatio || 1);
-  const t = time * 0.0002 * veilConfig.speed;
-  const hue = 220 + veilConfig.hueShift;
+  const t = time * 0.0006 * veilConfig.speed;
+  const lowW = Math.max(140, Math.floor(w / 4.5));
+  const lowH = Math.max(240, Math.floor(h / 4.5));
 
-  ctx.clearRect(0, 0, w, h);
-
-  const cx = w * (0.5 + 0.08 * Math.sin(t * 1.1));
-  const cy = h * (0.45 + 0.08 * Math.cos(t * 0.9));
-  const r = Math.max(w, h) * 0.9;
-  const grad = ctx.createRadialGradient(cx, cy, 0, w * 0.5, h * 0.5, r);
-  grad.addColorStop(0, `hsla(${hue + 30}, 70%, 22%, 0.98)`);
-  grad.addColorStop(0.45, `hsla(${hue + 12}, 65%, 14%, 0.98)`);
-  grad.addColorStop(1, `hsla(${hue - 10}, 75%, 6%, 1)`);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
-
-  // Secondary drifting glow
-  const glowX = w * (0.2 + 0.6 * Math.sin(t * 0.6 + 1.7) * 0.5);
-  const glowY = h * (0.2 + 0.6 * Math.cos(t * 0.7 + 0.2) * 0.5);
-  const glow = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, r * 0.55);
-  glow.addColorStop(0, `hsla(${hue + 60}, 85%, 55%, 0.2)`);
-  glow.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, w, h);
-
-  // Subtle moving light bands (veil feel)
-  ctx.globalAlpha = 0.18;
-  ctx.strokeStyle = `hsla(${hue + 50}, 80%, 50%, 0.45)`;
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 6; i++) {
-    const y = (h / 6) * i + Math.sin(t * 2 + i) * 14;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.bezierCurveTo(w * 0.3, y + 10, w * 0.7, y - 10, w, y);
-    ctx.stroke();
+  if (!veilLowCanvas) {
+    veilLowCanvas = document.createElement("canvas");
   }
-  ctx.globalAlpha = 1;
+  if (!veilLowCtx) {
+    veilLowCtx = veilLowCanvas.getContext("2d");
+  }
+  if (!veilLowCtx) return;
+  if (veilLowCanvas.width !== lowW || veilLowCanvas.height !== lowH || !veilLowData) {
+    veilLowCanvas.width = lowW;
+    veilLowCanvas.height = lowH;
+    veilLowData = veilLowCtx.createImageData(lowW, lowH);
+  }
 
-  // Vignette
-  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.5, r * 0.2, w * 0.5, h * 0.5, r * 0.9);
+  const data = veilLowData.data;
+  const cx = 0.5;
+  const cy = 0.45;
+  for (let y = 0; y < lowH; y++) {
+    const ny = y / lowH;
+    for (let x = 0; x < lowW; x++) {
+      const nx = x / lowW;
+      const flowX = nx + 0.08 * Math.sin((ny * 4.0) + t);
+      const flowY = ny + 0.08 * Math.cos((nx * 3.2) - t * 0.9);
+      const v1 = Math.sin((flowX * 7.2 + t * 0.7) + Math.sin(flowY * 5.1 - t * 0.6) * 1.6);
+      const v2 = Math.cos((flowY * 6.4 - t * 0.5) + Math.sin(flowX * 4.4 + t * 0.8) * 1.4);
+      const v3 = Math.sin((flowX + flowY) * 4.2 - t * 0.4);
+      let v = (v1 + v2 + v3) / 3; // -1..1
+      v = v * 0.5 + 0.5; // 0..1
+      const dx = nx - cx;
+      const dy = ny - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const vignette = Math.max(0, 1 - dist * 1.35);
+      v = v * 0.85 + vignette * 0.15;
+
+      const base = 8;
+      const r = base + v * 110;
+      const g = base + v * 55;
+      const b = 30 + v * 190;
+
+      const idx = (y * lowW + x) * 4;
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
+      data[idx + 3] = 255;
+    }
+  }
+
+  veilLowCtx.putImageData(veilLowData, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(veilLowCanvas, 0, 0, w, h);
+
+  const vignette = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.max(w, h) * 0.1, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
   vignette.addColorStop(0, "rgba(0,0,0,0)");
   vignette.addColorStop(1, "rgba(0,0,0,0.55)");
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, w, h);
-
-  // Optional scanlines
-  if (veilConfig.scanlineIntensity > 0 && veilConfig.scanlineFrequency > 0) {
-    ctx.globalAlpha = veilConfig.scanlineIntensity;
-    ctx.fillStyle = "rgba(255,255,255,0.02)";
-    const gap = Math.max(2, Math.floor(6 / veilConfig.scanlineFrequency));
-    for (let y = 0; y < h; y += gap) {
-      ctx.fillRect(0, y, w, 1);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // Optional noise
-  if (veilConfig.noiseIntensity > 0) {
-    const noiseOpacity = Math.min(veilConfig.noiseIntensity, 0.35);
-    ctx.globalAlpha = noiseOpacity;
-    const size = 120;
-    if (!veilNoiseCanvas) {
-      veilNoiseCanvas = document.createElement("canvas");
-      veilNoiseCanvas.width = size;
-      veilNoiseCanvas.height = size;
-    }
-    const noiseCtx = veilNoiseCanvas.getContext("2d");
-    if (noiseCtx) {
-      const imageData = noiseCtx.createImageData(size, size);
-      for (let i = 0; i < imageData.data.length; i += 4) {
-        const v = Math.random() * 255;
-        imageData.data[i] = v;
-        imageData.data[i + 1] = v;
-        imageData.data[i + 2] = v;
-        imageData.data[i + 3] = 255;
-      }
-      noiseCtx.putImageData(imageData, 0, 0);
-      ctx.drawImage(veilNoiseCanvas, 0, 0, size, size, 0, 0, w, h);
-    }
-    ctx.globalAlpha = 1;
-  }
 }
 
 function startDarkVeil() {
