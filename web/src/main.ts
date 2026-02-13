@@ -527,10 +527,10 @@ let veilNoiseCanvas: HTMLCanvasElement | null = null;
 
 const veilConfig = {
   hueShift: 0,
-  noiseIntensity: 0,
-  scanlineIntensity: 0,
-  scanlineFrequency: 0,
-  speed: 0.5,
+  noiseIntensity: 0.08,
+  scanlineIntensity: 0.06,
+  scanlineFrequency: 1.1,
+  speed: 0.9,
   warpAmount: 0,
 };
 
@@ -572,15 +572,24 @@ function renderDarkVeil(time: number) {
   const cy = h * (0.45 + 0.08 * Math.cos(t * 0.9));
   const r = Math.max(w, h) * 0.9;
   const grad = ctx.createRadialGradient(cx, cy, 0, w * 0.5, h * 0.5, r);
-  grad.addColorStop(0, `hsla(${hue + 20}, 55%, 18%, 0.95)`);
-  grad.addColorStop(0.5, `hsla(${hue + 10}, 60%, 12%, 0.98)`);
-  grad.addColorStop(1, `hsla(${hue}, 65%, 6%, 1)`);
+  grad.addColorStop(0, `hsla(${hue + 30}, 70%, 22%, 0.98)`);
+  grad.addColorStop(0.45, `hsla(${hue + 12}, 65%, 14%, 0.98)`);
+  grad.addColorStop(1, `hsla(${hue - 10}, 75%, 6%, 1)`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
+  // Secondary drifting glow
+  const glowX = w * (0.2 + 0.6 * Math.sin(t * 0.6 + 1.7) * 0.5);
+  const glowY = h * (0.2 + 0.6 * Math.cos(t * 0.7 + 0.2) * 0.5);
+  const glow = ctx.createRadialGradient(glowX, glowY, 0, glowX, glowY, r * 0.55);
+  glow.addColorStop(0, `hsla(${hue + 60}, 85%, 55%, 0.2)`);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+
   // Subtle moving light bands (veil feel)
-  ctx.globalAlpha = 0.12;
-  ctx.strokeStyle = `hsla(${hue + 40}, 70%, 45%, 0.35)`;
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = `hsla(${hue + 50}, 80%, 50%, 0.45)`;
   ctx.lineWidth = 2;
   for (let i = 0; i < 6; i++) {
     const y = (h / 6) * i + Math.sin(t * 2 + i) * 14;
