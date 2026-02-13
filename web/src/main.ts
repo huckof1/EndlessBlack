@@ -137,7 +137,6 @@ const withdrawModalConfirm = document.getElementById("withdraw-modal-confirm") a
 const withdrawModalCancel = document.getElementById("withdraw-modal-cancel") as HTMLButtonElement;
 const ingameBalanceRow = document.getElementById("ingame-balance-row") as HTMLDivElement;
 const ingameBalanceEl = document.getElementById("ingame-balance") as HTMLSpanElement;
-const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
 const debugModal = document.getElementById("debug-modal") as HTMLDivElement;
@@ -904,7 +903,7 @@ const I18N = {
     start: "START",
     player: "PLAYER:",
     balance: "BALANCE:",
-    reset_demo: "RESET TEST",
+  reset_demo: "RESET BALANCE",
     mascot_idle: "Let's play?",
     bet: "BET",
     bet_hint: "MIN 0.1 EDS · MAX 10000 EDS",
@@ -1068,7 +1067,7 @@ const I18N = {
     start: "СТАРТ",
     player: "ИГРОК:",
     balance: "БАЛАНС:",
-    reset_demo: "СБРОС ТЕСТА",
+  reset_demo: "СБРОС БАЛАНСА",
     mascot_idle: "Играем?",
     bet: "СТАВКА",
     bet_hint: "МИН 0.1 EDS · МАКС 10000 EDS",
@@ -1359,7 +1358,6 @@ function init() {
   });
   inviteAccept.addEventListener("click", handleInviteAccept);
   inviteDecline.addEventListener("click", handleInviteDecline);
-  connectWalletBtn.addEventListener("click", handleConnectWallet);
   walletModalClose.addEventListener("click", () => {
     if (walletModal) walletModal.style.display = "none";
   });
@@ -3275,9 +3273,6 @@ function updateUI() {
   document.body.dataset.demo = demo ? "true" : "false";
   if (resetDemoBtn) {
     resetDemoBtn.style.display = demo ? "inline-flex" : "none";
-  }
-  if (connectWalletBtn) {
-    connectWalletBtn.style.display = walletAddress ? "none" : "inline-flex";
   }
   if (connectWalletHeader) {
     // Always visible — toggles between connect and disconnect
