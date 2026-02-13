@@ -27,6 +27,7 @@ import { MultiplayerClient } from "./multiplayer";
 
 // ==================== DOM ELEMENTS ====================
 const nameSection = document.getElementById("name-section") as HTMLDivElement;
+const mainVeil = document.getElementById("main-veil") as HTMLDivElement;
 const playerNameInput = document.getElementById("player-name") as HTMLInputElement;
 const startSessionBtn = document.getElementById("start-session-btn") as HTMLButtonElement;
 const walletSection = document.getElementById("wallet-section") as HTMLDivElement;
@@ -540,6 +541,7 @@ function returnToStartScreen() {
   walletSection.style.display = "none";
   gameArea.style.display = "none";
   isSessionStarted = false;
+  if (mainVeil) mainVeil.style.display = "block";
   resetCurrentGameState();
   startIdleMusic();
   mpPayoutBucket = 0;
@@ -937,6 +939,7 @@ const I18N = {
 function init() {
   initDebug();
   (window as any).__openWalletPicker = showWalletPicker;
+  if (mainVeil) mainVeil.style.display = isSessionStarted ? "none" : "block";
   // Name input
   startSessionBtn.addEventListener("click", startDemoSession);
   playerNameInput.addEventListener("keypress", (e) => {
@@ -1320,6 +1323,7 @@ async function startSession() {
   walletSection.style.display = "block";
   gameArea.style.display = "block";
   isSessionStarted = true;
+  if (mainVeil) mainVeil.style.display = "none";
 
   playerDisplayName.textContent = playerName;
   if (playerHandNameEl) {
@@ -3047,6 +3051,7 @@ async function startDemoSession() {
   walletSection.style.display = "block";
   gameArea.style.display = "block";
   isSessionStarted = true;
+  if (mainVeil) mainVeil.style.display = "none";
 
   if (playerDisplayName) playerDisplayName.textContent = playerName;
   if (playerHandNameEl) playerHandNameEl.textContent = playerName || I18N[currentLocale].you;

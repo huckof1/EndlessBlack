@@ -76,6 +76,24 @@ body {
   overflow-x: hidden;
 }
 
+/* ==================== MAIN VEIL (HOME ONLY) ==================== */
+.dark-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 30% 10%, rgba(10, 25, 45, 0.55), rgba(10, 25, 45, 0) 60%),
+    radial-gradient(900px 500px at 80% 30%, rgba(20, 10, 40, 0.55), rgba(20, 10, 40, 0) 60%),
+    linear-gradient(180deg, rgba(5, 10, 20, 0.65), rgba(5, 10, 20, 0.85));
+  opacity: 0.9;
+}
+
+body > .container {
+  position: relative;
+  z-index: 1;
+}
+
 
 @media (max-width: 430px) {
   body {
