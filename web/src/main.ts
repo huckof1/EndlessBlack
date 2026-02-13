@@ -523,7 +523,6 @@ let veilRaf: number | null = null;
 let veilRunning = false;
 let veilCanvas: HTMLCanvasElement | null = null;
 let veilCtx: CanvasRenderingContext2D | null = null;
-let veilNoiseCanvas: HTMLCanvasElement | null = null;
 let veilLowCanvas: HTMLCanvasElement | null = null;
 let veilLowCtx: CanvasRenderingContext2D | null = null;
 let veilLowData: ImageData | null = null;
