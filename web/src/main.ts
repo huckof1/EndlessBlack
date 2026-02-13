@@ -519,9 +519,6 @@ function debugLogLine(message: string) {
   if (debugLogEl) debugLogEl.textContent = debugLog.join("\n");
 }
 
-function showDebugModal() {
-  if (debugModal) debugModal.style.display = "flex";
-}
 
 
 function resetCurrentGameState() {
