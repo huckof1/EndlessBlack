@@ -83,10 +83,10 @@ body {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(1200px 600px at 30% 10%, rgba(10, 25, 45, 0.55), rgba(10, 25, 45, 0) 60%),
-    radial-gradient(900px 500px at 80% 30%, rgba(20, 10, 40, 0.55), rgba(20, 10, 40, 0) 60%),
-    linear-gradient(180deg, rgba(5, 10, 20, 0.65), rgba(5, 10, 20, 0.85));
-  opacity: 0.9;
+    radial-gradient(900px 480px at 20% 12%, rgba(24, 64, 110, 0.75), rgba(10, 25, 45, 0) 60%),
+    radial-gradient(800px 440px at 85% 18%, rgba(60, 30, 100, 0.7), rgba(20, 10, 40, 0) 62%),
+    linear-gradient(180deg, rgba(6, 12, 28, 0.9), rgba(4, 8, 18, 0.95));
+  opacity: 1;
 }
 
 body > .container {
