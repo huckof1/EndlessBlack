@@ -460,24 +460,6 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     typeArguments: [] as string[],
     functionArguments: luffaArgs,
   };
-  // Prefer injected provider inside Luffa webview if available
-  const injected = getInjectedWallet();
-  dbg?.(`Injected wallet available: ${injected?.signAndSubmitTransaction ? "yes" : "no"}`);
-  if (injected?.signAndSubmitTransaction) {
-    const fallbackPayload = {
-      function: func,
-      typeArguments: [],
-      functionArguments: luffaArgs,
-      type_arguments: [],
-      arguments: luffaArgs,
-    };
-    try {
-      dbg?.("Injected sign start");
-      return await injected.signAndSubmitTransaction({ payload: fallbackPayload });
-    } catch {
-      return await injected.signAndSubmitTransaction({ data: fallbackPayload });
-    }
-  }
   try {
     dbg?.("Luffa args sanitized");
     dbg?.(`Luffa args types: ${luffaArgs.map(a => typeof a).join(",")}`);
@@ -492,6 +474,23 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     throw new Error("Transaction rejected by user");
   } catch (err) {
     dbg?.(`Luffa SDK error: ${err instanceof Error ? err.message : String(err)}`);
+    // Fallback: try injected provider
+    const wallet = getInjectedWallet();
+    dbg?.(`Injected wallet available: ${wallet?.signAndSubmitTransaction ? "yes" : "no"}`);
+    if (wallet?.signAndSubmitTransaction) {
+      const fallbackPayload = {
+        function: func,
+        typeArguments: [],
+        functionArguments: luffaArgs,
+        type_arguments: [],
+        arguments: luffaArgs,
+      };
+      try {
+        return await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+      } catch {
+        return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
+      }
+    }
     throw err;
   }
 }
