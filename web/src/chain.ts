@@ -447,8 +447,15 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   // Luffa SDK
   const sdk = getLuffaSdk(mode);
   dbg?.("TX route: luffa sdk");
+  const luffaArgs = args.map(a => (typeof a === "bigint" ? a.toString() : a));
+  const luffaPayload = {
+    function: func as `${string}::${string}::${string}`,
+    typeArguments: [] as string[],
+    functionArguments: luffaArgs,
+  };
   try {
-    const res = await sdk.signAndSubmitTransaction({ payload });
+    dbg?.("Luffa args sanitized");
+    const res = await sdk.signAndSubmitTransaction({ payload: luffaPayload });
     if (res.status === LuffaUserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
       await endless.waitForTransaction({ transactionHash: res.args.hash });
@@ -463,9 +470,9 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       const fallbackPayload = {
         function: func,
         typeArguments: [],
-        functionArguments: args,
+        functionArguments: luffaArgs,
         type_arguments: [],
-        arguments: args,
+        arguments: luffaArgs,
       };
       try {
         return await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
