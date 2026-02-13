@@ -350,6 +350,12 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   // Web3 SDK (iframe wallet)
   if (activeWalletType === "web3" && web3Sdk) {
     dbg?.("TX route: web3 sdk");
+    try {
+      dbg?.("Web3 SDK pre-connect (wake iframe)");
+      await web3Sdk.connect();
+    } catch (e) {
+      dbg?.(`Web3 SDK pre-connect error: ${e instanceof Error ? e.message : String(e)}`);
+    }
     let res: any;
     try {
       res = await web3Sdk.signAndSubmitTransaction({ payload });
