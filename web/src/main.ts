@@ -522,6 +522,28 @@ function showDebugModal() {
   if (debugModal) debugModal.style.display = "flex";
 }
 
+function bringWalletUiToFront() {
+  const nodes = Array.from(document.querySelectorAll<HTMLElement>("iframe, div, section, aside"));
+  for (const node of nodes) {
+    const id = (node.id || "").toLowerCase();
+    const cls = (node.className || "").toLowerCase();
+    const src = (node as HTMLIFrameElement).src || "";
+    if (
+      id.includes("endless") ||
+      id.includes("wallet") ||
+      cls.includes("endless") ||
+      cls.includes("wallet") ||
+      src.includes("endless") ||
+      src.includes("wallet") ||
+      src.includes("luffa")
+    ) {
+      node.style.zIndex = "5000";
+      node.style.position = "fixed";
+      (node.style as any).inset = "0";
+    }
+  }
+}
+
 function resetCurrentGameState() {
   game.resetCurrentGame();
   isPlaying = false;
@@ -3212,6 +3234,7 @@ async function executeDeposit() {
         : "Depositing... Confirm in wallet.",
       "info"
     );
+    bringWalletUiToFront();
     await depositOnChain(octas, networkMode);
     await updateInGameBalance();
     await updateBalance();
@@ -3243,6 +3266,7 @@ async function executeWithdraw() {
         : "Withdrawing... Confirm in wallet.",
       "info"
     );
+    bringWalletUiToFront();
     await withdrawOnChain(octas, networkMode);
     await updateInGameBalance();
     await updateBalance();
