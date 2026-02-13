@@ -3094,21 +3094,19 @@ function handleInvite() {
   url.searchParams.set("bet", betValue.toString());
   const mode = isDemoActive() ? "demo" : networkMode;
   url.searchParams.set("mode", mode);
-  if (LS_PUBLIC_KEY) {
-    if (!multiplayerRoom) {
-      multiplayerRoom = Math.random().toString(36).slice(2, 10);
-    }
-    url.searchParams.set("room", multiplayerRoom);
-    const hostId = getMpName();
-    url.searchParams.set("host_id", hostId);
-    multiplayerHost = hostId;
-    isRoomHost = true;
-    if (isSessionStarted) {
-      if (!mpNameFrozen) mpNameFrozen = getMpName();
-      multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), multiplayerHost);
-      multiplayer.proposeBet(betValue);
-      updateMpDebug("invite");
-    }
+  if (!multiplayerRoom) {
+    multiplayerRoom = Math.random().toString(36).slice(2, 10);
+  }
+  url.searchParams.set("room", multiplayerRoom);
+  const hostId = getMpName();
+  url.searchParams.set("host_id", hostId);
+  multiplayerHost = hostId;
+  isRoomHost = true;
+  if (LS_PUBLIC_KEY && isSessionStarted) {
+    if (!mpNameFrozen) mpNameFrozen = getMpName();
+    multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), multiplayerHost);
+    multiplayer.proposeBet(betValue);
+    updateMpDebug("invite");
   }
   navigator.clipboard.writeText(url.toString()).then(() => {
     if (inviteNote) {
