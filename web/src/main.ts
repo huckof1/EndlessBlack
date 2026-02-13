@@ -2089,7 +2089,11 @@ async function handleStartGame() {
   initAudio();
   startGameMusic();
   if (!isSessionStarted) {
-    await startSession();
+    if (!walletAddress && DEMO_MODE) {
+      await startDemoSession();
+    } else {
+      await startSession();
+    }
   }
   if (multiplayerRoom && LS_PUBLIC_KEY && !isRoomHost) {
     showMessage(currentLocale === "ru" ? "Ждём хоста..." : "Waiting for host...", "info");
