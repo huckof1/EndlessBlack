@@ -1079,7 +1079,7 @@ body[data-demo="true"] .wallet-item--fee {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999;
+  z-index: 3000;
 }
 
 .modal.dev-overlay .modal-content {

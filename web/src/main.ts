@@ -3119,7 +3119,13 @@ function handleShowDeposit() {
   if (!walletAddress) return;
   if (depositModal) {
     if (depositAmountInput) depositAmountInput.value = "5";
-    depositModal.style.display = "flex";
+    requestAnimationFrame(() => {
+      depositModal.style.display = "flex";
+      if (depositAmountInput) {
+        depositAmountInput.focus();
+        depositAmountInput.select();
+      }
+    });
   }
 }
 
@@ -3128,12 +3134,22 @@ function handleShowWithdraw() {
   if (withdrawModal) {
     const currentBal = (inGameBalance / 100000000).toFixed(2);
     if (withdrawAmountInput) withdrawAmountInput.value = currentBal;
-    withdrawModal.style.display = "flex";
+    requestAnimationFrame(() => {
+      withdrawModal.style.display = "flex";
+      if (withdrawAmountInput) {
+        withdrawAmountInput.focus();
+        withdrawAmountInput.select();
+      }
+    });
   }
 }
 
 async function executeDeposit() {
   if (!walletAddress) return;
+  if (!depositModal || depositModal.style.display === "none") {
+    handleShowDeposit();
+    return;
+  }
   const edsAmount = parseFloat(depositAmountInput?.value || "0");
   if (isNaN(edsAmount) || edsAmount <= 0) return;
   const octas = Math.floor(edsAmount * 100000000);
@@ -3157,6 +3173,10 @@ async function executeDeposit() {
 
 async function executeWithdraw() {
   if (!walletAddress) return;
+  if (!withdrawModal || withdrawModal.style.display === "none") {
+    handleShowWithdraw();
+    return;
+  }
   const edsAmount = parseFloat(withdrawAmountInput?.value || "0");
   if (isNaN(edsAmount) || edsAmount <= 0) return;
   const octas = Math.floor(edsAmount * 100000000);
