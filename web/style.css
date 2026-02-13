@@ -80,72 +80,28 @@ body {
 :is(.name-section, .wallet-section, .game-area, .leaderboard-section, .feed-section, .stats-section, .active-players-section) {
   position: relative;
   z-index: 0;
-  --electric-color: #4f2fc6;
-}
-
-:is(.name-section, .wallet-section, .game-area, .leaderboard-section, .feed-section, .stats-section, .active-players-section) > * {
-  position: relative;
-  z-index: 1;
+  border: 1.5px solid rgba(79, 47, 198, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(79, 47, 198, 0.15) inset,
+    0 0 6px rgba(79, 47, 198, 0.35),
+    0 0 14px rgba(79, 47, 198, 0.22);
 }
 
 :is(.name-section, .wallet-section, .game-area, .leaderboard-section, .feed-section, .stats-section, .active-players-section)::before {
   content: "";
   position: absolute;
   inset: -2px;
-  padding: 2px;
   border-radius: inherit;
-  background:
-    conic-gradient(
-      from 0deg,
-      transparent 0 18%,
-      rgba(79, 47, 198, 0.9) 18% 30%,
-      transparent 30% 48%,
-      rgba(79, 47, 198, 0.8) 48% 60%,
-      transparent 60% 78%,
-      rgba(79, 47, 198, 0.9) 78% 100%
-    ),
-    radial-gradient(circle at 50% 50%, rgba(79, 47, 198, 0.35), rgba(79, 47, 198, 0) 60%);
-  animation: electricSpin 2.6s linear infinite, electricFlicker 1.1s steps(2, end) infinite;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
   pointer-events: none;
-  filter: drop-shadow(0 0 6px rgba(79, 47, 198, 0.7)) drop-shadow(0 0 12px rgba(79, 47, 198, 0.5));
-  opacity: 0.95;
+  border: 2px solid rgba(79, 47, 198, 0.6);
+  filter: blur(0.4px);
+  opacity: 0.8;
+  animation: electricPulse 2.8s ease-in-out infinite;
 }
 
-:is(.name-section, .wallet-section, .game-area, .leaderboard-section, .feed-section, .stats-section, .active-players-section)::after {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='1' seed='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E");
-  background-size: 180px 180px;
-  background-position: 0 0;
-  mix-blend-mode: screen;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0.6;
-  filter: hue-rotate(0deg) blur(0.6px);
-  animation: electricNoise 0.6s steps(2, end) infinite;
-}
-
-@keyframes electricSpin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes electricFlicker {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 0.65; }
-}
-
-@keyframes electricNoise {
-  0% { background-position: 0 0; }
-  50% { background-position: 40px -30px; }
-  100% { background-position: -20px 20px; }
+@keyframes electricPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.9; }
 }
 
 @media (max-width: 430px) {
