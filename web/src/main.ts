@@ -3289,6 +3289,13 @@ async function onWalletConnectSuccess() {
     currentLocale === "ru" ? "Кошелёк подключён." : "Wallet connected.",
     "success"
   );
+  window.setTimeout(() => {
+    const inviteActive = Boolean(pendingInvite) || (inviteBanner && inviteBanner.style.display !== "none");
+    const resumeActive = Boolean(pendingResume);
+    if (!isPlaying && !inviteActive && !resumeActive && !multiplayerRoom) {
+      showMessage(I18N[currentLocale].msg_place_bet, "info");
+    }
+  }, 2000);
   updateUI();
 }
 
