@@ -567,6 +567,7 @@ function renderDarkVeil(time: number) {
   const w = veilCanvas.width / (window.devicePixelRatio || 1);
   const h = veilCanvas.height / (window.devicePixelRatio || 1);
   const t = time * 0.0006 * veilConfig.speed;
+  const isLight = document.body.getAttribute("data-theme") === "light";
   const lowW = Math.max(140, Math.floor(w / 4.5));
   const lowH = Math.max(240, Math.floor(h / 4.5));
 
@@ -603,10 +604,25 @@ function renderDarkVeil(time: number) {
       const vignette = Math.max(0, 1 - dist * 1.35);
       v = v * 0.85 + vignette * 0.15;
 
-      const base = 8;
-      const r = base + v * 110;
-      const g = base + v * 55;
-      const b = 30 + v * 190;
+      let r: number;
+      let g: number;
+      let b: number;
+      if (isLight) {
+        const baseR = 232;
+        const baseG = 226;
+        const baseB = 216;
+        r = baseR - v * 120;
+        g = baseG - v * 130;
+        b = baseB + v * 70;
+      } else {
+        const base = 8;
+        r = base + v * 110;
+        g = base + v * 55;
+        b = 30 + v * 190;
+      }
+      r = Math.min(255, Math.max(0, r));
+      g = Math.min(255, Math.max(0, g));
+      b = Math.min(255, Math.max(0, b));
 
       const idx = (y * lowW + x) * 4;
       data[idx] = r;
@@ -623,7 +639,7 @@ function renderDarkVeil(time: number) {
 
   const vignette = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.max(w, h) * 0.1, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
   vignette.addColorStop(0, "rgba(0,0,0,0)");
-  vignette.addColorStop(1, "rgba(0,0,0,0.55)");
+  vignette.addColorStop(1, isLight ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.55)");
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, w, h);
 }
@@ -696,6 +712,7 @@ function renderShadowBars(time: number) {
   const w = shadowBarsCanvas.width / (window.devicePixelRatio || 1);
   const h = shadowBarsCanvas.height / (window.devicePixelRatio || 1);
   const t = time * 0.0007;
+  const isLight = document.body.getAttribute("data-theme") === "light";
   const lowW = Math.max(120, Math.floor(w / 6));
   const lowH = Math.max(220, Math.floor(h / 6));
 
@@ -722,10 +739,25 @@ function renderShadowBars(time: number) {
       v = Math.pow(Math.max(0, v - 0.2), 2.0) * 1.35;
       v *= fadeY;
 
-      const base = 6;
-      const r = base + v * 90;
-      const g = base + v * 20;
-      const b = 18 + v * 170;
+      let r: number;
+      let g: number;
+      let b: number;
+      if (isLight) {
+        const baseR = 238;
+        const baseG = 232;
+        const baseB = 224;
+        r = baseR - v * 150;
+        g = baseG - v * 170;
+        b = baseB + v * 70;
+      } else {
+        const base = 6;
+        r = base + v * 90;
+        g = base + v * 20;
+        b = 18 + v * 170;
+      }
+      r = Math.min(255, Math.max(0, r));
+      g = Math.min(255, Math.max(0, g));
+      b = Math.min(255, Math.max(0, b));
 
       const idx = (y * lowW + x) * 4;
       data[idx] = r;
@@ -742,7 +774,7 @@ function renderShadowBars(time: number) {
 
   const vignette = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.max(w, h) * 0.2, w * 0.5, h * 0.5, Math.max(w, h) * 0.8);
   vignette.addColorStop(0, "rgba(0,0,0,0)");
-  vignette.addColorStop(1, "rgba(0,0,0,0.65)");
+  vignette.addColorStop(1, isLight ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.65)");
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, w, h);
 }

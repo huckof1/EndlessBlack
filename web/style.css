@@ -114,6 +114,24 @@ body > .container {
   opacity: 0.85;
 }
 
+body[data-theme="light"] .dark-veil {
+  background: #f2ede2;
+}
+
+body[data-theme="light"] .dark-veil-canvas {
+  mix-blend-mode: multiply;
+  opacity: 0.85;
+}
+
+body[data-theme="light"] .shadow-bars {
+  background: #f2ede2;
+}
+
+body[data-theme="light"] .shadow-bars-canvas {
+  mix-blend-mode: multiply;
+  opacity: 0.65;
+}
+
 
 @media (max-width: 430px) {
   body {
