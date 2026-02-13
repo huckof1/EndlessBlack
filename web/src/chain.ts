@@ -447,23 +447,30 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   // Luffa SDK
   const sdk = getLuffaSdk(mode);
   dbg?.("TX route: luffa sdk");
-  const luffaArgs = args.map(a => {
-    if (typeof a === "bigint") {
-      const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
-      return a <= maxSafe ? Number(a) : a.toString();
-    }
-    return a;
-  });
+  const luffaArgs = args.map(a => (typeof a === "bigint" ? a.toString() : a));
   const luffaPayload = {
     function: func as `${string}::${string}::${string}`,
     typeArguments: [] as string[],
     functionArguments: luffaArgs,
   };
+  const luffaPayloadLegacy = {
+    function: func,
+    type_arguments: [] as string[],
+    arguments: luffaArgs,
+  } as any;
   try {
     dbg?.("Luffa args sanitized");
-    dbg?.(`Luffa args types: ${luffaArgs.map(a => typeof a).join(",")}`);
-    dbg?.("Luffa sign start (payload)");
-    const res = await sdk.signAndSubmitTransaction({ payload: luffaPayload });
+    try {
+      dbg?.("Luffa pre-connect");
+      await sdk.connect();
+    } catch {
+      // ignore connect errors
+    }
+    dbg?.("Luffa sign start (legacy payload)");
+    const res = await Promise.race([
+      sdk.signAndSubmitTransaction({ payload: luffaPayloadLegacy }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("LUFFA_TIMEOUT")), 5000)),
+    ]) as any;
     dbg?.(`Luffa response status: ${res?.status || "unknown"}`);
     if (res.status === LuffaUserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
@@ -473,6 +480,25 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     throw new Error("Transaction rejected by user");
   } catch (err) {
     dbg?.(`Luffa SDK error: ${err instanceof Error ? err.message : String(err)}`);
+    if (String(err).includes("LUFFA_TIMEOUT")) {
+      dbg?.("Luffa timeout; retry with standard payload");
+      try {
+        const res2 = await Promise.race([
+          sdk.signAndSubmitTransaction({ payload: luffaPayload }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("LUFFA_TIMEOUT_2")), 5000)),
+        ]) as any;
+        dbg?.(`Luffa response status (payload): ${res2?.status || "unknown"}`);
+        if (res2.status === LuffaUserResponseStatus.APPROVED) {
+          const endless = await getEndless(mode);
+          await endless.waitForTransaction({ transactionHash: res2.args.hash });
+          return res2.args;
+        }
+      } catch (err2) {
+        dbg?.(`Luffa payload error: ${err2 instanceof Error ? err2.message : String(err2)}`);
+      }
+      const openLuffa = (window as any).__openLuffa as (() => void) | undefined;
+      openLuffa?.();
+    }
     // Fallback: try injected provider
     const wallet = getInjectedWallet();
     dbg?.(`Injected wallet available: ${wallet?.signAndSubmitTransaction ? "yes" : "no"}`);
