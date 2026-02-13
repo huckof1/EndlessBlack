@@ -198,6 +198,7 @@ let mpLastWinKey: string | null = localStorage.getItem("mpLastWinKey");
 let pendingInvite: { name: string; mode: "demo" | "testnet" | "mainnet"; bet: number } | null = null;
 let pendingResume: { mode: "demo" | "chain"; game: any; gameId?: number } | null = null;
 let inGameBalance: number = 0; // Player's in-game balance (octas) from contract
+let isWalletConnecting = false;
 let multiplayerRoom: string | null = null;
 let multiplayerState: { players: string[]; turnIndex: number | null } | null = null;
 type MultiplayerSnapshot = {
@@ -1081,10 +1082,10 @@ function init() {
       return;
     }
     if (!isSessionStarted) {
-      startSession();
+      await startSession();
       return;
     }
-    handleConnectWallet();
+    await handleConnectWallet();
   });
 
   // Tabs
@@ -1263,25 +1264,7 @@ async function startSession() {
   }
 
   // Connect wallet
-  try {
-    walletAddress = await connectWallet(networkMode);
-    await onWalletConnectSuccess();
-  } catch (err) {
-    // Wallet not available — show error and fall back to demo mode
-    console.warn("Wallet connect failed:", err);
-    showMessage(
-      currentLocale === "ru"
-        ? "Кошелёк не подключён. Запущен тестовый режим."
-        : "Wallet not connected. Running in test mode.",
-      "error"
-    );
-    await game.connectWallet();
-    await updateBalance();
-    await updateBank();
-    await updateStats();
-    setWalletStatus(false);
-    if (walletAddressEl) walletAddressEl.textContent = "TEST";
-  }
+  await connectWalletFlow(true);
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
 
@@ -2948,18 +2931,7 @@ function updateUI() {
 }
 
 async function handleConnectWallet() {
-  try {
-    walletAddress = await connectWallet(networkMode);
-    onWalletConnectSuccess();
-  } catch (err) {
-    console.warn("Wallet connect failed:", err);
-    showMessage(
-      currentLocale === "ru"
-        ? "Не удалось подключить кошелёк. Попробуйте ещё раз."
-        : "Failed to connect wallet. Please try again.",
-      "error"
-    );
-  }
+  await connectWalletFlow(false);
 }
 
 async function handleDisconnectWallet() {
@@ -3188,6 +3160,42 @@ async function updateInGameBalance() {
     inGameBalance = 0;
     if (ingameBalanceEl) ingameBalanceEl.textContent = "0.00 EDS";
     if (ingameBalanceRow) ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
+  }
+}
+
+async function connectWalletFlow(fromSessionStart: boolean) {
+  if (isWalletConnecting) return;
+  isWalletConnecting = true;
+  try {
+    walletAddress = await connectWallet(networkMode);
+    await onWalletConnectSuccess();
+  } catch (err) {
+    console.warn("Wallet connect failed:", err);
+    if (fromSessionStart) {
+      // Wallet not available — show error and fall back to demo mode
+      showMessage(
+        currentLocale === "ru"
+          ? "Кошелёк не подключён. Запущен тестовый режим."
+          : "Wallet not connected. Running in test mode.",
+        "error"
+      );
+      await game.connectWallet();
+      await updateBalance();
+      await updateBank();
+      await updateStats();
+      setWalletStatus(false);
+      if (walletAddressEl) walletAddressEl.textContent = "TEST";
+    } else {
+      showMessage(
+        currentLocale === "ru"
+          ? "Не удалось подключить кошелёк. Попробуйте ещё раз."
+          : "Failed to connect wallet. Please try again.",
+        "error"
+      );
+    }
+  } finally {
+    isWalletConnecting = false;
+    updateUI();
   }
 }
 
