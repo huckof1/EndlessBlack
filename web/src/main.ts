@@ -206,6 +206,7 @@ let inGameBalance: number = 0; // Player's in-game balance (octas) from contract
 let isWalletConnecting = false;
 let currentFeeBps = 200;
 let currentBankrollOctas = 0;
+let currentPlayerBalanceOctas = 0;
 let debugEnabled = false;
 let debugLog: string[] = [];
 let multiplayerRoom: string | null = null;
@@ -2379,6 +2380,9 @@ function getBetLimits(): { minOctas: number; maxOctas: number } {
   if (currentBankrollOctas <= 0) {
     return { minOctas: 0, maxOctas: 0 };
   }
+  const playerFunds = isDemoActive()
+    ? currentPlayerBalanceOctas
+    : (walletAddress ? inGameBalance : 0);
   const feeRate = currentFeeBps / 10000;
   const maxPayoutMultiplier = 2.5; // blackjack pays 2.5x
   const safetyMultiplier = 1.2; // 20% reserve buffer
@@ -2387,6 +2391,9 @@ function getBetLimits(): { minOctas: number; maxOctas: number } {
     ? Math.floor(currentBankrollOctas / (lossMultiplier * safetyMultiplier))
     : MAX_BET;
   let maxOctas = Math.max(0, Math.min(MAX_BET, safeMax));
+  if (playerFunds > 0) {
+    maxOctas = Math.min(maxOctas, playerFunds);
+  }
   let minOctas = MIN_BET;
   if (maxOctas > 0 && maxOctas < MIN_BET) {
     minOctas = maxOctas;
@@ -3002,6 +3009,8 @@ async function updateBalance() {
   if (isDemoActive()) {
     const balance = await game.getBalance();
     balanceEl.textContent = balance;
+    currentPlayerBalanceOctas = Math.max(0, Math.floor(parseFloat(balance) * 100000000) || 0);
+    updateBetLimitsUI();
     return;
   }
   if (!walletAddress) {
@@ -3622,10 +3631,12 @@ async function updateInGameBalance() {
     inGameBalance = await getPlayerBalanceOnChain(walletAddress, networkMode);
     if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
     if (ingameBalanceRow) ingameBalanceRow.style.display = "flex";
+    updateBetLimitsUI();
   } catch {
     inGameBalance = 0;
     if (ingameBalanceEl) ingameBalanceEl.textContent = "0.00 EDS";
     if (ingameBalanceRow) ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
+    updateBetLimitsUI();
   }
 }
 
