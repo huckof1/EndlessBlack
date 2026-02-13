@@ -481,9 +481,8 @@ function focusBetArea() {
 
 function initDebug() {
   const params = new URLSearchParams(window.location.search);
-  debugEnabled = params.get("debug") === "1";
+  debugEnabled = true;
   (window as any).__debugLog = debugLogLine;
-  if (!debugEnabled) return;
   const btn = document.createElement("button");
   btn.textContent = "DEBUG";
   btn.className = "btn btn-small";
