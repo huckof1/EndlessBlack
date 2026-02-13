@@ -560,11 +560,25 @@ function showDevOverlay(keys: string[]) {
 
 function openLuffaDeepLink() {
   const url = window.location.href;
-  const deepLink = `luffa://connect?${new URLSearchParams({ url }).toString()}`;
+  const encoded = encodeURIComponent(url);
+  const deepLink = `luffa://connect?url=${encoded}`;
   window.location.href = deepLink;
+  // Fallback to universal link / web landing
   setTimeout(() => {
-    window.location.href = "https://www.luffa.im/";
+    window.location.href = `https://www.luffa.im/?url=${encoded}`;
   }, 700);
+  // Copy URL for manual paste inside Luffa browser
+  try {
+    navigator.clipboard.writeText(url);
+    showMessage(
+      currentLocale === "ru"
+        ? "Ссылка скопирована. Открой Luffa и вставь в браузер."
+        : "Link copied. Open Luffa and paste in browser.",
+      "info"
+    );
+  } catch {
+    // ignore clipboard failures
+  }
 }
 
 // ==================== LEADERBOARD DATA ====================
