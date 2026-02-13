@@ -134,8 +134,7 @@ body[data-theme="light"] .shadow-bars-canvas {
 
 body[data-theme="light"] .aurora-btn::before,
 body[data-theme="light"] .aurora-btn::after {
-  mix-blend-mode: multiply;
-  opacity: 0.55;
+  opacity: 0.75;
 }
 
 body[data-theme="light"] .aurora-btn::before {
@@ -1577,31 +1576,31 @@ body.invite-mode .mascot-right {
 .aurora-btn::after {
   content: "";
   position: absolute;
-  inset: -60%;
+  inset: -25%;
   border-radius: 50%;
-  filter: blur(18px);
-  opacity: 0.7;
-  mix-blend-mode: screen;
+  filter: blur(12px) saturate(140%);
+  opacity: 0.9;
   z-index: 1;
   pointer-events: none;
 }
 
 .aurora-btn::before {
   background:
-    radial-gradient(40% 40% at 30% 20%, rgba(88, 235, 195, 0.85), transparent 60%),
-    radial-gradient(45% 45% at 65% 55%, rgba(92, 120, 255, 0.75), transparent 65%),
-    radial-gradient(35% 35% at 55% 80%, rgba(180, 90, 255, 0.7), transparent 60%);
-  animation: auroraShift 6s ease-in-out infinite;
+    radial-gradient(45% 45% at 25% 25%, rgba(90, 255, 210, 0.95), transparent 62%),
+    radial-gradient(55% 55% at 70% 50%, rgba(110, 130, 255, 0.85), transparent 68%),
+    radial-gradient(45% 45% at 55% 85%, rgba(200, 90, 255, 0.8), transparent 62%);
+  animation: auroraShift 5s ease-in-out infinite;
 }
 
 .aurora-btn::after {
   background:
-    radial-gradient(45% 45% at 20% 60%, rgba(60, 200, 255, 0.6), transparent 60%),
-    radial-gradient(50% 50% at 80% 35%, rgba(120, 80, 255, 0.6), transparent 65%),
-    radial-gradient(40% 40% at 50% 10%, rgba(80, 255, 170, 0.55), transparent 60%);
-  animation: auroraShift2 8s ease-in-out infinite;
-  filter: blur(22px);
-  opacity: 0.6;
+    radial-gradient(50% 50% at 15% 65%, rgba(80, 210, 255, 0.75), transparent 65%),
+    radial-gradient(55% 55% at 85% 35%, rgba(140, 90, 255, 0.75), transparent 70%),
+    radial-gradient(50% 50% at 55% 10%, rgba(90, 255, 190, 0.7), transparent 65%),
+    linear-gradient(120deg, rgba(255,255,255,0.15), rgba(255,255,255,0));
+  animation: auroraShift2 6.5s ease-in-out infinite;
+  filter: blur(16px) saturate(150%);
+  opacity: 0.8;
 }
 
 .aurora-btn > * {
