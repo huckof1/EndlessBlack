@@ -132,6 +132,26 @@ body[data-theme="light"] .shadow-bars-canvas {
   opacity: 0.65;
 }
 
+body[data-theme="light"] .aurora-btn::before,
+body[data-theme="light"] .aurora-btn::after {
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+body[data-theme="light"] .aurora-btn::before {
+  background:
+    radial-gradient(45% 45% at 30% 25%, rgba(60, 190, 160, 0.7), transparent 60%),
+    radial-gradient(45% 45% at 70% 55%, rgba(80, 110, 230, 0.65), transparent 65%),
+    radial-gradient(40% 40% at 55% 80%, rgba(150, 80, 210, 0.6), transparent 60%);
+}
+
+body[data-theme="light"] .aurora-btn::after {
+  background:
+    radial-gradient(45% 45% at 20% 60%, rgba(60, 170, 230, 0.55), transparent 60%),
+    radial-gradient(50% 50% at 80% 35%, rgba(120, 90, 220, 0.55), transparent 65%),
+    radial-gradient(40% 40% at 50% 10%, rgba(70, 210, 150, 0.5), transparent 60%);
+}
+
 
 @media (max-width: 430px) {
   body {
@@ -1545,6 +1565,60 @@ body.invite-mode .mascot-right {
   gap: 8px;
   touch-action: manipulation;
   box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.aurora-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.aurora-btn::before,
+.aurora-btn::after {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  border-radius: 50%;
+  filter: blur(18px);
+  opacity: 0.7;
+  mix-blend-mode: screen;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.aurora-btn::before {
+  background:
+    radial-gradient(40% 40% at 30% 20%, rgba(88, 235, 195, 0.85), transparent 60%),
+    radial-gradient(45% 45% at 65% 55%, rgba(92, 120, 255, 0.75), transparent 65%),
+    radial-gradient(35% 35% at 55% 80%, rgba(180, 90, 255, 0.7), transparent 60%);
+  animation: auroraShift 6s ease-in-out infinite;
+}
+
+.aurora-btn::after {
+  background:
+    radial-gradient(45% 45% at 20% 60%, rgba(60, 200, 255, 0.6), transparent 60%),
+    radial-gradient(50% 50% at 80% 35%, rgba(120, 80, 255, 0.6), transparent 65%),
+    radial-gradient(40% 40% at 50% 10%, rgba(80, 255, 170, 0.55), transparent 60%);
+  animation: auroraShift2 8s ease-in-out infinite;
+  filter: blur(22px);
+  opacity: 0.6;
+}
+
+.aurora-btn > * {
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes auroraShift {
+  0% { transform: translate(-10%, -10%) rotate(0deg) scale(1); }
+  50% { transform: translate(10%, 8%) rotate(8deg) scale(1.05); }
+  100% { transform: translate(-6%, -4%) rotate(-6deg) scale(1); }
+}
+
+@keyframes auroraShift2 {
+  0% { transform: translate(8%, 10%) rotate(0deg) scale(1.05); }
+  50% { transform: translate(-8%, -6%) rotate(-10deg) scale(1.1); }
+  100% { transform: translate(6%, 4%) rotate(6deg) scale(1.05); }
 }
 
 .btn-icon { font-size: 14px; }
