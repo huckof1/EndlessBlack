@@ -535,7 +535,7 @@ const veilConfig = {
   noiseIntensity: 0,
   scanlineIntensity: 0,
   scanlineFrequency: 0,
-  speed: 1.25,
+  speed: 1,
   warpAmount: 0,
 };
 
@@ -568,7 +568,7 @@ function renderDarkVeil(time: number) {
   const ctx = veilCtx;
   const w = veilCanvas.width / (window.devicePixelRatio || 1);
   const h = veilCanvas.height / (window.devicePixelRatio || 1);
-  const t = time * 0.0006 * veilConfig.speed;
+  const t = time * 0.000333;
   const isLight = document.body.getAttribute("data-theme") === "light";
   const lowW = Math.max(140, Math.floor(w / 4.5));
   const lowH = Math.max(240, Math.floor(h / 4.5));
@@ -713,7 +713,7 @@ function renderShadowBars(time: number) {
   const ctx = shadowBarsCtx;
   const w = shadowBarsCanvas.width / (window.devicePixelRatio || 1);
   const h = shadowBarsCanvas.height / (window.devicePixelRatio || 1);
-  const t = time * 0.0007;
+  const t = time * 0.000333;
   const isLight = document.body.getAttribute("data-theme") === "light";
   const lowW = Math.max(120, Math.floor(w / 6));
   const lowH = Math.max(220, Math.floor(h / 6));

@@ -1651,7 +1651,7 @@ body.invite-mode .mascot-right {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #ff6b6b, #ffa502, #ff6b6b);
+  background: linear-gradient(135deg, #b23f3f, #b76b00, #b23f3f);
   background-size: 200% 200%;
   border-color: rgba(255,255,255,0.4);
   color: var(--white);
@@ -1666,7 +1666,7 @@ body.invite-mode .mascot-right {
 }
 
 .btn-success {
-  background: linear-gradient(135deg, #2ed573, #7bed9f);
+  background: linear-gradient(135deg, #1a8a4a, #3f8f5e);
   border-color: rgba(255,255,255,0.3);
   color: #1a1a2e;
   text-shadow: 0 1px 0 rgba(255,255,255,0.3);
