@@ -482,6 +482,13 @@ export class PixelBlackjack {
     this.clearCurrentGame();
   }
 
+  // Сброс только текущей игры (без статистики и балансов)
+  resetCurrentGame(): void {
+    this.currentGame = null;
+    this.deck = [];
+    this.clearCurrentGame();
+  }
+
   getTreasury(): number {
     return this.treasury;
   }

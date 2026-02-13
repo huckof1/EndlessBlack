@@ -458,6 +458,36 @@ function requestAutoConnectInLuffa() {
   }, 900);
 }
 
+function resetCurrentGameState() {
+  game.resetCurrentGame();
+  isPlaying = false;
+  hasGameResult = false;
+  pendingResume = null;
+  chainGameId = 0;
+  chainGame = null;
+  dealerCardsEl.innerHTML = "";
+  playerCardsEl.innerHTML = "";
+  dealerScoreEl.textContent = "-";
+  playerScoreEl.textContent = "-";
+  hidePlayerHints();
+  hideGameResult();
+  setTurn(null);
+}
+
+function returnToStartScreen() {
+  nameSection.style.display = "block";
+  walletSection.style.display = "none";
+  gameArea.style.display = "none";
+  isSessionStarted = false;
+  resetCurrentGameState();
+  startIdleMusic();
+  mpPayoutBucket = 0;
+  mpPayoutRoom = null;
+  localStorage.setItem("mpPayoutBucket", "0");
+  localStorage.removeItem("mpPayoutRoom");
+  window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+}
+
 function showDevOverlay(keys: string[]) {
   if (!devOverlay || !devOverlayKeys) return;
   devOverlayKeys.textContent = keys.length ? keys.join(", ") : "no keys found";
@@ -892,24 +922,7 @@ function init() {
   });
   if (homeBtn) {
     homeBtn.addEventListener("click", () => {
-      const startSection = document.getElementById("name-section");
-      const walletSection = document.getElementById("wallet-section");
-      const gameArea = document.getElementById("game-area");
-      if (startSection) {
-        startSection.style.display = "block";
-      }
-      if (walletSection) {
-        walletSection.style.display = "none";
-      }
-      if (gameArea) {
-        gameArea.style.display = "none";
-      }
-      startIdleMusic();
-      mpPayoutBucket = 0;
-      mpPayoutRoom = null;
-      localStorage.setItem("mpPayoutBucket", "0");
-      localStorage.removeItem("mpPayoutRoom");
-      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      returnToStartScreen();
     });
   }
   if (continueBtn) {
@@ -2950,16 +2963,8 @@ async function handleDisconnectWallet() {
   if (ingameBalanceRow) ingameBalanceRow.style.display = "none";
   setWalletStatus(false);
   if (walletAddressEl) walletAddressEl.textContent = "—";
-  // Switch to demo mode
-  await game.connectWallet();
-  await updateBalance();
-  await updateBank();
-  await updateStats();
-  if (demoBadge) {
-    demoBadge.textContent = I18N[currentLocale].demo_mode || "TEST MODE";
-    demoBadge.style.display = "inline-block";
-  }
-  updateUI();
+  resetCurrentGameState();
+  returnToStartScreen();
   showMessage(
     currentLocale === "ru"
       ? "Кошелёк отключён."
@@ -3164,12 +3169,16 @@ async function updateInGameBalance() {
 async function connectWalletFlow(fromSessionStart: boolean) {
   if (isWalletConnecting) return;
   isWalletConnecting = true;
+  const wasDemo = isDemoActive();
   try {
     const w = window as any;
     if (w?.endless) {
       walletAddress = await connectEndlessExtension(networkMode);
     } else {
       walletAddress = await connectWallet(networkMode);
+    }
+    if (wasDemo) {
+      resetCurrentGameState();
     }
     await onWalletConnectSuccess();
   } catch (err) {
