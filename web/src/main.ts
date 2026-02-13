@@ -3163,7 +3163,12 @@ async function connectWalletFlow(fromSessionStart: boolean) {
   if (isWalletConnecting) return;
   isWalletConnecting = true;
   try {
-    walletAddress = await connectWallet(networkMode);
+    const w = window as any;
+    if (w?.endless) {
+      walletAddress = await connectEndlessExtension(networkMode);
+    } else {
+      walletAddress = await connectWallet(networkMode);
+    }
     await onWalletConnectSuccess();
   } catch (err) {
     console.warn("Wallet connect failed:", err);

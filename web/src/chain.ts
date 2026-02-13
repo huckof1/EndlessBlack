@@ -299,7 +299,12 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   console.log("submitEntryFunction:", func, "args:", args, "contractAddr:", contractAddr);
   // Ensure we have an active wallet session before trying to sign
   if (!activeWalletType || !connectedAddress) {
-    await connectWallet(mode);
+    const w = window as any;
+    if (w?.endless) {
+      await connectEndlessExtension(mode);
+    } else {
+      await connectWallet(mode);
+    }
   }
   // Pass args as-is — SDK expects BigInt for u128, strings for addresses, etc.
   const payload = {
@@ -341,6 +346,28 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       res = await web3Sdk.signAndSubmitTransaction({ payload });
     } catch (sdkErr: any) {
       console.error("Web3 SDK signAndSubmitTransaction error:", sdkErr);
+      // Fallback to injected wallet if available (browser extension)
+      const wallet = getInjectedWallet();
+      if (wallet?.signAndSubmitTransaction) {
+        const fallbackPayload = {
+          function: func,
+          typeArguments: [],
+          functionArguments: args,
+          type_arguments: [],
+          arguments: args,
+        };
+        try {
+          const result = await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+          const hash = result?.hash || result?.args?.hash;
+          if (hash) {
+            const endless = await getEndless(mode);
+            await endless.waitForTransaction({ transactionHash: hash });
+          }
+          return result;
+        } catch {
+          return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
+        }
+      }
       throw new Error(`Wallet SDK error: ${sdkErr?.message || sdkErr}`);
     }
     console.log("signAndSubmitTransaction response:", JSON.stringify(res, null, 2));
