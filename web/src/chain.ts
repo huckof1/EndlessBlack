@@ -362,6 +362,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     } catch (sdkErr: any) {
       console.error("Web3 SDK signAndSubmitTransaction error:", sdkErr);
       dbg?.(`Web3 SDK error: ${sdkErr?.message || sdkErr}`);
+      const errMsg = String(sdkErr?.message || sdkErr).toLowerCase();
       // Fallback to injected wallet if available (browser extension)
       const wallet = getInjectedWallet();
       if (wallet?.signAndSubmitTransaction) {
@@ -384,6 +385,10 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
         } catch {
           return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
         }
+      }
+      if (errMsg.includes("wallet closed")) {
+        const openPicker = (window as any).__openWalletPicker as (() => void) | undefined;
+        openPicker?.();
       }
       throw new Error(`Wallet SDK error: ${sdkErr?.message || sdkErr}`);
     }

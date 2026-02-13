@@ -942,6 +942,7 @@ const I18N = {
 // ==================== INIT ====================
 function init() {
   initDebug();
+  (window as any).__openWalletPicker = showWalletPicker;
   // Name input
   startSessionBtn.addEventListener("click", startDemoSession);
   playerNameInput.addEventListener("keypress", (e) => {
@@ -3221,8 +3222,18 @@ async function executeDeposit() {
     console.error("Deposit failed:", err);
     const msg = err?.message || err;
     debugLogLine(`DEPOSIT error: ${msg}`);
-    showDebugModal();
-    showMessage(I18N[currentLocale].deposit_fail, "error");
+    if (String(msg).toLowerCase().includes("wallet closed")) {
+      showMessage(
+        currentLocale === "ru"
+          ? "Кошелёк закрылся. Откройте кошелёк через QR/приложение и повторите."
+          : "Wallet closed. Open wallet via QR/app and try again.",
+        "error"
+      );
+      showWalletPicker();
+    } else {
+      showDebugModal();
+      showMessage(I18N[currentLocale].deposit_fail, "error");
+    }
   }
 }
 
@@ -3252,8 +3263,18 @@ async function executeWithdraw() {
     console.error("Withdraw failed:", err);
     const msg = err?.message || err;
     debugLogLine(`WITHDRAW error: ${msg}`);
-    showDebugModal();
-    showMessage(I18N[currentLocale].withdraw_fail, "error");
+    if (String(msg).toLowerCase().includes("wallet closed")) {
+      showMessage(
+        currentLocale === "ru"
+          ? "Кошелёк закрылся. Откройте кошелёк через QR/приложение и повторите."
+          : "Wallet closed. Open wallet via QR/app and try again.",
+        "error"
+      );
+      showWalletPicker();
+    } else {
+      showDebugModal();
+      showMessage(I18N[currentLocale].withdraw_fail, "error");
+    }
   }
 }
 
