@@ -4,18 +4,12 @@
 import { game } from "./game";
 import {
   getBankInfo,
-  claimPayout as claimPayoutOnChain,
   connectWallet,
   connectEndlessExtension,
   connectLuffa,
   getWalletBalance,
-  getPlayerStats,
-  getOwner,
   getLatestGameId,
   getGame,
-  startGame as startGameOnChain,
-  hit as hitOnChain,
-  stand as standOnChain,
   setWalletCallbacks,
   isInLuffaApp,
   disconnectWallet,
