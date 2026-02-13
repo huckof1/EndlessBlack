@@ -1590,7 +1590,7 @@ body.invite-mode .mascot-right {
     radial-gradient(45% 45% at 25% 25%, rgba(60, 200, 170, 0.95), transparent 62%),
     radial-gradient(55% 55% at 70% 50%, rgba(80, 90, 210, 0.9), transparent 68%),
     radial-gradient(45% 45% at 55% 85%, rgba(130, 60, 200, 0.85), transparent 62%);
-  animation: auroraShift 7s ease-in-out infinite;
+  animation: auroraShift 4.2s ease-in-out infinite;
 }
 
 .aurora-btn::after {
@@ -1599,7 +1599,7 @@ body.invite-mode .mascot-right {
     radial-gradient(55% 55% at 85% 35%, rgba(100, 70, 220, 0.8), transparent 70%),
     radial-gradient(50% 50% at 55% 10%, rgba(60, 220, 160, 0.75), transparent 65%),
     linear-gradient(120deg, rgba(255,255,255,0.12), rgba(0,0,0,0));
-  animation: auroraShift2 9s ease-in-out infinite;
+  animation: auroraShift2 5.2s ease-in-out infinite;
   filter: blur(18px) saturate(160%) brightness(0.8);
   opacity: 0.85;
 }
