@@ -3086,13 +3086,13 @@ function handleResetDemo() {
 function handleInvite() {
   const name = playerName || I18N[currentLocale].player_placeholder;
   if (!isSessionStarted) {
-    startSession();
+    startDemoSession();
   }
   const url = new URL(window.location.href);
   url.searchParams.set("invite", name);
   const betValue = parseFloat(betInput.value) || 1;
   url.searchParams.set("bet", betValue.toString());
-  const mode = isDemoActive() ? "demo" : networkMode;
+  const mode = "demo";
   url.searchParams.set("mode", mode);
   if (!multiplayerRoom) {
     multiplayerRoom = Math.random().toString(36).slice(2, 10);
@@ -3173,20 +3173,15 @@ async function handleInviteAccept() {
     }
     return;
   }
-  const mode = pendingInvite.mode;
-  if (mode === "mainnet") {
-    setNetwork("mainnet");
-  } else {
-    setNetwork("testnet");
-  }
+  const mode = "demo";
+  setNetwork("testnet");
   betInput.value = pendingInvite.bet.toString();
 
   if (!isSessionStarted) {
-    await startSession();
+    await startDemoSession();
   }
 
-  if (mode === "demo" && !isDemoActive()) {
-    // demo invite but demo disabled
+  if (!isDemoActive()) {
     showMessage(I18N[currentLocale].msg_release_lock, "error");
     return;
   }
@@ -3262,7 +3257,8 @@ function updateUI() {
   }
   document.body.dataset.demo = demo ? "true" : "false";
   if (resetDemoBtn) {
-    resetDemoBtn.style.display = demo ? "inline-flex" : "none";
+    const inviteActive = Boolean(pendingInvite) || (inviteBanner && inviteBanner.style.display !== "none");
+    resetDemoBtn.style.display = demo && !multiplayerRoom && !inviteActive ? "inline-flex" : "none";
   }
   if (inviteBtnHeader) {
     inviteBtnHeader.style.display = isSessionStarted ? "inline-flex" : "none";

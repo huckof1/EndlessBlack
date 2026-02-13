@@ -64,7 +64,7 @@ export class PixelBlackjack {
     totalWon: 0,
     totalLost: 0,
   };
-  private defaultBalance = 12500000000; // 125 EDS
+  private defaultBalance = 10000000000; // 100 EDS
   private defaultTreasury = 500000000; // 5 EDS
   private defaultBankroll = 50000000000; // 500 EDS
 
