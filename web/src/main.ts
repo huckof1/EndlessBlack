@@ -40,7 +40,7 @@ let autoConnectAttempted = false;
 const headerStatus = document.querySelector(".header-status") as HTMLDivElement;
 const balanceEl = document.getElementById("balance") as HTMLSpanElement;
 const bankrollEl = document.getElementById("bankroll") as HTMLSpanElement;
-const treasuryEl = document.getElementById("treasury") as HTMLSpanElement;
+const betFeeEl = document.getElementById("bet-fee") as HTMLSpanElement;
 const feeEl = document.getElementById("fee") as HTMLSpanElement;
 
 const mascot = document.getElementById("mascot") as HTMLDivElement;
@@ -634,7 +634,7 @@ const I18N = {
     msg_claimed: "PAYOUT CLAIMED",
     msg_no_payout: "NO PAYOUT AVAILABLE",
     bankroll: "BANKROLL:",
-    treasury: "TREASURY:",
+    bet_fee: "BET FEE:",
     fee: "FEE:",
     payout_due: "Payout due:",
     title_network: "Network",
@@ -799,7 +799,7 @@ const I18N = {
     msg_claimed: "ВЫИГРЫШ ПОЛУЧЕН",
     msg_no_payout: "НЕТ ВЫПЛАТЫ",
     bankroll: "БАНК:",
-    treasury: "КОМИССИЯ:",
+    bet_fee: "КОМИССИЯ:",
     fee: "КОМИССИЯ:",
     payout_due: "К выплате:",
     title_network: "Сеть",
@@ -1998,12 +1998,12 @@ function updateFeeFromBet() {
   if (!feeEl) return;
   const betValue = parseFloat(betInput.value);
   if (isNaN(betValue) || betValue <= 0) {
-    feeEl.textContent = "0.00 EDS";
+    if (betFeeEl) betFeeEl.textContent = "0.00 EDS";
     return;
   }
   const betOctas = Math.floor(betValue * 100000000);
   const feeOctas = Math.floor((betOctas * currentFeeBps) / 10000);
-  feeEl.textContent = formatEDS(feeOctas);
+  if (betFeeEl) betFeeEl.textContent = formatEDS(feeOctas);
 }
 
 // ==================== BET ====================
@@ -2598,8 +2598,9 @@ async function updateBalance() {
 async function updateBank() {
   if (isDemoActive()) {
     bankrollEl.textContent = formatEDS(game.getBankroll());
-    treasuryEl.textContent = formatEDS(game.getTreasury());
+    if (betFeeEl) betFeeEl.textContent = formatEDS(0);
     currentFeeBps = game.getFeeBps();
+    feeEl.textContent = (currentFeeBps / 100).toFixed(2) + "%";
     updateFeeFromBet();
     return;
   }
@@ -2607,12 +2608,13 @@ async function updateBank() {
   try {
     const info = await getBankInfo(networkMode);
     bankrollEl.textContent = formatEDS(info.bankroll);
-    treasuryEl.textContent = formatEDS(info.treasury);
+    if (betFeeEl) betFeeEl.textContent = formatEDS(0);
     currentFeeBps = info.feeBps;
+    feeEl.textContent = (currentFeeBps / 100).toFixed(2) + "%";
     updateFeeFromBet();
   } catch {
     bankrollEl.textContent = "—";
-    treasuryEl.textContent = "—";
+    if (betFeeEl) betFeeEl.textContent = "—";
     feeEl.textContent = "—";
   }
 }
