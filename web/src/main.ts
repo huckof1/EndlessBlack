@@ -103,7 +103,6 @@ const networkTestnetBtn = document.getElementById("network-testnet") as HTMLButt
 const networkMainnetBtn = document.getElementById("network-mainnet") as HTMLButtonElement;
 const connectWalletHeader = document.getElementById("connect-wallet-header") as HTMLButtonElement;
 const demoPlayBtn = document.getElementById("demo-play-btn") as HTMLButtonElement;
-const switchWalletBtn = document.getElementById("switch-wallet-btn") as HTMLButtonElement;
 const fundBankHeader = document.getElementById("fund-bank-header") as HTMLButtonElement;
 const faucetBtn = document.getElementById("faucet-btn") as HTMLButtonElement;
 const demoBadge = document.getElementById("demo-badge") as HTMLSpanElement;
@@ -125,8 +124,6 @@ const fundModalConfirm = document.getElementById("fund-modal-confirm") as HTMLBu
 const fundModalCancel = document.getElementById("fund-modal-cancel") as HTMLButtonElement;
 const depositBtnHeader = document.getElementById("deposit-btn-header") as HTMLButtonElement;
 const withdrawBtnHeader = document.getElementById("withdraw-btn-header") as HTMLButtonElement;
-const openWalletBtnHeader = document.getElementById("open-wallet-btn-header") as HTMLButtonElement;
-const openLuffaBtnHeader = document.getElementById("open-luffa-btn-header") as HTMLButtonElement;
 const depositModal = document.getElementById("deposit-modal") as HTMLDivElement;
 const depositAmountInput = document.getElementById("deposit-amount-input") as HTMLInputElement;
 const depositModalConfirm = document.getElementById("deposit-modal-confirm") as HTMLButtonElement;
@@ -755,7 +752,6 @@ const I18N = {
     wallet_connected: "CONNECTED",
     wallet_off: "OFF",
     disconnect_wallet: "DISCONNECT",
-    switch_wallet: "SWITCH WALLET",
     demo_play: "TEST",
     faucet: "GET EDS",
     faucet_success: "Test EDS received! Balance updated.",
@@ -770,8 +766,6 @@ const I18N = {
     withdraw_success: "Withdrawal successful! Funds returned to wallet.",
     withdraw_fail: "Withdrawal failed.",
     ingame_balance: "IN-GAME:",
-    open_wallet: "OPEN WALLET",
-    open_luffa: "OPEN LUFFA",
   },
   ru: {
     subtitle: "WEB3 МУЛЬТИПЛЕЕР",
@@ -922,7 +916,6 @@ const I18N = {
     wallet_connected: "ПОДКЛЮЧЁН",
     wallet_off: "ВЫКЛ",
     disconnect_wallet: "ОТКЛЮЧИТЬ",
-    switch_wallet: "СМЕНИТЬ КОШЕЛЁК",
     demo_play: "ТЕСТ",
     faucet: "ПОЛУЧИТЬ EDS",
     faucet_success: "Тестовые EDS получены! Баланс обновлён.",
@@ -937,8 +930,6 @@ const I18N = {
     withdraw_success: "Вывод выполнен! Средства возвращены в кошелёк.",
     withdraw_fail: "Ошибка вывода.",
     ingame_balance: "В ИГРЕ:",
-    open_wallet: "ОТКРЫТЬ КОШЕЛЁК",
-    open_luffa: "ОТКРЫТЬ LUFFA",
   },
 };
 
@@ -1056,16 +1047,6 @@ function init() {
   // Deposit/Withdraw buttons
   if (depositBtnHeader) depositBtnHeader.addEventListener("click", handleShowDeposit);
   if (withdrawBtnHeader) withdrawBtnHeader.addEventListener("click", handleShowWithdraw);
-  if (openWalletBtnHeader) {
-    openWalletBtnHeader.addEventListener("click", () => {
-      window.open("https://wallet.endless.link/", "_blank");
-    });
-  }
-  if (openLuffaBtnHeader) {
-    openLuffaBtnHeader.addEventListener("click", () => {
-      openLuffaDeepLink();
-    });
-  }
   if (depositModalConfirm) depositModalConfirm.addEventListener("click", executeDeposit);
   if (depositModalCancel) depositModalCancel.addEventListener("click", () => {
     if (depositModal) depositModal.style.display = "none";
@@ -2961,10 +2942,6 @@ function updateUI() {
     demoPlayBtn.style.display = walletAddress ? "none" : "inline-flex";
     demoPlayBtn.textContent = I18N[currentLocale].demo_play;
   }
-  if (switchWalletBtn) {
-    switchWalletBtn.style.display = walletAddress ? "inline-flex" : "none";
-    switchWalletBtn.textContent = I18N[currentLocale].switch_wallet;
-  }
   if (faucetBtn) {
     // Show faucet button only when wallet connected on testnet
     faucetBtn.style.display = (walletAddress && networkMode === "testnet") ? "inline-flex" : "none";
@@ -2978,15 +2955,6 @@ function updateUI() {
   if (withdrawBtnHeader) {
     withdrawBtnHeader.style.display = walletAddress ? "inline-flex" : "none";
     withdrawBtnHeader.textContent = I18N[currentLocale].withdraw_btn;
-  }
-  if (openWalletBtnHeader) {
-    openWalletBtnHeader.style.display = walletAddress ? "inline-flex" : "none";
-    openWalletBtnHeader.textContent = I18N[currentLocale].open_wallet;
-  }
-  if (openLuffaBtnHeader) {
-    const isMobileDevice = /iphone|ipad|ipod|android/i.test(navigator.userAgent || "");
-    openLuffaBtnHeader.style.display = (walletAddress && isMobileDevice) ? "inline-flex" : "none";
-    openLuffaBtnHeader.textContent = I18N[currentLocale].open_luffa;
   }
   if (ingameBalanceRow) {
     ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
