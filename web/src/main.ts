@@ -2146,7 +2146,9 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     if (snapshot.pendingTurn && Date.now() < snapshot.pendingTurn.until) {
       showMessage(I18N[currentLocale].msg_turn_wait, "info");
     } else {
-      showMessage(isMyTurn ? I18N[currentLocale].msg_your_turn : I18N[currentLocale].msg_turn_wait, "info");
+      if (!isMyTurn) {
+        showMessage(I18N[currentLocale].msg_turn_wait, "info");
+      }
     }
   }
   if (!snapshot.hands || snapshot.hands.length < 2) {
@@ -2555,7 +2557,7 @@ async function handleStartGame() {
       await showBlackjackEffect(betAmount);
     } else {
       setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
-      showMessage(I18N[currentLocale].msg_your_turn, "info");
+      // turn indicator already shows whose turn it is
     }
   } catch (error) {
     playSound("lose");
