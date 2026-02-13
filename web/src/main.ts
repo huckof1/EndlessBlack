@@ -3234,7 +3234,7 @@ async function executeDeposit() {
     console.error("Deposit failed:", err);
     const msg = err?.message || err;
     debugLogLine(`DEPOSIT error: ${msg}`);
-    if (String(msg).toLowerCase().includes("wallet closed")) {
+    if (String(msg).toLowerCase().includes("wallet closed") || String(msg).includes("WALLET_PICKER_REQUIRED")) {
       showMessage(
         currentLocale === "ru"
           ? "Кошелёк закрылся. Откройте кошелёк через QR/приложение и повторите."
@@ -3243,7 +3243,6 @@ async function executeDeposit() {
       );
       showWalletPicker();
     } else {
-      showDebugModal();
       showMessage(I18N[currentLocale].deposit_fail, "error");
     }
   }
@@ -3275,7 +3274,7 @@ async function executeWithdraw() {
     console.error("Withdraw failed:", err);
     const msg = err?.message || err;
     debugLogLine(`WITHDRAW error: ${msg}`);
-    if (String(msg).toLowerCase().includes("wallet closed")) {
+    if (String(msg).toLowerCase().includes("wallet closed") || String(msg).includes("WALLET_PICKER_REQUIRED")) {
       showMessage(
         currentLocale === "ru"
           ? "Кошелёк закрылся. Откройте кошелёк через QR/приложение и повторите."
@@ -3284,7 +3283,6 @@ async function executeWithdraw() {
       );
       showWalletPicker();
     } else {
-      showDebugModal();
       showMessage(I18N[currentLocale].withdraw_fail, "error");
     }
   }
