@@ -52,6 +52,8 @@ const betInput = document.getElementById("bet-input") as HTMLInputElement;
 const betMinus = document.getElementById("bet-minus") as HTMLButtonElement;
 const betPlus = document.getElementById("bet-plus") as HTMLButtonElement;
 const betOffer = document.getElementById("bet-offer") as HTMLDivElement;
+const betSection = document.querySelector(".bet-section") as HTMLDivElement;
+const betDisplay = document.querySelector(".bet-display") as HTMLDivElement;
 const betOfferText = document.getElementById("bet-offer-text") as HTMLDivElement;
 const betAccept = document.getElementById("bet-accept") as HTMLButtonElement;
 const betDecline = document.getElementById("bet-decline") as HTMLButtonElement;
@@ -456,6 +458,19 @@ function requestAutoConnectInLuffa() {
       }
     }
   }, 900);
+}
+
+function focusBetArea() {
+  if (betSection) {
+    betSection.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if (betDisplay) {
+    betDisplay.classList.remove("bet-pulse");
+    // Force reflow to restart animation
+    void betDisplay.offsetWidth;
+    betDisplay.classList.add("bet-pulse");
+    window.setTimeout(() => betDisplay.classList.remove("bet-pulse"), 3800);
+  }
 }
 
 function resetCurrentGameState() {
@@ -949,8 +964,8 @@ function init() {
 
   // Demo play button — start session in demo mode without wallet
   if (demoPlayBtn) {
-    demoPlayBtn.addEventListener("click", () => {
-      startDemoSession();
+    demoPlayBtn.addEventListener("click", async () => {
+      await startDemoSession();
     });
   }
 
@@ -1091,9 +1106,11 @@ function init() {
     }
     if (!isSessionStarted) {
       await startSession();
+      focusBetArea();
       return;
     }
     await handleConnectWallet();
+    focusBetArea();
   });
 
   // Tabs
@@ -2945,6 +2962,7 @@ function updateUI() {
 
 async function handleConnectWallet() {
   await connectWalletFlow(false);
+  focusBetArea();
 }
 
 async function handleDisconnectWallet() {
@@ -3003,6 +3021,7 @@ async function startDemoSession() {
     currentLocale === "ru" ? "Тестовый режим. Сделай ставку!" : "Test mode. Place your bet!",
     "info"
   );
+  focusBetArea();
   updateUI();
   initFeed();
   renderLeaderboard();
