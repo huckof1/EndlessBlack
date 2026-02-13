@@ -892,9 +892,9 @@ const I18N = {
 // ==================== INIT ====================
 function init() {
   // Name input
-  startSessionBtn.addEventListener("click", startSession);
+  startSessionBtn.addEventListener("click", startDemoSession);
   playerNameInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") startSession();
+    if (e.key === "Enter") startDemoSession();
   });
 
   // Game controls
