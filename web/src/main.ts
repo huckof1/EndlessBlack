@@ -117,14 +117,11 @@ const inviteBanner = document.getElementById("invite-banner") as HTMLDivElement;
 const inviteText = document.getElementById("invite-text") as HTMLDivElement;
 const inviteAccept = document.getElementById("invite-accept") as HTMLButtonElement;
 const inviteDecline = document.getElementById("invite-decline") as HTMLButtonElement;
-const fundBankrollBtn = document.getElementById("fund-bankroll-btn") as HTMLButtonElement;
 const fundModal = document.getElementById("fund-modal") as HTMLDivElement;
 const fundAmountInput = document.getElementById("fund-amount-input") as HTMLInputElement;
 const fundModalConfirm = document.getElementById("fund-modal-confirm") as HTMLButtonElement;
 const fundModalCancel = document.getElementById("fund-modal-cancel") as HTMLButtonElement;
-const depositBtn = document.getElementById("deposit-btn") as HTMLButtonElement;
 const depositBtnHeader = document.getElementById("deposit-btn-header") as HTMLButtonElement;
-const withdrawBtn = document.getElementById("withdraw-btn") as HTMLButtonElement;
 const withdrawBtnHeader = document.getElementById("withdraw-btn-header") as HTMLButtonElement;
 const depositModal = document.getElementById("deposit-modal") as HTMLDivElement;
 const depositAmountInput = document.getElementById("deposit-amount-input") as HTMLInputElement;
@@ -957,9 +954,6 @@ function init() {
   }
 
   // Fund bankroll button — owner only
-  if (fundBankrollBtn) {
-    fundBankrollBtn.addEventListener("click", () => handleFundBankroll());
-  }
   if (fundBankHeader) {
     fundBankHeader.addEventListener("click", () => handleFundBankroll());
   }
@@ -974,9 +968,7 @@ function init() {
   }
 
   // Deposit/Withdraw buttons
-  if (depositBtn) depositBtn.addEventListener("click", handleShowDeposit);
   if (depositBtnHeader) depositBtnHeader.addEventListener("click", handleShowDeposit);
-  if (withdrawBtn) withdrawBtn.addEventListener("click", handleShowWithdraw);
   if (withdrawBtnHeader) withdrawBtnHeader.addEventListener("click", handleShowWithdraw);
   if (depositModalConfirm) depositModalConfirm.addEventListener("click", executeDeposit);
   if (depositModalCancel) depositModalCancel.addEventListener("click", () => {
@@ -2855,17 +2847,9 @@ function updateUI() {
     faucetBtn.textContent = I18N[currentLocale].faucet;
   }
   // Deposit/Withdraw buttons — visible when wallet connected
-  if (depositBtn) {
-    depositBtn.style.display = walletAddress ? "inline-flex" : "none";
-    depositBtn.textContent = I18N[currentLocale].deposit;
-  }
   if (depositBtnHeader) {
     depositBtnHeader.style.display = walletAddress ? "inline-flex" : "none";
     depositBtnHeader.textContent = I18N[currentLocale].deposit;
-  }
-  if (withdrawBtn) {
-    withdrawBtn.style.display = walletAddress ? "inline-flex" : "none";
-    withdrawBtn.textContent = I18N[currentLocale].withdraw_btn;
   }
   if (withdrawBtnHeader) {
     withdrawBtnHeader.style.display = walletAddress ? "inline-flex" : "none";
@@ -2873,10 +2857,6 @@ function updateUI() {
   }
   if (ingameBalanceRow) {
     ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
-  }
-  if (fundBankrollBtn) {
-    fundBankrollBtn.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
-    fundBankrollBtn.textContent = I18N[currentLocale].fund_bank;
   }
   if (fundBankHeader) {
     fundBankHeader.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
@@ -3050,7 +3030,6 @@ async function executeFundBankroll() {
   // Hide modal first so it doesn't block wallet popup
   if (fundModal) fundModal.style.display = "none";
   try {
-    if (fundBankrollBtn) fundBankrollBtn.disabled = true;
     if (fundBankHeader) fundBankHeader.disabled = true;
     showMessage(
       currentLocale === "ru"
@@ -3076,7 +3055,6 @@ async function executeFundBankroll() {
       "error"
     );
   } finally {
-    if (fundBankrollBtn) fundBankrollBtn.disabled = false;
     if (fundBankHeader) fundBankHeader.disabled = false;
   }
 }
