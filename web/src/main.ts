@@ -2868,13 +2868,12 @@ function updateUI() {
     headerStatus.style.display = "flex";
   }
   if (demoBadge) {
-    if (demo) {
-      demoBadge.textContent = I18N[currentLocale].demo_mode || "TEST MODE";
-      demoBadge.style.display = "inline-block";
+    if (walletAddress) {
+      demoBadge.textContent = networkMode === "mainnet" ? "MAINNET" : "TESTNET";
     } else {
       demoBadge.textContent = "DEMO";
-      demoBadge.style.display = "inline-block";
     }
+    demoBadge.style.display = "inline-block";
   }
   document.body.dataset.demo = demo ? "true" : "false";
   if (resetDemoBtn) {
