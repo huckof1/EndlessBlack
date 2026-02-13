@@ -1015,14 +1015,6 @@ function init() {
     });
   }
 
-  // Switch wallet — disconnect and reconnect
-  if (switchWalletBtn) {
-    switchWalletBtn.addEventListener("click", async () => {
-      await handleDisconnectWallet();
-      handleConnectWallet();
-    });
-  }
-
   // Faucet button — get test EDS on testnet
   if (faucetBtn) {
     faucetBtn.addEventListener("click", () => {
