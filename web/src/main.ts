@@ -3123,6 +3123,7 @@ async function handleFaucet() {
   }
   try {
     if (faucetBtn) faucetBtn.disabled = true;
+    debugLogLine(`FAUCET submit: ${walletAddress}`);
     showMessage(
       currentLocale === "ru"
         ? "Запрос тестовых EDS... Подтвердите в кошельке."
@@ -3134,6 +3135,7 @@ async function handleFaucet() {
     showMessage(I18N[currentLocale].faucet_success, "success");
   } catch (err) {
     console.warn("Faucet failed:", err);
+    debugLogLine(`FAUCET error: ${err instanceof Error ? err.message : String(err)}`);
     showMessage(I18N[currentLocale].faucet_fail, "error");
   } finally {
     if (faucetBtn) faucetBtn.disabled = false;
