@@ -584,3 +584,27 @@ export async function fundBankroll(amount: number, networkMode?: "testnet" | "ma
 export async function withdrawFees(amount: number, toAddress: string, networkMode?: "testnet" | "mainnet") {
   return await submitEntryFunction("withdraw_fees", [amount, toAddress], networkMode);
 }
+
+// ==================== PLAYER BANK (Deposit/Withdraw) ====================
+
+export async function deposit(amount: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("deposit", [BigInt(amount)], networkMode);
+}
+
+export async function withdraw(amount: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("withdraw", [BigInt(amount)], networkMode);
+}
+
+export async function getPlayerBalance(address: string, networkMode?: "testnet" | "mainnet"): Promise<number> {
+  const data = await viewAny("get_player_balance", [address], networkMode);
+  return toNumber(data[0]);
+}
+
+export async function updatePlayerBalance(
+  playerAddress: string,
+  delta: number,
+  isWin: boolean,
+  networkMode?: "testnet" | "mainnet"
+) {
+  return await submitEntryFunction("update_balance", [playerAddress, BigInt(delta), isWin], networkMode);
+}

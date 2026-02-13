@@ -46,6 +46,8 @@
         </button>
         <button id="connect-wallet-header" class="sound-btn sound-btn-wide" data-i18n="connect_wallet">CONNECT WALLET</button>
         <button id="switch-wallet-btn" class="sound-btn sound-btn-wide" style="display:none">SWITCH WALLET</button>
+        <button id="deposit-btn-header" class="sound-btn sound-btn-wide" style="display:none">DEPOSIT</button>
+        <button id="withdraw-btn-header" class="sound-btn sound-btn-wide" style="display:none">WITHDRAW</button>
         <button id="fund-bank-header" class="sound-btn sound-btn-wide" style="display:none">FUND BANK</button>
         <button id="faucet-btn" class="sound-btn sound-btn-wide" style="display:none">GET EDS</button>
         <button id="change-login-header" class="sound-btn sound-btn-wide" data-i18n="change_login">CHANGE LOGIN</button>
@@ -202,6 +204,10 @@
           <span class="label" data-i18n="balance">BALANCE:</span>
           <span id="balance">100.00 EDS</span>
         </div>
+        <div class="wallet-item" id="ingame-balance-row" style="display:none">
+          <span class="label">IN-GAME:</span>
+          <span id="ingame-balance">0.00 EDS</span>
+        </div>
         <div class="wallet-item">
           <span class="label" data-i18n="status">STATUS:</span>
           <span id="wallet-status" class="player-name-display">OFF</span>
@@ -224,6 +230,8 @@
         </div>
       </div>
       <div class="wallet-actions">
+        <button id="deposit-btn" class="btn btn-small" style="display:none">DEPOSIT</button>
+        <button id="withdraw-btn" class="btn btn-small" style="display:none">WITHDRAW</button>
         <button id="fund-bankroll-btn" class="btn btn-small" style="display:none">FUND BANK</button>
         <button id="connect-wallet-btn" class="btn btn-small" data-i18n="connect_wallet">CONNECT WALLET</button>
         <button id="reset-demo-btn" class="btn btn-small" title="Reset demo data" data-i18n="reset_demo">RESET DEMO</button>
@@ -277,6 +285,42 @@
         <div class="modal-actions">
           <button id="fund-modal-confirm" class="btn btn-small" style="background: #28a745;">OK</button>
           <button id="fund-modal-cancel" class="btn btn-small">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="deposit-modal" class="modal" style="display: none;">
+      <div class="modal-content wallet-picker-content">
+        <div class="modal-title" id="deposit-modal-title">DEPOSIT EDS</div>
+        <div style="padding: 16px; text-align: center;">
+          <label style="color: #ccc; font-size: 14px; display: block; margin-bottom: 8px;">EDS:</label>
+          <input id="deposit-amount-input" type="number" min="0.1" step="0.1" value="5" style="
+            width: 120px; padding: 8px 12px; font-size: 18px; text-align: center;
+            background: #1a1a2e; color: #fff; border: 2px solid #ffd700;
+            border-radius: 8px; outline: none; font-family: inherit;
+          " />
+        </div>
+        <div class="modal-actions">
+          <button id="deposit-modal-confirm" class="btn btn-small" style="background: #28a745;">DEPOSIT</button>
+          <button id="deposit-modal-cancel" class="btn btn-small">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="withdraw-modal" class="modal" style="display: none;">
+      <div class="modal-content wallet-picker-content">
+        <div class="modal-title" id="withdraw-modal-title">WITHDRAW EDS</div>
+        <div style="padding: 16px; text-align: center;">
+          <label style="color: #ccc; font-size: 14px; display: block; margin-bottom: 8px;">EDS:</label>
+          <input id="withdraw-amount-input" type="number" min="0.1" step="0.1" value="5" style="
+            width: 120px; padding: 8px 12px; font-size: 18px; text-align: center;
+            background: #1a1a2e; color: #fff; border: 2px solid #ffd700;
+            border-radius: 8px; outline: none; font-family: inherit;
+          " />
+        </div>
+        <div class="modal-actions">
+          <button id="withdraw-modal-confirm" class="btn btn-small" style="background: #dc3545;">WITHDRAW</button>
+          <button id="withdraw-modal-cancel" class="btn btn-small">CANCEL</button>
         </div>
       </div>
     </div>

@@ -11,6 +11,8 @@ module pixel_blackjack::blackjack {
     use endless_framework::timestamp;
     use endless_framework::event;
     use endless_framework::endless_coin;
+    use endless_framework::account;
+    use endless_framework::simple_map::{Self, SimpleMap};
 
     // ====================  ====================
 
@@ -32,8 +34,12 @@ module pixel_blackjack::blackjack {
     const E_NOT_OWNER: u64 = 8;
     ///  
     const E_INVALID_FEE: u64 = 9;
-    ///   
+    ///
     const E_PAYOUT_ALREADY_CLAIMED: u64 = 10;
+    ///
+    const E_INVALID_AMOUNT: u64 = 11;
+    ///
+    const E_INSUFFICIENT_BALANCE: u64 = 12;
 
     // ====================  ====================
 
@@ -90,20 +96,24 @@ module pixel_blackjack::blackjack {
         created_at: u64,
     }
 
-    ///  
+    ///
     struct GameStore has key {
-        ///  
+        ///
         game_counter: u64,
-        ///  
+        ///
         games: vector<Game>,
         ///   ( )
         bankroll: u128,
-        ///  
+        ///
         treasury: u128,
-        /// 
+        ///
         owner: address,
         ///   bps (100 = 1%)
         fee_bps: u128,
+        /// Resource account signer capability (holds player deposits)
+        resource_signer_cap: account::SignerCapability,
+        /// Player in-game balances (address -> octas)
+        player_balances: SimpleMap<address, u128>,
     }
 
     ///  
@@ -164,20 +174,46 @@ module pixel_blackjack::blackjack {
         payout: u128,
     }
 
+    #[event]
+    struct Deposited has drop, store {
+        player: address,
+        amount: u128,
+        new_balance: u128,
+    }
+
+    #[event]
+    struct Withdrawn has drop, store {
+        player: address,
+        amount: u128,
+        new_balance: u128,
+    }
+
+    #[event]
+    struct BalanceUpdated has drop, store {
+        player: address,
+        delta: u128,
+        is_win: bool,
+        new_balance: u128,
+    }
+
     // ====================  ====================
 
     ///   (  )
     fun init_module(admin: &signer) {
-        let treasury = 0;
-        let bankroll = 0;
         let owner = signer::address_of(admin);
+        // Create resource account to hold player deposits
+        let (resource_signer, resource_signer_cap) = account::create_resource_account(admin, b"blackjack_bank");
+        // Register resource account for EDS coin
+        endless_coin::register(&resource_signer);
         move_to(admin, GameStore {
             game_counter: 0,
             games: vector::empty(),
-            bankroll,
-            treasury,
+            bankroll: 0,
+            treasury: 0,
             owner,
             fee_bps: 200, // 2%
+            resource_signer_cap,
+            player_balances: simple_map::create<address, u128>(),
         });
     }
 
@@ -519,6 +555,101 @@ module pixel_blackjack::blackjack {
         stats.total_lost = stats.total_lost + lost;
     }
 
+    // ==================== DEPOSIT / WITHDRAW ====================
+
+    /// Player deposits EDS into their in-game balance
+    public entry fun deposit(player: &signer, amount: u128) acquires GameStore {
+        let player_addr = signer::address_of(player);
+        assert!(amount > 0, E_INVALID_AMOUNT);
+        assert!(endless_coin::balance(player_addr) >= amount, E_INSUFFICIENT_FUNDS);
+
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let resource_signer = account::create_signer_with_capability(&game_store.resource_signer_cap);
+        let _resource_addr = signer::address_of(&resource_signer);
+
+        // Transfer EDS from player to resource account
+        endless_coin::transfer(player, signer::address_of(&resource_signer), amount);
+
+        // Update player balance
+        if (simple_map::contains_key(&game_store.player_balances, &player_addr)) {
+            let balance = simple_map::borrow_mut(&mut game_store.player_balances, &player_addr);
+            *balance = *balance + amount;
+        } else {
+            simple_map::add(&mut game_store.player_balances, player_addr, amount);
+        };
+
+        let new_balance = *simple_map::borrow(&game_store.player_balances, &player_addr);
+        event::emit(Deposited {
+            player: player_addr,
+            amount,
+            new_balance,
+        });
+    }
+
+    /// Player withdraws EDS from their in-game balance back to wallet
+    public entry fun withdraw(player: &signer, amount: u128) acquires GameStore {
+        let player_addr = signer::address_of(player);
+        assert!(amount > 0, E_INVALID_AMOUNT);
+
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        assert!(simple_map::contains_key(&game_store.player_balances, &player_addr), E_INSUFFICIENT_BALANCE);
+
+        let balance = simple_map::borrow_mut(&mut game_store.player_balances, &player_addr);
+        assert!(*balance >= amount, E_INSUFFICIENT_BALANCE);
+        *balance = *balance - amount;
+
+        // Transfer EDS from resource account to player
+        let resource_signer = account::create_signer_with_capability(&game_store.resource_signer_cap);
+        endless_coin::transfer(&resource_signer, player_addr, amount);
+
+        let new_balance = *simple_map::borrow(&game_store.player_balances, &player_addr);
+        event::emit(Withdrawn {
+            player: player_addr,
+            amount,
+            new_balance,
+        });
+    }
+
+    /// Owner updates a player's balance after a local game result
+    /// is_win=true: player won, balance increases by delta
+    /// is_win=false: player lost, balance decreases by delta (goes to bankroll)
+    public entry fun update_balance(
+        owner: &signer,
+        player_addr: address,
+        delta: u128,
+        is_win: bool,
+    ) acquires GameStore {
+        let owner_addr = signer::address_of(owner);
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        assert!(owner_addr == game_store.owner, E_NOT_OWNER);
+        assert!(delta > 0, E_INVALID_AMOUNT);
+
+        if (!simple_map::contains_key(&game_store.player_balances, &player_addr)) {
+            simple_map::add(&mut game_store.player_balances, player_addr, 0);
+        };
+
+        let balance = simple_map::borrow_mut(&mut game_store.player_balances, &player_addr);
+        if (is_win) {
+            // Player won: add to balance, deduct from bankroll
+            assert!(game_store.bankroll >= delta, E_INSUFFICIENT_BANKROLL);
+            *balance = *balance + delta;
+            game_store.bankroll = game_store.bankroll - delta;
+        } else {
+            // Player lost: deduct from balance, add to bankroll
+            assert!(*balance >= delta, E_INSUFFICIENT_BALANCE);
+            *balance = *balance - delta;
+            game_store.bankroll = game_store.bankroll + delta;
+        };
+
+        let new_balance = *simple_map::borrow(&game_store.player_balances, &player_addr);
+        event::emit(BalanceUpdated {
+            player: player_addr,
+            delta,
+            is_win,
+            new_balance,
+        });
+    }
+
     // ==================== VIEW  ====================
 
     #[view]
@@ -566,7 +697,18 @@ module pixel_blackjack::blackjack {
     }
 
     #[view]
-    ///  
+    /// Get player's in-game balance
+    public fun get_player_balance(player_addr: address): u128 acquires GameStore {
+        let game_store = borrow_global<GameStore>(@pixel_blackjack);
+        if (simple_map::contains_key(&game_store.player_balances, &player_addr)) {
+            *simple_map::borrow(&game_store.player_balances, &player_addr)
+        } else {
+            0
+        }
+    }
+
+    #[view]
+    ///
     public fun get_treasury_balance(): u128 acquires GameStore {
         let game_store = borrow_global<GameStore>(@pixel_blackjack);
         game_store.treasury

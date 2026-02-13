@@ -21,6 +21,9 @@ import {
   disconnectWallet,
   requestFaucet,
   fundBankroll,
+  deposit as depositOnChain,
+  withdraw as withdrawOnChain,
+  getPlayerBalance as getPlayerBalanceOnChain,
   type ChainGame,
 } from "./chain";
 import QRCode from "qrcode";
@@ -125,6 +128,20 @@ const fundModal = document.getElementById("fund-modal") as HTMLDivElement;
 const fundAmountInput = document.getElementById("fund-amount-input") as HTMLInputElement;
 const fundModalConfirm = document.getElementById("fund-modal-confirm") as HTMLButtonElement;
 const fundModalCancel = document.getElementById("fund-modal-cancel") as HTMLButtonElement;
+const depositBtn = document.getElementById("deposit-btn") as HTMLButtonElement;
+const depositBtnHeader = document.getElementById("deposit-btn-header") as HTMLButtonElement;
+const withdrawBtn = document.getElementById("withdraw-btn") as HTMLButtonElement;
+const withdrawBtnHeader = document.getElementById("withdraw-btn-header") as HTMLButtonElement;
+const depositModal = document.getElementById("deposit-modal") as HTMLDivElement;
+const depositAmountInput = document.getElementById("deposit-amount-input") as HTMLInputElement;
+const depositModalConfirm = document.getElementById("deposit-modal-confirm") as HTMLButtonElement;
+const depositModalCancel = document.getElementById("deposit-modal-cancel") as HTMLButtonElement;
+const withdrawModal = document.getElementById("withdraw-modal") as HTMLDivElement;
+const withdrawAmountInput = document.getElementById("withdraw-amount-input") as HTMLInputElement;
+const withdrawModalConfirm = document.getElementById("withdraw-modal-confirm") as HTMLButtonElement;
+const withdrawModalCancel = document.getElementById("withdraw-modal-cancel") as HTMLButtonElement;
+const ingameBalanceRow = document.getElementById("ingame-balance-row") as HTMLDivElement;
+const ingameBalanceEl = document.getElementById("ingame-balance") as HTMLSpanElement;
 const connectWalletBtn = document.getElementById("connect-wallet-btn") as HTMLButtonElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
@@ -186,6 +203,7 @@ let mpPayoutRoom: string | null = localStorage.getItem("mpPayoutRoom");
 let mpLastWinKey: string | null = localStorage.getItem("mpLastWinKey");
 let pendingInvite: { name: string; mode: "demo" | "testnet" | "mainnet"; bet: number } | null = null;
 let pendingResume: { mode: "demo" | "chain"; game: any; gameId?: number } | null = null;
+let inGameBalance: number = 0; // Player's in-game balance (octas) from contract
 let multiplayerRoom: string | null = null;
 let multiplayerState: { players: string[]; turnIndex: number | null } | null = null;
 type MultiplayerSnapshot = {
@@ -658,6 +676,13 @@ const I18N = {
     fund_bank: "FUND BANK",
     fund_bank_success: "Bankroll funded!",
     fund_bank_fail: "Failed to fund bankroll.",
+    deposit: "DEPOSIT",
+    withdraw_btn: "WITHDRAW",
+    deposit_success: "Deposit successful! In-game balance updated.",
+    deposit_fail: "Deposit failed.",
+    withdraw_success: "Withdrawal successful! Funds returned to wallet.",
+    withdraw_fail: "Withdrawal failed.",
+    ingame_balance: "IN-GAME:",
   },
   ru: {
     subtitle: "WEB3 МУЛЬТИПЛЕЕР",
@@ -816,6 +841,13 @@ const I18N = {
     fund_bank: "ПОПОЛНИТЬ БАНК",
     fund_bank_success: "Банкролл пополнен!",
     fund_bank_fail: "Не удалось пополнить банкролл.",
+    deposit: "ПОПОЛНИТЬ",
+    withdraw_btn: "ВЫВЕСТИ",
+    deposit_success: "Депозит выполнен! Игровой баланс обновлён.",
+    deposit_fail: "Ошибка депозита.",
+    withdraw_success: "Вывод выполнен! Средства возвращены в кошелёк.",
+    withdraw_fail: "Ошибка вывода.",
+    ingame_balance: "В ИГРЕ:",
   },
 };
 
@@ -945,6 +977,20 @@ function init() {
       if (fundModal) fundModal.style.display = "none";
     });
   }
+
+  // Deposit/Withdraw buttons
+  if (depositBtn) depositBtn.addEventListener("click", handleShowDeposit);
+  if (depositBtnHeader) depositBtnHeader.addEventListener("click", handleShowDeposit);
+  if (withdrawBtn) withdrawBtn.addEventListener("click", handleShowWithdraw);
+  if (withdrawBtnHeader) withdrawBtnHeader.addEventListener("click", handleShowWithdraw);
+  if (depositModalConfirm) depositModalConfirm.addEventListener("click", executeDeposit);
+  if (depositModalCancel) depositModalCancel.addEventListener("click", () => {
+    if (depositModal) depositModal.style.display = "none";
+  });
+  if (withdrawModalConfirm) withdrawModalConfirm.addEventListener("click", executeWithdraw);
+  if (withdrawModalCancel) withdrawModalCancel.addEventListener("click", () => {
+    if (withdrawModal) withdrawModal.style.display = "none";
+  });
 
   // Reset demo
   resetDemoBtn.addEventListener("click", handleResetDemo);
@@ -2108,35 +2154,19 @@ async function handleStartGame() {
 
   const betEDS = (betAmount / 100000000).toFixed(2);
 
-  // Check balance before starting (on-chain mode)
+  // Check balance before starting
   if (!isDemoActive() && walletAddress) {
-    try {
-      const bal = await getWalletBalance(walletAddress, networkMode);
-      if (bal < betAmount) {
-        playSound("lose");
-        showMessage(
-          currentLocale === "ru"
-            ? `Недостаточно средств. Баланс: ${(bal / 100000000).toFixed(2)} EDS. Пополните баланс.`
-            : `Insufficient balance: ${(bal / 100000000).toFixed(2)} EDS. Top up your balance.`,
-          "error"
-        );
-        setMascotState("sad", "💸", currentLocale === "ru" ? "Пополните баланс!" : "Top up balance!");
-        return;
-      }
-      const bank = await getBankInfo(networkMode);
-      if (bank.bankroll < betAmount * 2) {
-        playSound("lose");
-        showMessage(
-          currentLocale === "ru"
-            ? `Банкролл пуст. Владелец должен пополнить банк для игры на блокчейне.`
-            : `Bankroll empty. Owner must fund the bankroll for on-chain play.`,
-          "error"
-        );
-        setMascotState("sad", "🏦", currentLocale === "ru" ? "Банк пуст!" : "Bank empty!");
-        return;
-      }
-    } catch {
-      // balance check failed, try to start anyway
+    // When wallet connected, use in-game balance (deposit-based)
+    if (inGameBalance < betAmount) {
+      playSound("lose");
+      showMessage(
+        currentLocale === "ru"
+          ? `Недостаточно игрового баланса: ${(inGameBalance / 100000000).toFixed(2)} EDS. Нажмите ПОПОЛНИТЬ.`
+          : `Insufficient in-game balance: ${(inGameBalance / 100000000).toFixed(2)} EDS. Tap DEPOSIT.`,
+        "error"
+      );
+      setMascotState("sad", "💸", currentLocale === "ru" ? "Пополните баланс!" : "Deposit first!");
+      return;
     }
   }
 
@@ -2152,38 +2182,26 @@ async function handleStartGame() {
     );
     startBtn.classList.add("btn-pulse");
 
-    if (isDemoActive()) {
-      const gameState = await game.startGame(betAmount);
-      isPlaying = true;
-      await renderGame(gameState);
-      updateUI();
-      setTurn("you");
-      startBtn.classList.remove("btn-pulse");
+    // Both demo and wallet-connected modes now use local game engine
+    // (wallet mode deducts from in-game balance instead of on-chain tx per action)
+    if (!isDemoActive() && walletAddress) {
+      // Deduct bet from in-game balance locally
+      inGameBalance -= betAmount;
+      if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
+    }
 
-      if (gameState.playerScore === 21) {
-        await showBlackjackEffect(betAmount);
-      } else {
-        setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
-        showMessage(I18N[currentLocale].msg_your_turn, "info");
-      }
+    const gameState = await game.startGame(betAmount);
+    isPlaying = true;
+    await renderGame(gameState);
+    updateUI();
+    setTurn("you");
+    startBtn.classList.remove("btn-pulse");
+
+    if (gameState.playerScore === 21) {
+      await showBlackjackEffect(betAmount);
     } else {
-      setTxStatus(I18N[currentLocale].tx_wait_wallet);
-      await startGameOnChain(betAmount, networkMode);
-      setTxStatus(I18N[currentLocale].tx_submitted);
-      chainGameId = await getLatestGameId(walletAddress, networkMode);
-      chainGame = await getGame(chainGameId, networkMode);
-      isPlaying = true;
-      await renderGame(chainGame);
-      updateUI();
-      setTurn("you");
-      startBtn.classList.remove("btn-pulse");
-
-      if (chainGame.playerScore === 21) {
-        await showBlackjackEffect(betAmount);
-      } else {
-        setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
-        showMessage(I18N[currentLocale].msg_your_turn, "info");
-      }
+      setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
+      showMessage(I18N[currentLocale].msg_your_turn, "info");
     }
   } catch (error) {
     playSound("lose");
@@ -2194,6 +2212,11 @@ async function handleStartGame() {
     } else {
       showMessage(I18N[currentLocale].msg_failed_start, "error");
       setMascotState("sad", "😢", I18N[currentLocale].msg_try_again);
+    }
+    // Restore in-game balance if we deducted it
+    if (!isDemoActive() && walletAddress) {
+      inGameBalance += betAmount;
+      if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
     }
     startBtn.disabled = false;
     startBtn.classList.remove("btn-pulse");
@@ -2222,51 +2245,26 @@ async function handleHit() {
     hitBtn.classList.add("btn-pulse");
     setMascotState("thinking", "🤞", I18N[currentLocale].msg_good_luck);
 
-    if (isDemoActive()) {
-      const gameState = await game.hit();
-      await renderHitCard(gameState);
-      hitBtn.classList.remove("btn-pulse");
+    // Always use local game engine (both demo and wallet-connected modes)
+    const gameState = await game.hit();
+    await renderHitCard(gameState);
+    hitBtn.classList.remove("btn-pulse");
 
-      if (gameState.playerScore > 21) {
-        setTurn(null);
-        await showLoseEffect(gameState.betAmount);
-      } else if (gameState.playerScore === 21) {
-        setTurn("dealer");
-        playSound("win");
-        setMascotState("happy", "😃", I18N[currentLocale].msg_perfect_21);
-        showMessage(I18N[currentLocale].msg_standing_21, "success");
-        await delay(500);
-        await handleStand();
-      } else {
-        setTurn("you");
-        hitBtn.disabled = false;
-        standBtn.disabled = false;
-        setMascotState("wink", "🎯", `${gameState.playerScore} ${currentLocale === "ru" ? "очков" : "points"}!`);
-      }
+    if (gameState.playerScore > 21) {
+      setTurn(null);
+      await showLoseEffect(gameState.betAmount);
+    } else if (gameState.playerScore === 21) {
+      setTurn("dealer");
+      playSound("win");
+      setMascotState("happy", "😃", I18N[currentLocale].msg_perfect_21);
+      showMessage(I18N[currentLocale].msg_standing_21, "success");
+      await delay(500);
+      await handleStand();
     } else {
-      setTxStatus(I18N[currentLocale].tx_wait_wallet);
-      await hitOnChain(chainGameId || 0, networkMode);
-      setTxStatus(I18N[currentLocale].tx_submitted);
-      chainGame = await getGame(chainGameId || 0, networkMode);
-      await renderHitCard(chainGame);
-      hitBtn.classList.remove("btn-pulse");
-
-      if (chainGame.playerScore > 21) {
-        setTurn(null);
-        await showLoseEffect(chainGame.betAmount);
-      } else if (chainGame.playerScore === 21) {
-        setTurn("dealer");
-        playSound("win");
-        setMascotState("happy", "😃", I18N[currentLocale].msg_perfect_21);
-        showMessage(I18N[currentLocale].msg_standing_21, "success");
-        await delay(500);
-        await handleStand();
-      } else {
-        setTurn("you");
-        hitBtn.disabled = false;
-        standBtn.disabled = false;
-        setMascotState("wink", "🎯", `${chainGame.playerScore} ${currentLocale === "ru" ? "очков" : "points"}!`);
-      }
+      setTurn("you");
+      hitBtn.disabled = false;
+      standBtn.disabled = false;
+      setMascotState("wink", "🎯", `${gameState.playerScore} ${currentLocale === "ru" ? "очков" : "points"}!`);
     }
   } catch (error) {
     playSound("lose");
@@ -2303,69 +2301,35 @@ async function handleStand() {
       multiplayer.endTurn();
     }
 
-    if (isDemoActive()) {
-      const gameState = await game.stand();
-      await renderDealerReveal(gameState);
-      standBtn.classList.remove("btn-pulse");
+    // Always use local game engine (both demo and wallet-connected modes)
+    const gameState = await game.stand();
+    await renderDealerReveal(gameState);
+    standBtn.classList.remove("btn-pulse");
 
-      const result = gameState.result;
-      const bet = gameState.betAmount;
+    const result = gameState.result;
+    const bet = gameState.betAmount;
 
-      if (result === 1) {
-        setTurn(null);
-        await showWinEffect(bet);
-      } else if (result === 2) {
-        setTurn(null);
-        await showLoseEffect(bet);
-      } else if (result === 3) {
-        setTurn(null);
-        playSound("chip");
-        setMascotState(
-          "thinking",
-          "🤷",
-          currentLocale === "ru" ? "Ничья! Нажми ПРОДОЛЖИТЬ для переигрыша" : "It's a tie! Tap Continue to rematch"
-        );
-        showMessage(I18N[currentLocale].msg_draw, "info");
-        addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
-        showGameResult(0, "draw");
-        updateUI();
-        endGame();
-      } else if (result === 4) {
-        await showBlackjackEffect(bet);
-      }
-    } else {
-      setTxStatus(I18N[currentLocale].tx_wait_wallet);
-      await standOnChain(chainGameId || 0, networkMode);
-      setTxStatus(I18N[currentLocale].tx_submitted);
-      chainGame = await getGame(chainGameId || 0, networkMode);
-      await renderDealerReveal(chainGame);
-      standBtn.classList.remove("btn-pulse");
-
-      const result = chainGame.result;
-      const bet = chainGame.betAmount;
-
-      if (result === 1) {
-        setTurn(null);
-        await showWinEffect(bet);
-      } else if (result === 2) {
-        setTurn(null);
-        await showLoseEffect(bet);
-      } else if (result === 3) {
-        setTurn(null);
-        playSound("chip");
-        setMascotState(
-          "thinking",
-          "🤷",
-          currentLocale === "ru" ? "Ничья! Нажми ПРОДОЛЖИТЬ для переигрыша" : "It's a tie! Tap Continue to rematch"
-        );
-        showMessage(I18N[currentLocale].msg_draw, "info");
-        addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
-        showGameResult(0, "draw");
-        updateUI();
-        endGame();
-      } else if (result === 4) {
-        await showBlackjackEffect(bet);
-      }
+    if (result === 1) {
+      setTurn(null);
+      await showWinEffect(bet);
+    } else if (result === 2) {
+      setTurn(null);
+      await showLoseEffect(bet);
+    } else if (result === 3) {
+      setTurn(null);
+      playSound("chip");
+      setMascotState(
+        "thinking",
+        "🤷",
+        currentLocale === "ru" ? "Ничья! Нажми ПРОДОЛЖИТЬ для переигрыша" : "It's a tie! Tap Continue to rematch"
+      );
+      showMessage(I18N[currentLocale].msg_draw, "info");
+      addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_draw}`);
+      showGameResult(0, "draw");
+      updateUI();
+      endGame();
+    } else if (result === 4) {
+      await showBlackjackEffect(bet);
     }
   } catch (error) {
     playSound("lose");
@@ -2468,6 +2432,28 @@ function endGame() {
   isPlaying = false;
   setTurn(null);
   hasGameResult = true;
+
+  // Sync in-game balance after game result (wallet-connected mode)
+  if (!isDemoActive() && walletAddress) {
+    const currentGame = game.getCurrentGame();
+    if (currentGame && currentGame.isFinished) {
+      const bet = currentGame.betAmount;
+      const result = currentGame.result;
+      if (result === 1) {
+        // Win: payout is 2x bet, net gain = bet (we already deducted bet at start)
+        inGameBalance += bet * 2;
+      } else if (result === 4) {
+        // Blackjack: payout is 2.5x bet
+        inGameBalance += Math.floor(bet * 2.5);
+      } else if (result === 3) {
+        // Draw: return the bet
+        inGameBalance += bet;
+      }
+      // result === 2 (loss): bet was already deducted, nothing to add back
+      if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
+    }
+  }
+
   updateUI();
   updateBalance();
   updateBank();
@@ -2619,6 +2605,8 @@ async function updateBalance() {
   } catch {
     balanceEl.textContent = "—";
   }
+  // Also refresh in-game balance
+  await updateInGameBalance();
 }
 
 async function updateBank() {
@@ -2643,19 +2631,8 @@ async function updateBank() {
 }
 
 async function updateStats() {
-  const stats = isDemoActive()
-    ? await game.getStats()
-    : walletAddress
-      ? await getPlayerStats(walletAddress, networkMode)
-      : {
-          totalGames: 0,
-          wins: 0,
-          losses: 0,
-          draws: 0,
-          blackjacks: 0,
-          totalWon: 0,
-          totalLost: 0,
-        };
+  // All game modes (demo + wallet-connected) now use local game engine
+  const stats = await game.getStats();
 
   if (statGames) statGames.textContent = stats.totalGames.toString();
   if (statWins) statWins.textContent = stats.wins.toString();
@@ -2900,6 +2877,26 @@ function updateUI() {
     faucetBtn.style.display = (walletAddress && networkMode === "testnet") ? "inline-flex" : "none";
     faucetBtn.textContent = I18N[currentLocale].faucet;
   }
+  // Deposit/Withdraw buttons — visible when wallet connected
+  if (depositBtn) {
+    depositBtn.style.display = walletAddress ? "inline-flex" : "none";
+    depositBtn.textContent = I18N[currentLocale].deposit;
+  }
+  if (depositBtnHeader) {
+    depositBtnHeader.style.display = walletAddress ? "inline-flex" : "none";
+    depositBtnHeader.textContent = I18N[currentLocale].deposit;
+  }
+  if (withdrawBtn) {
+    withdrawBtn.style.display = walletAddress ? "inline-flex" : "none";
+    withdrawBtn.textContent = I18N[currentLocale].withdraw_btn;
+  }
+  if (withdrawBtnHeader) {
+    withdrawBtnHeader.style.display = walletAddress ? "inline-flex" : "none";
+    withdrawBtnHeader.textContent = I18N[currentLocale].withdraw_btn;
+  }
+  if (ingameBalanceRow) {
+    ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
+  }
   if (fundBankrollBtn) {
     fundBankrollBtn.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
     fundBankrollBtn.textContent = I18N[currentLocale].fund_bank;
@@ -2913,7 +2910,8 @@ function updateUI() {
   }
   setWalletStatus(Boolean(walletAddress));
 
-  const current = isDemoActive() ? game.getCurrentGame() : chainGame;
+  // Both demo and wallet modes use local game engine now
+  const current = game.getCurrentGame();
   const canClaim = current && current.isFinished && current.payoutDue > 0 && !current.isClaimed;
 
   if (multiplayerRoom && multiplayerSnapshot?.phase === "player") {
@@ -2982,6 +2980,8 @@ async function handleDisconnectWallet() {
   chainGame = null;
   isPlaying = false;
   pendingResume = null;
+  inGameBalance = 0;
+  if (ingameBalanceRow) ingameBalanceRow.style.display = "none";
   setWalletStatus(false);
   if (walletAddressEl) walletAddressEl.textContent = "—";
   // Switch to demo mode
@@ -3115,6 +3115,88 @@ async function executeFundBankroll() {
   }
 }
 
+// ==================== DEPOSIT / WITHDRAW ====================
+
+function handleShowDeposit() {
+  if (!walletAddress) return;
+  if (depositModal) {
+    if (depositAmountInput) depositAmountInput.value = "5";
+    depositModal.style.display = "flex";
+  }
+}
+
+function handleShowWithdraw() {
+  if (!walletAddress) return;
+  if (withdrawModal) {
+    const currentBal = (inGameBalance / 100000000).toFixed(2);
+    if (withdrawAmountInput) withdrawAmountInput.value = currentBal;
+    withdrawModal.style.display = "flex";
+  }
+}
+
+async function executeDeposit() {
+  if (!walletAddress) return;
+  const edsAmount = parseFloat(depositAmountInput?.value || "0");
+  if (isNaN(edsAmount) || edsAmount <= 0) return;
+  const octas = Math.floor(edsAmount * 100000000);
+  if (depositModal) depositModal.style.display = "none";
+  try {
+    showMessage(
+      currentLocale === "ru"
+        ? "Депозит... Подтвердите в кошельке."
+        : "Depositing... Confirm in wallet.",
+      "info"
+    );
+    await depositOnChain(octas, networkMode);
+    await updateInGameBalance();
+    await updateBalance();
+    showMessage(I18N[currentLocale].deposit_success, "success");
+  } catch (err: any) {
+    console.error("Deposit failed:", err);
+    showMessage(I18N[currentLocale].deposit_fail + " " + (err?.message || ""), "error");
+  }
+}
+
+async function executeWithdraw() {
+  if (!walletAddress) return;
+  const edsAmount = parseFloat(withdrawAmountInput?.value || "0");
+  if (isNaN(edsAmount) || edsAmount <= 0) return;
+  const octas = Math.floor(edsAmount * 100000000);
+  if (withdrawModal) withdrawModal.style.display = "none";
+  try {
+    showMessage(
+      currentLocale === "ru"
+        ? "Вывод... Подтвердите в кошельке."
+        : "Withdrawing... Confirm in wallet.",
+      "info"
+    );
+    await withdrawOnChain(octas, networkMode);
+    await updateInGameBalance();
+    await updateBalance();
+    showMessage(I18N[currentLocale].withdraw_success, "success");
+  } catch (err: any) {
+    console.error("Withdraw failed:", err);
+    showMessage(I18N[currentLocale].withdraw_fail + " " + (err?.message || ""), "error");
+  }
+}
+
+async function updateInGameBalance() {
+  if (!walletAddress) {
+    inGameBalance = 0;
+    if (ingameBalanceRow) ingameBalanceRow.style.display = "none";
+    return;
+  }
+  try {
+    inGameBalance = await getPlayerBalanceOnChain(walletAddress, networkMode);
+    if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
+    if (ingameBalanceRow) ingameBalanceRow.style.display = "flex";
+  } catch {
+    inGameBalance = 0;
+    if (ingameBalanceEl) ingameBalanceEl.textContent = "0.00 EDS";
+    if (ingameBalanceRow) ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
+  }
+}
+
 function showWalletPicker() {
   if (!walletModal) return;
   // Reset to options view
@@ -3207,6 +3289,7 @@ async function handleLuffaWalletConnect() {
 
 async function onWalletConnectSuccess() {
   await updateBalance();
+  await updateInGameBalance();
   await updateBank();
   await updateStats();
   setWalletStatus(true);
@@ -3264,24 +3347,9 @@ async function handleClaim() {
       updateUI();
       return;
     }
-    if (isDemoActive()) {
-      await game.claimPayout();
-    } else {
-      if (!chainGameId) {
-        showMessage(I18N[currentLocale].msg_no_payout, "error");
-        return;
-      }
-      const ownerAddress = await getOwner(networkMode);
-      if (!walletAddress || walletAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-        showMessage("Only the contract owner can claim on-chain payouts.", "error");
-        return;
-      }
-      setTxStatus(I18N[currentLocale].tx_wait_wallet);
-      const gameOnChain = await getGame(chainGameId, networkMode);
-      await claimPayoutOnChain(gameOnChain.player, chainGameId, networkMode);
-      setTxStatus(I18N[currentLocale].tx_submitted);
-      chainGame = await getGame(chainGameId, networkMode);
-    }
+    // With the new local engine, payouts are auto-applied to in-game balance
+    // The claim button is primarily for demo mode and multiplayer payouts
+    await game.claimPayout();
     updateBalance();
     updateBank();
     updateStats();
