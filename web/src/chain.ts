@@ -298,7 +298,8 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   const func = `${contractAddr}::${MODULE_NAME}::${functionName}`;
   console.log("submitEntryFunction:", func, "args:", args, "contractAddr:", contractAddr);
   const dbg = (window as any).__debugLog as ((msg: string) => void) | undefined;
-  dbg?.(`TX ${functionName} args=${JSON.stringify(args)}`);
+  const safeArgs = JSON.stringify(args, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+  dbg?.(`TX ${functionName} args=${safeArgs}`);
   // Ensure we have an active wallet session before trying to sign
   if (!activeWalletType || !connectedAddress) {
     const w = window as any;
