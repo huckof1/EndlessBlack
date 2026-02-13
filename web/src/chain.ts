@@ -297,6 +297,10 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   const contractAddr = getContractAddress(mode);
   const func = `${contractAddr}::${MODULE_NAME}::${functionName}`;
   console.log("submitEntryFunction:", func, "args:", args, "contractAddr:", contractAddr);
+  // Ensure we have an active wallet session before trying to sign
+  if (!activeWalletType || !connectedAddress) {
+    await connectWallet(mode);
+  }
   // Pass args as-is — SDK expects BigInt for u128, strings for addresses, etc.
   const payload = {
     function: func as `${string}::${string}::${string}`,
