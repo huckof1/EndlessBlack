@@ -275,6 +275,11 @@ type WalletProvider = {
   signAndSubmitTransaction?: (args: any) => Promise<any>;
 };
 
+function isMobile(): boolean {
+  const ua = navigator.userAgent || "";
+  return /iphone|ipad|ipod|android/i.test(ua);
+}
+
 function getInjectedWallet(): WalletProvider | null {
   const w = window as any;
   const luffa = w.luffa;
@@ -350,6 +355,34 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   // Web3 SDK (iframe wallet)
   if (activeWalletType === "web3" && web3Sdk) {
     dbg?.("TX route: web3 sdk");
+    if (isMobile()) {
+      const wallet = getInjectedWallet();
+      if (wallet?.signAndSubmitTransaction) {
+        dbg?.("Mobile: using injected wallet instead of web3 sdk");
+        const fallbackPayload = {
+          function: func,
+          typeArguments: [],
+          functionArguments: args,
+          type_arguments: [],
+          arguments: args,
+        };
+        try {
+          const result = await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+          const hash = result?.hash || result?.args?.hash;
+          if (hash) {
+            const endless = await getEndless(mode);
+            await endless.waitForTransaction({ transactionHash: hash });
+          }
+          return result;
+        } catch {
+          return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
+        }
+      }
+      dbg?.("Mobile: no injected wallet, opening picker");
+      const openPicker = (window as any).__openWalletPicker as (() => void) | undefined;
+      openPicker?.();
+      throw new Error("WALLET_PICKER_REQUIRED");
+    }
     try {
       dbg?.("Web3 SDK pre-connect (wake iframe)");
       await web3Sdk.connect();
