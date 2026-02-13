@@ -532,7 +532,7 @@ const veilConfig = {
   noiseIntensity: 0,
   scanlineIntensity: 0,
   scanlineFrequency: 0,
-  speed: 0.85,
+  speed: 1.25,
   warpAmount: 0,
 };
 
