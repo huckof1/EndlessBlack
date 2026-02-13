@@ -386,6 +386,11 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     try {
       dbg?.("Web3 SDK pre-connect (wake iframe)");
       await web3Sdk.connect();
+      const openFn = (web3Sdk as any).open as (() => Promise<any>) | undefined;
+      if (openFn) {
+        dbg?.("Web3 SDK open view");
+        await openFn();
+      }
     } catch (e) {
       dbg?.(`Web3 SDK pre-connect error: ${e instanceof Error ? e.message : String(e)}`);
     }
