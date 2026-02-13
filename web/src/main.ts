@@ -518,6 +518,10 @@ function debugLogLine(message: string) {
   if (debugLogEl) debugLogEl.textContent = debugLog.join("\n");
 }
 
+function showDebugModal() {
+  if (debugModal) debugModal.style.display = "flex";
+}
+
 function resetCurrentGameState() {
   game.resetCurrentGame();
   isPlaying = false;
@@ -3214,8 +3218,10 @@ async function executeDeposit() {
     showMessage(I18N[currentLocale].deposit_success, "success");
   } catch (err: any) {
     console.error("Deposit failed:", err);
-    debugLogLine(`DEPOSIT error: ${err?.message || err}`);
-    showMessage(I18N[currentLocale].deposit_fail + " " + (err?.message || ""), "error");
+    const msg = err?.message || err;
+    debugLogLine(`DEPOSIT error: ${msg}`);
+    showDebugModal();
+    showMessage(I18N[currentLocale].deposit_fail, "error");
   }
 }
 
@@ -3243,8 +3249,10 @@ async function executeWithdraw() {
     showMessage(I18N[currentLocale].withdraw_success, "success");
   } catch (err: any) {
     console.error("Withdraw failed:", err);
-    debugLogLine(`WITHDRAW error: ${err?.message || err}`);
-    showMessage(I18N[currentLocale].withdraw_fail + " " + (err?.message || ""), "error");
+    const msg = err?.message || err;
+    debugLogLine(`WITHDRAW error: ${msg}`);
+    showDebugModal();
+    showMessage(I18N[currentLocale].withdraw_fail, "error");
   }
 }
 
