@@ -455,16 +455,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   };
   try {
     dbg?.("Luffa args sanitized");
-    try {
-      dbg?.("Luffa pre-connect");
-      await sdk.connect();
-    } catch {
-      // ignore connect errors
-    }
-    const res = await Promise.race([
-      sdk.signAndSubmitTransaction({ payload: luffaPayload }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("LUFFA_TIMEOUT")), 8000)),
-    ]) as any;
+    const res = await sdk.signAndSubmitTransaction({ payload: luffaPayload });
     dbg?.(`Luffa response status: ${res?.status || "unknown"}`);
     if (res.status === LuffaUserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
