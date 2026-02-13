@@ -960,6 +960,7 @@ const I18N = {
 function init() {
   initDebug();
   (window as any).__openWalletPicker = showWalletPicker;
+  (window as any).__openLuffa = openLuffaDeepLink;
   // Name input
   startSessionBtn.addEventListener("click", startDemoSession);
   playerNameInput.addEventListener("keypress", (e) => {
