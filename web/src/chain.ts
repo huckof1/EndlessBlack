@@ -461,9 +461,10 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     } catch {
       // ignore connect errors
     }
+    dbg?.("Luffa sign start (payload)");
     const res = await Promise.race([
       sdk.signAndSubmitTransaction({ payload: luffaPayload }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("LUFFA_TIMEOUT")), 8000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("LUFFA_TIMEOUT")), 5000)),
     ]) as any;
     dbg?.(`Luffa response status: ${res?.status || "unknown"}`);
     if (res.status === LuffaUserResponseStatus.APPROVED) {
@@ -475,6 +476,21 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   } catch (err) {
     dbg?.(`Luffa SDK error: ${err instanceof Error ? err.message : String(err)}`);
     if (String(err).includes("LUFFA_TIMEOUT")) {
+      dbg?.("Luffa timeout; retry with data payload");
+      try {
+        const res2 = await Promise.race([
+          sdk.signAndSubmitTransaction({ data: luffaPayload } as any),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("LUFFA_TIMEOUT_2")), 5000)),
+        ]) as any;
+        dbg?.(`Luffa response status (data): ${res2?.status || "unknown"}`);
+        if (res2.status === LuffaUserResponseStatus.APPROVED) {
+          const endless = await getEndless(mode);
+          await endless.waitForTransaction({ transactionHash: res2.args.hash });
+          return res2.args;
+        }
+      } catch (err2) {
+        dbg?.(`Luffa data error: ${err2 instanceof Error ? err2.message : String(err2)}`);
+      }
       const openLuffa = (window as any).__openLuffa as (() => void) | undefined;
       openLuffa?.();
     }
