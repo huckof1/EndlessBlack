@@ -530,14 +530,6 @@ let veilLowCanvas: HTMLCanvasElement | null = null;
 let veilLowCtx: CanvasRenderingContext2D | null = null;
 let veilLowData: ImageData | null = null;
 
-const veilConfig = {
-  hueShift: 0,
-  noiseIntensity: 0,
-  scanlineIntensity: 0,
-  scanlineFrequency: 0,
-  speed: 1,
-  warpAmount: 0,
-};
 
 function initDarkVeil() {
   if (!mainVeil) return;
