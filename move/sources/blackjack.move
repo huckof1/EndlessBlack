@@ -204,7 +204,7 @@ module pixel_blackjack::blackjack {
         // Create resource account to hold player deposits
         let (resource_signer, resource_signer_cap) = account::create_resource_account(admin, b"blackjack_bank");
         // Register resource account for EDS coin
-        endless_coin::register(&resource_signer);
+        endless_coin::register(signer::address_of(&resource_signer));
         move_to(admin, GameStore {
             game_counter: 0,
             games: vector::empty(),
@@ -230,11 +230,11 @@ module pixel_blackjack::blackjack {
         assert!(bet_amount >= MIN_BET, E_INVALID_BET);
         assert!(bet_amount <= MAX_BET, E_INVALID_BET);
 
-        //  
-        assert!(endless_coin::balance(player_addr) >= bet_amount, E_INSUFFICIENT_FUNDS);
-
-        //  
+        // Use player's in-game deposited balance (on-chain vault accounting)
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        assert!(simple_map::contains_key(&game_store.player_balances, &player_addr), E_INSUFFICIENT_BALANCE);
+        let player_balance = simple_map::borrow_mut(&mut game_store.player_balances, &player_addr);
+        assert!(*player_balance >= bet_amount, E_INSUFFICIENT_BALANCE);
 
         //     
         let fee_amount = bet_amount * game_store.fee_bps / 10000;
@@ -246,8 +246,8 @@ module pixel_blackjack::blackjack {
         let max_payout = bet_amount * 5 / 2;
         assert!(bankroll_value + net_bet >= max_payout, E_INSUFFICIENT_BANKROLL);
 
-        //  transfer bet to owner and update accounting
-        endless_coin::transfer(player, game_store.owner, bet_amount);
+        // Lock stake from player's in-game balance into bankroll/treasury accounting
+        *player_balance = *player_balance - bet_amount;
         game_store.treasury = game_store.treasury + fee_amount;
         game_store.bankroll = game_store.bankroll + net_bet;
 
@@ -752,8 +752,8 @@ module pixel_blackjack::blackjack {
 
         let payout = game.payout_due;
         assert!(game_store.bankroll >= payout, E_INSUFFICIENT_BANKROLL);
-        assert!(endless_coin::balance(owner_addr) >= payout, E_INSUFFICIENT_FUNDS);
-        endless_coin::transfer(owner, player_addr, payout);
+        let resource_signer = account::create_signer_with_capability(&game_store.resource_signer_cap);
+        endless_coin::transfer(&resource_signer, player_addr, payout);
         game_store.bankroll = game_store.bankroll - payout;
 
         game.is_claimed = true;
@@ -772,7 +772,11 @@ module pixel_blackjack::blackjack {
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
         let owner_addr = signer::address_of(owner);
         assert!(owner_addr == game_store.owner, E_NOT_OWNER);
+        assert!(amount > 0, E_INVALID_AMOUNT);
         assert!(endless_coin::balance(owner_addr) >= amount, E_INSUFFICIENT_FUNDS);
+        // Real funding: move EDS from owner wallet to the game resource account.
+        let resource_signer = account::create_signer_with_capability(&game_store.resource_signer_cap);
+        endless_coin::transfer(owner, signer::address_of(&resource_signer), amount);
         game_store.bankroll = game_store.bankroll + amount;
     }
 
@@ -781,8 +785,10 @@ module pixel_blackjack::blackjack {
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
         let owner_addr = signer::address_of(owner);
         assert!(owner_addr == game_store.owner, E_NOT_OWNER);
+        assert!(amount > 0, E_INVALID_AMOUNT);
         assert!(game_store.treasury >= amount, E_INSUFFICIENT_FUNDS);
-        endless_coin::transfer(owner, recipient, amount);
+        let resource_signer = account::create_signer_with_capability(&game_store.resource_signer_cap);
+        endless_coin::transfer(&resource_signer, recipient, amount);
         game_store.treasury = game_store.treasury - amount;
     }
 
