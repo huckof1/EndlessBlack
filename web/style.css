@@ -1270,6 +1270,13 @@ body[data-demo="true"] .wallet-item--fee {
   gap: 10px;
 }
 
+.wallet-luffa-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .wallet-qr-container {
   background: #ffffff;
   border-radius: 12px;

@@ -153,6 +153,9 @@ const walletConnectStatus = document.getElementById("wallet-connect-status") as 
 const walletStatusText = document.getElementById("wallet-status-text") as HTMLDivElement;
 const walletQrContainer = document.getElementById("wallet-qr-container") as HTMLDivElement;
 const walletPickerBack = document.getElementById("wallet-picker-back") as HTMLButtonElement;
+const walletLuffaQrSection = document.getElementById("wallet-luffa-qr-section") as HTMLDivElement;
+const walletLuffaQr = document.getElementById("wallet-luffa-qr") as HTMLDivElement;
+const walletLuffaQrHint = document.getElementById("wallet-luffa-qr-hint") as HTMLDivElement;
 const devOverlay = document.getElementById("dev-overlay") as HTMLDivElement;
 const devOverlayKeys = document.getElementById("dev-overlay-keys") as HTMLPreElement;
 const devOverlayClose = document.getElementById("dev-overlay-close") as HTMLButtonElement;
@@ -3655,9 +3658,15 @@ async function connectWalletFlow(fromSessionStart: boolean) {
   if (isWalletConnecting) return;
   isWalletConnecting = true;
   const wasDemo = isDemoActive();
+
+  // Show wallet picker with Luffa QR immediately
+  showWalletPicker();
+
   try {
     const w = window as any;
-    if (w?.endless) {
+    if (isLuffaInApp()) {
+      walletAddress = await connectLuffa(networkMode);
+    } else if (w?.endless) {
       walletAddress = await connectEndlessExtension(networkMode);
     } else {
       walletAddress = await connectWallet(networkMode);
@@ -3682,15 +3691,9 @@ async function connectWalletFlow(fromSessionStart: boolean) {
       await updateStats();
       setWalletStatus(false);
       if (walletAddressEl) walletAddressEl.textContent = "TEST";
-    } else {
-      showMessage(
-        currentLocale === "ru"
-          ? "Не удалось подключить кошелёк. Попробуйте ещё раз."
-          : "Failed to connect wallet. Please try again.",
-        "error"
-      );
-      showWalletPicker();
+      if (walletModal) walletModal.style.display = "none";
     }
+    // Wallet picker with QR stays open for manual connection
   } finally {
     isWalletConnecting = false;
     updateUI();
@@ -3711,7 +3714,41 @@ function showWalletPicker() {
   if (walletPickerTitle) {
     walletPickerTitle.textContent = I18N[currentLocale].wallet_picker_title;
   }
+  // Show Luffa QR immediately in the picker
+  generateLuffaQr();
   walletModal.style.display = "flex";
+  // Try Luffa auto-connect in background (works if already inside Luffa app)
+  tryLuffaAutoConnect();
+}
+
+async function generateLuffaQr() {
+  if (!walletLuffaQr) return;
+  walletLuffaQr.innerHTML = "";
+  if (walletLuffaQrSection) walletLuffaQrSection.style.display = "flex";
+  if (walletLuffaQrHint) {
+    walletLuffaQrHint.textContent = I18N[currentLocale].wallet_luffa_qr_hint;
+  }
+  try {
+    const canvas = await QRCode.toCanvas(window.location.href, {
+      width: 180,
+      margin: 2,
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+    walletLuffaQr.appendChild(canvas);
+  } catch {
+    walletLuffaQr.textContent = window.location.href;
+  }
+}
+
+async function tryLuffaAutoConnect() {
+  if (walletAddress) return;
+  if (!isLuffaInApp()) return;
+  try {
+    walletAddress = await connectLuffa(networkMode);
+    await onWalletConnectSuccess();
+  } catch {
+    // Not in Luffa or failed — QR is visible for manual scan
+  }
 }
 
 async function handleEndlessWalletConnect() {
@@ -3764,7 +3801,7 @@ async function handleLuffaWalletConnect() {
   if (walletAddress) {
     await handleDisconnectWallet();
   }
-  // Switch to QR view
+  // Switch to Luffa connecting view — QR already visible in picker section
   if (walletPickerOptions) walletPickerOptions.style.display = "none";
   if (walletConnectStatus) walletConnectStatus.style.display = "flex";
   if (walletPickerBack) walletPickerBack.style.display = "inline-flex";
@@ -3772,33 +3809,18 @@ async function handleLuffaWalletConnect() {
   if (walletPickerTitle) {
     walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa;
   }
-
-  const qrUrl = window.location.href;
-
-  if (walletQrContainer) {
-    walletQrContainer.style.display = "flex";
-    walletQrContainer.innerHTML = "";
-    try {
-      const canvas = await QRCode.toCanvas(qrUrl, {
-        width: 200,
-        margin: 2,
-        color: { dark: "#000000", light: "#ffffff" },
-      });
-      walletQrContainer.appendChild(canvas);
-    } catch {
-      walletQrContainer.textContent = qrUrl;
-    }
-  }
   if (walletStatusText) {
-    walletStatusText.textContent = I18N[currentLocale].wallet_luffa_qr_hint;
+    walletStatusText.textContent = I18N[currentLocale].wallet_luffa_connecting;
   }
 
-  // Also try SDK connect in parallel (in case user is in Luffa webview)
+  // Try SDK connect (works if inside Luffa app)
   try {
     walletAddress = await connectLuffa(networkMode);
-    onWalletConnectSuccess();
+    await onWalletConnectSuccess();
   } catch {
-    // QR code is shown — user needs to scan it
+    if (walletStatusText) {
+      walletStatusText.textContent = I18N[currentLocale].wallet_luffa_qr_hint;
+    }
   }
 }
 
