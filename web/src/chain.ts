@@ -24,6 +24,7 @@ type SdkModule = {
   Ed25519Signature: any;
   AccountAuthenticatorEd25519: any;
   TypeTagU64: any;
+  TypeTagU128: any;
 };
 
 let sdkPromise: Promise<SdkModule> | null = null;
@@ -358,6 +359,7 @@ async function ensureWeb3PublicKeyHex(mode: "testnet" | "mainnet" | undefined, d
   return web3PublicKeyHex;
 }
 
+// @ts-ignore kept as potential fallback
 async function signViaWeb3AndSubmit(
   payload: { function: `${string}::${string}::${string}`; typeArguments: string[]; functionArguments: any[] },
   mode?: "testnet" | "mainnet",
@@ -370,7 +372,7 @@ async function signViaWeb3AndSubmit(
     Ed25519PublicKey,
     Ed25519Signature,
     AccountAuthenticatorEd25519,
-    TypeTagU64,
+    TypeTagU128,
   } = await loadSdk();
   const endless = await getEndless(mode);
   const sender = connectedAddress.startsWith("0x")
@@ -379,12 +381,12 @@ async function signViaWeb3AndSubmit(
 
   const functionName = payload.function.split("::").pop() || "";
   const withAbiPayload: any = { ...payload };
-  if (functionName === "deposit_u64" || functionName === "withdraw_u64" || functionName === "fund_bankroll_u64") {
+  if (functionName === "deposit" || functionName === "withdraw" || functionName === "fund_bankroll") {
     withAbiPayload.abi = {
       typeParameters: [],
-      parameters: [new TypeTagU64()],
+      parameters: [new TypeTagU128()],
     };
-    dbg?.(`Web3 SDK signature-only ABI injected (${functionName})`);
+    dbg?.(`Web3 SDK signature-only ABI injected u128 (${functionName})`);
   }
 
   const tx = await endless.transaction.build.simple({
@@ -393,112 +395,32 @@ async function signViaWeb3AndSubmit(
   });
   const txHex = tx.bcsToHex().toString();
   dbg?.("Web3 SDK signature-only flow start");
-  try {
-    const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
-    if (openFn) {
-      dbg?.("Web3 SDK open view (signature-only)");
-      const maybe = openFn();
-      Promise.resolve(maybe).catch(() => undefined);
-    }
-  } catch {
-    // ignore
+
+  // Ensure wallet iframe is ready before calling signTransaction.
+  // SDK's signTransaction only checks readyState (sync flag) — if iframe
+  // isn't ready yet, the message is silently dropped and Promise never resolves.
+  // waitReady() is what connect()/signMessage() use; we must call it manually.
+  const sdkAny = web3Sdk as any;
+  const modal = sdkAny.message?.modal;
+  if (modal?.waitReady) {
+    dbg?.("Web3 SDK waiting for iframe ready...");
+    await modal.waitReady();
+    dbg?.("Web3 SDK iframe ready");
   }
-  async function legacySignBuildTransaction(): Promise<any> {
-    if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
-    const sdkAny = web3Sdk as any;
-    const msg = sdkAny.message;
-    const metadata = sdkAny._metadata || {};
-    if (!msg?.sendMessage) {
-      throw new Error("Legacy signBuildTransaction unavailable");
-    }
-    dbg?.("Web3 SDK try legacy signBuildTransaction");
-    return await new Promise((resolve, reject) => {
-      let done = false;
-      const t = setTimeout(() => {
-        if (done) return;
-        done = true;
-        reject(new Error("WEB3_SIGN_BUILD_TIMEOUT"));
-      }, 25000);
-      try {
-        msg.sendMessage(
-          {
-            uuid: `${Date.now()}`,
-            methodName: "signBuildTransaction",
-            metadata,
-            data: {
-              transactionData: txHex,
-              sender: connectedAddress,
-              type: "simple",
-            },
-          },
-          (res: any) => {
-            if (done) return;
-            done = true;
-            clearTimeout(t);
-            resolve(res);
-          }
-        );
-      } catch (e) {
-        if (done) return;
-        done = true;
-        clearTimeout(t);
-        reject(e);
-      }
-    });
+  // Open the modal so user sees the signing prompt
+  if (modal?.openModal) {
+    modal.openModal();
   }
 
-  let signPromise: Promise<any>;
-  try {
-    // Per Endless web3 docs, signTransaction expects built txn object.
-    signPromise = (web3Sdk as any).signTransaction(tx, EndlessWalletTransactionType.SIMPLE);
-    dbg?.("Web3 SDK signTransaction(txn object)");
-  } catch {
-    // Keep hex fallback for SDK variants that still expect serialized value.
-    signPromise = web3Sdk.signTransaction(txHex as any, EndlessWalletTransactionType.SIMPLE);
-    dbg?.("Web3 SDK signTransaction(hex fallback)");
-  }
-  let settled = false;
-  const wrappedSign = signPromise.then((v: any) => {
-    settled = true;
-    return v;
-  });
-  setTimeout(() => {
-    if (settled || !web3Sdk) return;
-    const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
-    if (openFn) {
-      dbg?.("Web3 SDK open view fallback (signature-only)");
-      try {
-        const maybe = openFn();
-        Promise.resolve(maybe).catch(() => undefined);
-      } catch {
-        // ignore
-      }
-    }
-  }, 1200);
+  // SDK expects serialized hex string.
+  // Wallet iframe may take a while to load tx details from RPC (testnet can be slow).
+  // Give user up to 2 minutes to review and click Confirm.
+  dbg?.("Web3 SDK signTransaction(hex)");
+  const signPromise = web3Sdk.signTransaction(txHex as any, EndlessWalletTransactionType.SIMPLE);
   const signTimeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error("WEB3_SIGN_TX_TIMEOUT")), 25000)
+    setTimeout(() => reject(new Error("WEB3_SIGN_TX_TIMEOUT")), 120000)
   );
-  let signResult: any;
-  try {
-    signResult = await Promise.race([wrappedSign, signTimeout]);
-  } catch (e: any) {
-    if (e?.message === "WEB3_SIGN_TX_TIMEOUT") {
-      const legacy = await legacySignBuildTransaction();
-      if (legacy?.signature || legacy?.data) {
-        signResult = {
-          status: UserResponseStatus.APPROVED,
-          args: {
-            signature: legacy.signature,
-            data: legacy.data,
-          },
-        };
-      } else {
-        throw new Error(`Legacy signing failed: ${legacy?.message || "empty response"}`);
-      }
-    } else {
-      throw e;
-    }
-  }
+  const signResult: any = await Promise.race([signPromise, signTimeout]);
   if (signResult.status !== UserResponseStatus.APPROVED) {
     throw new Error(`Signature rejected: ${signResult.message || signResult.status}`);
   }
@@ -524,6 +446,7 @@ async function signViaWeb3AndSubmit(
   return { hash: pending.hash };
 }
 
+// @ts-ignore kept as potential fallback
 async function signAndSubmitBuiltViaWeb3(
   payload: { function: `${string}::${string}::${string}`; typeArguments: string[]; functionArguments: any[] },
   mode?: "testnet" | "mainnet",
@@ -531,7 +454,7 @@ async function signAndSubmitBuiltViaWeb3(
 ) {
   if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
   if (!connectedAddress) throw new Error("Wallet is not connected");
-  const { AccountAddress, TypeTagU64 } = await loadSdk();
+  const { AccountAddress, TypeTagU128 } = await loadSdk();
   const endless = await getEndless(mode);
   const sender = connectedAddress.startsWith("0x")
     ? AccountAddress.from(connectedAddress)
@@ -539,12 +462,12 @@ async function signAndSubmitBuiltViaWeb3(
 
   const functionName = payload.function.split("::").pop() || "";
   const withAbiPayload: any = { ...payload };
-  if (functionName === "deposit_u64" || functionName === "withdraw_u64" || functionName === "fund_bankroll_u64") {
+  if (functionName === "deposit" || functionName === "withdraw" || functionName === "fund_bankroll") {
     withAbiPayload.abi = {
       typeParameters: [],
-      parameters: [new TypeTagU64()],
+      parameters: [new TypeTagU128()],
     };
-    dbg?.(`Web3 SDK signAndSubmit ABI injected (${functionName})`);
+    dbg?.(`Web3 SDK signAndSubmit ABI injected u128 (${functionName})`);
   }
 
   const tx = await endless.transaction.build.simple({
@@ -611,13 +534,14 @@ async function signAndSubmitBuiltViaWeb3(
   return { hash };
 }
 
+// @ts-ignore kept as potential fallback
 async function signAndSubmitViaSdkWithAbi(
   payload: { function: `${string}::${string}::${string}`; typeArguments: string[]; functionArguments: any[] },
   mode?: "testnet" | "mainnet",
   dbg?: (msg: string) => void
 ) {
   if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
-  const { TypeTagU64 } = await loadSdk();
+  const { TypeTagU128 } = await loadSdk();
   const functionName = payload.function.split("::").pop() || "";
   const argsWithTypes = payload.functionArguments.map((v: any) => {
     if (typeof v === "number") return BigInt(v);
@@ -629,12 +553,12 @@ async function signAndSubmitViaSdkWithAbi(
     typeArguments: payload.typeArguments || [],
     functionArguments: argsWithTypes,
   };
-  if (functionName === "deposit_u64" || functionName === "withdraw_u64" || functionName === "fund_bankroll_u64") {
+  if (functionName === "deposit" || functionName === "withdraw" || functionName === "fund_bankroll") {
     withAbiPayload.abi = {
       typeParameters: [],
-      parameters: [new TypeTagU64()],
+      parameters: [new TypeTagU128()],
     };
-    dbg?.(`Web3 SDK sdk-abi path injected (${functionName})`);
+    dbg?.(`Web3 SDK sdk-abi path injected u128 (${functionName})`);
   }
   try {
     const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
@@ -704,24 +628,6 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     typeArguments: [] as string[],
     functionArguments: web3Args,
   };
-  const web3NumericArgs = args.map((a) =>
-    typeof a === "bigint"
-      ? (a <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(a) : a.toString())
-      : a
-  );
-  const web3NumericPayload = {
-    function: func as `${string}::${string}::${string}`,
-    typeArguments: [] as string[],
-    functionArguments: web3NumericArgs,
-  };
-  const web3NumericDataPayload = {
-    function: func,
-    typeArguments: [],
-    functionArguments: web3NumericArgs,
-    type_arguments: [],
-    arguments: web3NumericArgs,
-  };
-
   async function signWithWeb3Sdk(
     payloadToSend: typeof web3Payload,
     op: string,
@@ -846,73 +752,48 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   if (activeWalletType === "web3" && web3Sdk) {
     dbg?.("TX route: web3 sdk");
     let res: any;
-    const canUseSignatureFallback =
-      functionName === "deposit_u64" ||
-      functionName === "withdraw_u64" ||
-      functionName === "fund_bankroll_u64";
-    if (canUseSignatureFallback) {
-      try {
-        dbg?.(`Web3 SDK sdk-abi path (${functionName})`);
-        return await signAndSubmitViaSdkWithAbi(
-          web3NumericPayload,
-          mode,
-          dbg
-        );
-      } catch (sdkAbiErr: any) {
-        dbg?.(`Web3 SDK sdk-abi error: ${sdkAbiErr?.message || sdkAbiErr}`);
+    const isPlayerBankOp =
+      functionName === "deposit" ||
+      functionName === "withdraw" ||
+      functionName === "fund_bankroll";
+
+    // For player bank ops: use simple signAndSubmitTransaction (same as faucet).
+    // Pass amount as string — SDK fetches ABI from chain and handles u128 serialization.
+    if (isPlayerBankOp) {
+      dbg?.(`Web3 SDK simple signAndSubmit (${functionName})`);
+      const stringArgs = args.map((a: any) => String(a));
+      const simplePayload = {
+        function: func as `${string}::${string}::${string}`,
+        typeArguments: [] as string[],
+        functionArguments: stringArgs,
+      };
+      const bankRes = await web3Sdk.signAndSubmitTransaction({ payload: simplePayload });
+      if (bankRes.status === UserResponseStatus.APPROVED) {
+        dbg?.(`Web3 SDK bank op approved hash=${String(bankRes?.args?.hash || "n/a")}`);
+        const endless = await getEndless(mode);
+        await endless.waitForTransaction({ transactionHash: bankRes.args.hash });
+        dbg?.("Web3 SDK bank op confirmed on-chain");
+        return bankRes.args;
       }
-      try {
-        dbg?.(`Web3 SDK direct signAndSubmit path (${functionName})`);
-        return await signAndSubmitBuiltViaWeb3(
-          web3NumericPayload,
-          mode,
-          dbg
-        );
-      } catch (directErr: any) {
-        dbg?.(`Web3 SDK direct signAndSubmit error: ${directErr?.message || directErr}`);
-      }
-      dbg?.(`Web3 SDK signature-only fallback path (${functionName})`);
-      return await signViaWeb3AndSubmit(
-        web3NumericPayload,
-        mode,
-        dbg
-      );
+      throw new Error(`Bank op rejected: ${bankRes.message || bankRes.status}`);
     }
+
+    // For other ops: let wallet handle everything via signAndSubmitTransaction
     try {
-      const isPlayerBankOp =
-        functionName === "deposit" ||
-        functionName === "withdraw" ||
-        functionName === "deposit_u64" ||
-        functionName === "withdraw_u64";
-      const isSimpleWeb3Flow = isPlayerBankOp || functionName === "fund_bankroll" || functionName === "fund_bankroll_u64";
-      if (isSimpleWeb3Flow) {
-        dbg?.(`Web3 SDK signAndSubmit start (${functionName})`);
-        // Minimal path (same idea as faucet): avoids SDK flows that close wallet without tx prompt.
-        if (isPlayerBankOp) {
-          res = await signWithWeb3Sdk(
-            web3NumericPayload,
-            `${functionName}:numeric`,
-            web3NumericDataPayload
-          );
-        } else {
-          res = await signWithWeb3Sdk(web3Payload, functionName);
+      try {
+        dbg?.("Web3 SDK pre-connect");
+        await web3Sdk.connect();
+        const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+        if (openFn) {
+          dbg?.("Web3 SDK open view");
+          const maybePromise = openFn();
+          Promise.resolve(maybePromise).catch(() => undefined);
         }
-      } else {
-        try {
-          dbg?.("Web3 SDK pre-connect");
-          await web3Sdk.connect();
-          const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
-          if (openFn) {
-            dbg?.("Web3 SDK open view");
-            const maybePromise = openFn();
-            Promise.resolve(maybePromise).catch(() => undefined);
-          }
-        } catch (e: any) {
-          dbg?.(`Web3 SDK pre-open error: ${e?.message || e}`);
-        }
-        dbg?.("Web3 SDK signAndSubmit start");
-        res = await signWithWeb3Sdk(web3Payload, functionName);
+      } catch (e: any) {
+        dbg?.(`Web3 SDK pre-open error: ${e?.message || e}`);
       }
+      dbg?.("Web3 SDK signAndSubmit start");
+      res = await signWithWeb3Sdk(web3Payload, functionName);
       dbg?.(`Web3 SDK response status=${String(res?.status || "unknown")}`);
       if (res?.message) {
         dbg?.(`Web3 SDK response message=${String(res.message)}`);
@@ -920,18 +801,6 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     } catch (sdkErr: any) {
       console.error("Web3 SDK signAndSubmitTransaction error:", sdkErr);
       dbg?.(`Web3 SDK error: ${sdkErr?.message || sdkErr}`);
-      if (canUseSignatureFallback) {
-        try {
-          dbg?.("Web3 SDK fallback to signature-only submit");
-          return await signViaWeb3AndSubmit(
-            web3NumericPayload,
-            mode,
-            dbg
-          );
-        } catch (sigErr: any) {
-          dbg?.(`Web3 SDK signature-only error: ${sigErr?.message || sigErr}`);
-        }
-      }
       // Fallback to injected wallet if available (browser extension)
       const wallet = getInjectedWallet();
       if (wallet?.signAndSubmitTransaction) {
@@ -970,18 +839,6 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
         throw new Error(`On-chain error: ${waitErr?.message || waitErr}`);
       }
       return res.args;
-    }
-    if (canUseSignatureFallback) {
-      try {
-        dbg?.("Web3 SDK rejected; trying signature-only submit");
-        return await signViaWeb3AndSubmit(
-          web3NumericPayload,
-          mode,
-          dbg
-        );
-      } catch (sigErr: any) {
-        dbg?.(`Web3 SDK signature-only rejected: ${sigErr?.message || sigErr}`);
-      }
     }
     throw new Error(`Rejected: ${res.message || res.status}`);
   }
@@ -1232,7 +1089,7 @@ export async function fundBankroll(amount: number, networkMode?: "testnet" | "ma
   if (!Number.isFinite(amount) || amount <= 0 || amount > Number.MAX_SAFE_INTEGER) {
     throw new Error("Invalid bankroll amount");
   }
-  return await submitEntryFunction("fund_bankroll_u64", [Math.floor(amount)], networkMode);
+  return await submitEntryFunction("fund_bankroll", [BigInt(Math.floor(amount))], networkMode);
 }
 
 export async function withdrawFees(amount: number, toAddress: string, networkMode?: "testnet" | "mainnet") {
@@ -1245,14 +1102,14 @@ export async function deposit(amount: number, networkMode?: "testnet" | "mainnet
   if (!Number.isFinite(amount) || amount <= 0 || amount > Number.MAX_SAFE_INTEGER) {
     throw new Error("Invalid deposit amount");
   }
-  return await submitEntryFunction("deposit_u64", [Math.floor(amount)], networkMode);
+  return await submitEntryFunction("deposit", [BigInt(Math.floor(amount))], networkMode);
 }
 
 export async function withdraw(amount: number, networkMode?: "testnet" | "mainnet") {
   if (!Number.isFinite(amount) || amount <= 0 || amount > Number.MAX_SAFE_INTEGER) {
     throw new Error("Invalid withdraw amount");
   }
-  return await submitEntryFunction("withdraw_u64", [Math.floor(amount)], networkMode);
+  return await submitEntryFunction("withdraw", [BigInt(Math.floor(amount))], networkMode);
 }
 
 export async function getPlayerBalance(address: string, networkMode?: "testnet" | "mainnet"): Promise<number> {
