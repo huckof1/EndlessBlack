@@ -7,6 +7,7 @@ import {
   connectWallet,
   connectEndlessExtension,
   connectLuffa,
+  setPreferredWalletType,
   getWalletBalance,
   getLatestGameId,
   getGame,
@@ -969,6 +970,7 @@ const I18N = {
     music: "MUSIC",
     effects: "EFFECTS",
     connect_wallet: "CONNECT WALLET",
+    reconnect_wallet: "RECONNECT WALLET",
     wallet_picker_title: "CHOOSE WALLET",
     wallet_endless: "ENDLESS WALLET",
     wallet_endless_desc: "Web wallet",
@@ -1133,6 +1135,7 @@ const I18N = {
     music: "МУЗЫКА",
     effects: "ЭФФЕКТЫ",
     connect_wallet: "ПОДКЛЮЧИТЬ КОШЕЛЁК",
+    reconnect_wallet: "ПЕРЕПОДКЛЮЧИТЬ",
     wallet_picker_title: "ВЫБОР КОШЕЛЬКА",
     wallet_endless: "ENDLESS WALLET",
     wallet_endless_desc: "Веб-кошелёк",
@@ -1425,16 +1428,17 @@ function init() {
   });
   connectWalletHeader.addEventListener("click", async () => {
     if (walletAddress) {
-      // Already connected — disconnect
-      await handleDisconnectWallet();
+      // Already connected — let user choose wallet type explicitly
+      showWalletPicker();
       return;
     }
     if (!isSessionStarted) {
       await startSession();
+      showWalletPicker();
       focusBetArea();
       return;
     }
-    await handleConnectWallet();
+    showWalletPicker();
     focusBetArea();
   });
 
@@ -1614,9 +1618,6 @@ async function startSession() {
   if (playerHandNameEl) {
     playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
   }
-
-  // Connect wallet
-  await connectWalletFlow(true);
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
 
@@ -3264,10 +3265,10 @@ function updateUI() {
     inviteBtnHeader.textContent = I18N[currentLocale].invite;
   }
   if (connectWalletHeader) {
-    // Always visible — toggles between connect and disconnect
+    // Always visible — connect or reconnect
     connectWalletHeader.style.display = "inline-flex";
     if (walletAddress) {
-      connectWalletHeader.textContent = I18N[currentLocale].disconnect_wallet;
+      connectWalletHeader.textContent = I18N[currentLocale].reconnect_wallet;
     } else {
       connectWalletHeader.textContent = I18N[currentLocale].connect_wallet;
     }
@@ -3441,7 +3442,18 @@ async function handleFaucet() {
   } catch (err) {
     console.warn("Faucet failed:", err);
     debugLogLine(`FAUCET error: ${err instanceof Error ? err.message : String(err)}`);
-    showMessage(I18N[currentLocale].faucet_fail, "error");
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.toLowerCase().includes("wallet closed") || msg.includes("WALLET_PICKER_REQUIRED")) {
+      showMessage(
+        currentLocale === "ru"
+          ? "Кошелёк закрылся. Откройте LUFFA (кнопка вверху) или QR и повторите."
+          : "Wallet closed. Open LUFFA (top button) or use QR, then try again.",
+        "error"
+      );
+      showWalletPicker();
+    } else {
+      showMessage(I18N[currentLocale].faucet_fail, "error");
+    }
   } finally {
     if (faucetBtn) faucetBtn.disabled = false;
   }
@@ -3534,6 +3546,7 @@ async function executeDeposit() {
   const edsAmount = parseFloat(depositAmountInput?.value || "0");
   if (isNaN(edsAmount) || edsAmount <= 0) return;
   const octas = Math.floor(edsAmount * 100000000);
+  const expectedInGame = inGameBalance + octas;
   if (depositModal) depositModal.style.display = "none";
   try {
     debugLogLine(`DEPOSIT submit: ${edsAmount} EDS (${octas} octas)`);
@@ -3544,7 +3557,13 @@ async function executeDeposit() {
       "info"
     );
     await depositOnChain(octas, networkMode);
-    await updateInGameBalance();
+    debugLogLine("DEPOSIT tx submitted/confirmed, syncing in-game balance...");
+    // Indexers/view can lag for a moment after tx confirmation.
+    for (let i = 0; i < 6; i++) {
+      await updateInGameBalance();
+      if (inGameBalance >= expectedInGame) break;
+      await delay(600);
+    }
     await updateBalance();
     showMessage(I18N[currentLocale].deposit_success, "success");
   } catch (err: any) {
@@ -3552,16 +3571,24 @@ async function executeDeposit() {
     const msg = err?.message || err;
     debugLogLine(`DEPOSIT error: ${msg}`);
     if (String(msg).toLowerCase().includes("wallet closed") || String(msg).includes("WALLET_PICKER_REQUIRED")) {
-      showMessage(
-        currentLocale === "ru"
-          ? "Кошелёк закрылся. Откройте LUFFA (кнопка вверху) или QR и повторите."
-          : "Wallet closed. Open LUFFA (top button) or use QR, then try again.",
-        "error"
-      );
-      showWalletPicker();
-    } else {
-      showMessage(I18N[currentLocale].deposit_fail, "error");
+      try {
+        showMessage(
+          currentLocale === "ru"
+            ? "Повторное подключение кошелька..."
+            : "Reconnecting wallet...",
+          "info"
+        );
+        await connectWalletFlow(false);
+        await depositOnChain(octas, networkMode);
+        await updateInGameBalance();
+        await updateBalance();
+        showMessage(I18N[currentLocale].deposit_success, "success");
+        return;
+      } catch (retryErr: any) {
+        debugLogLine(`DEPOSIT retry error: ${retryErr?.message || retryErr}`);
+      }
     }
+    showMessage(I18N[currentLocale].deposit_fail, "error");
   }
 }
 
@@ -3662,6 +3689,7 @@ async function connectWalletFlow(fromSessionStart: boolean) {
           : "Failed to connect wallet. Please try again.",
         "error"
       );
+      showWalletPicker();
     }
   } finally {
     isWalletConnecting = false;
@@ -3688,6 +3716,10 @@ function showWalletPicker() {
 
 async function handleEndlessWalletConnect() {
   if (!walletModal) return;
+  setPreferredWalletType("web3");
+  if (walletAddress) {
+    await handleDisconnectWallet();
+  }
   // Switch to status view
   if (walletPickerOptions) walletPickerOptions.style.display = "none";
   if (walletConnectStatus) walletConnectStatus.style.display = "flex";
@@ -3702,25 +3734,36 @@ async function handleEndlessWalletConnect() {
   }
 
   try {
-    walletAddress = await connectEndlessExtension(networkMode);
-    onWalletConnectSuccess();
+    // Universal flow first: web3 SDK works without browser extension.
+    walletAddress = await connectWallet(networkMode);
+    await onWalletConnectSuccess();
   } catch (err: any) {
-    if (walletStatusText) {
-      walletStatusText.textContent = I18N[currentLocale].wallet_endless_install;
-    }
-    if (walletPickerTitle) {
-      walletPickerTitle.textContent = I18N[currentLocale].wallet_endless_missing;
-    }
-    if (walletInstallLink) {
-      walletInstallLink.href = "https://wallet.endless.link/";
-      walletInstallLink.textContent = I18N[currentLocale].wallet_endless_open;
-      walletInstallLink.style.display = "inline-flex";
+    try {
+      walletAddress = await connectEndlessExtension(networkMode);
+      await onWalletConnectSuccess();
+      return;
+    } catch {
+      if (walletStatusText) {
+        walletStatusText.textContent = I18N[currentLocale].wallet_endless_install;
+      }
+      if (walletPickerTitle) {
+        walletPickerTitle.textContent = I18N[currentLocale].wallet_endless_missing;
+      }
+      if (walletInstallLink) {
+        walletInstallLink.href = "https://wallet.endless.link/";
+        walletInstallLink.textContent = I18N[currentLocale].wallet_endless_open;
+        walletInstallLink.style.display = "inline-flex";
+      }
     }
   }
 }
 
 async function handleLuffaWalletConnect() {
   if (!walletModal) return;
+  setPreferredWalletType("luffa");
+  if (walletAddress) {
+    await handleDisconnectWallet();
+  }
   // Switch to QR view
   if (walletPickerOptions) walletPickerOptions.style.display = "none";
   if (walletConnectStatus) walletConnectStatus.style.display = "flex";
@@ -3771,8 +3814,8 @@ async function onWalletConnectSuccess() {
   if (walletAddressEl) walletAddressEl.textContent = displayAddr;
   if (walletModal) walletModal.style.display = "none";
   // Check if connected wallet is contract owner
-  const CONTRACT_ADDR_HEX = "0x1329ceb3251b7593e20755b5ac2a4ee848ef1430c71d18b8bddff6510d81a792";
-  const CONTRACT_ADDR_B58 = "2HoipHVpJG5fuKsfPymt5v4KdNqgrkmTcKkchUGLHqJh";
+  const CONTRACT_ADDR_HEX = "0x8af019770bdc550cb6796ae9449c8223e83c7465ce0eec70a2417d6bc007ea6f";
+  const CONTRACT_ADDR_B58 = "AMMcEa1cGhmcFFxBFiJgpuLTCU5gdNTmnvvTF2SbV1Jv";
   const normWallet = normalizeAddress(walletAddress);
   isContractOwner = normWallet === CONTRACT_ADDR_HEX
     || walletAddress === CONTRACT_ADDR_B58

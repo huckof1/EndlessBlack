@@ -4,6 +4,7 @@ import {
   EndlessJsSdk,
   UserResponseStatus,
   EndLessSDKEvent,
+  EndlessWalletTransactionType,
 } from "@endlesslab/endless-web3-sdk";
 import {
   EndlessLuffaSdk,
@@ -18,6 +19,11 @@ type SdkModule = {
   Endless: any;
   EndlessConfig: any;
   Network: any;
+  AccountAddress: any;
+  Ed25519PublicKey: any;
+  Ed25519Signature: any;
+  AccountAuthenticatorEd25519: any;
+  TypeTagU64: any;
 };
 
 let sdkPromise: Promise<SdkModule> | null = null;
@@ -69,9 +75,19 @@ function getContractAddress(mode?: "testnet" | "mainnet"): string {
 
 export type WalletType = "endless" | "luffa" | "web3" | null;
 let activeWalletType: WalletType = null;
+type PreferredWalletType = "endless" | "luffa" | "web3" | null;
+let preferredWalletType: PreferredWalletType = null;
 
 export function getActiveWalletType(): WalletType {
   return activeWalletType;
+}
+
+export function setPreferredWalletType(type: PreferredWalletType) {
+  preferredWalletType = type;
+}
+
+export function getPreferredWalletType(): PreferredWalletType {
+  return preferredWalletType;
 }
 
 // ==================== ENDLESS WEB3 SDK (primary — iframe wallet) ====================
@@ -93,6 +109,9 @@ function getWeb3Sdk(mode?: "testnet" | "mainnet"): EndlessJsSdk {
     web3Sdk.on(EndLessSDKEvent.CONNECT, (info: any) => {
       const addr = extractAddress(info);
       if (addr) {
+        if (connectedAddress && connectedAddress !== addr) {
+          web3PublicKeyHex = null;
+        }
         connectedAddress = addr;
         onWalletConnect?.(addr);
       }
@@ -100,12 +119,16 @@ function getWeb3Sdk(mode?: "testnet" | "mainnet"): EndlessJsSdk {
 
     web3Sdk.on(EndLessSDKEvent.DISCONNECT, () => {
       connectedAddress = null;
+      web3PublicKeyHex = null;
       onWalletDisconnect?.();
     });
 
     web3Sdk.on(EndLessSDKEvent.ACCOUNT_CHANGE, (info: any) => {
       const addr = extractAddress(info);
       if (addr) {
+        if (connectedAddress && connectedAddress !== addr) {
+          web3PublicKeyHex = null;
+        }
         connectedAddress = addr;
         onAccountChange?.(addr);
       }
@@ -192,6 +215,12 @@ export function getConnectedAddress(): string | null {
 
 /** Primary: connect via Endless Web3 SDK (iframe wallet — works in any browser) */
 export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<string> {
+  if (preferredWalletType === "luffa") {
+    return connectLuffa(mode);
+  }
+  if (preferredWalletType === "endless") {
+    return connectEndlessExtension(mode);
+  }
   // Inside Luffa app — use Luffa SDK directly
   if (isInLuffaApp()) {
     return connectLuffa(mode);
@@ -266,6 +295,7 @@ export async function disconnectWallet(): Promise<void> {
   }
   connectedAddress = null;
   activeWalletType = null;
+  web3PublicKeyHex = null;
 }
 
 // Legacy fallback for injected providers
@@ -274,11 +304,6 @@ type WalletProvider = {
   account?: () => Promise<{ address: string }>;
   signAndSubmitTransaction?: (args: any) => Promise<any>;
 };
-
-function isMobile(): boolean {
-  const ua = navigator.userAgent || "";
-  return /iphone|ipad|ipod|android/i.test(ua);
-}
 
 function getInjectedWallet(): WalletProvider | null {
   const w = window as any;
@@ -296,6 +321,350 @@ function getInjectedWallet(): WalletProvider | null {
   );
 }
 
+function normalizeHex(value: string): string {
+  return value.startsWith("0x") ? value : `0x${value}`;
+}
+
+function getHexByteLen(value: string): number {
+  const hex = value.startsWith("0x") ? value.slice(2) : value;
+  if (hex.length === 0 || hex.length % 2 !== 0) return -1;
+  if (!/^[0-9a-fA-F]+$/.test(hex)) return -1;
+  return hex.length / 2;
+}
+
+let web3PublicKeyHex: string | null = null;
+
+async function ensureWeb3PublicKeyHex(mode: "testnet" | "mainnet" | undefined, dbg?: (msg: string) => void) {
+  if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
+  if (web3PublicKeyHex) return web3PublicKeyHex;
+  const nonce = `${Date.now()}`;
+  dbg?.("Web3 SDK signMessage for public key");
+  const res = await web3Sdk.signMessage({
+    message: "PixelBlackjack signer check",
+    nonce,
+    address: true,
+    application: true,
+    chainId: true,
+  });
+  if (res.status !== UserResponseStatus.APPROVED) {
+    throw new Error(`Public key request rejected: ${res.message || res.status}`);
+  }
+  const pk = res.args?.publicKey;
+  if (!pk || getHexByteLen(pk) !== 32) {
+    throw new Error("Wallet returned invalid public key");
+  }
+  web3PublicKeyHex = normalizeHex(pk);
+  dbg?.(`Web3 SDK public key loaded (${mode || "testnet"})`);
+  return web3PublicKeyHex;
+}
+
+async function signViaWeb3AndSubmit(
+  payload: { function: `${string}::${string}::${string}`; typeArguments: string[]; functionArguments: any[] },
+  mode?: "testnet" | "mainnet",
+  dbg?: (msg: string) => void
+) {
+  if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
+  if (!connectedAddress) throw new Error("Wallet is not connected");
+  const {
+    AccountAddress,
+    Ed25519PublicKey,
+    Ed25519Signature,
+    AccountAuthenticatorEd25519,
+    TypeTagU64,
+  } = await loadSdk();
+  const endless = await getEndless(mode);
+  const sender = connectedAddress.startsWith("0x")
+    ? AccountAddress.from(connectedAddress)
+    : AccountAddress.fromBs58String(connectedAddress);
+
+  const functionName = payload.function.split("::").pop() || "";
+  const withAbiPayload: any = { ...payload };
+  if (functionName === "deposit_u64" || functionName === "withdraw_u64" || functionName === "fund_bankroll_u64") {
+    withAbiPayload.abi = {
+      typeParameters: [],
+      parameters: [new TypeTagU64()],
+    };
+    dbg?.(`Web3 SDK signature-only ABI injected (${functionName})`);
+  }
+
+  const tx = await endless.transaction.build.simple({
+    sender,
+    data: withAbiPayload,
+  });
+  const txHex = tx.bcsToHex().toString();
+  dbg?.("Web3 SDK signature-only flow start");
+  try {
+    const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+    if (openFn) {
+      dbg?.("Web3 SDK open view (signature-only)");
+      const maybe = openFn();
+      Promise.resolve(maybe).catch(() => undefined);
+    }
+  } catch {
+    // ignore
+  }
+  async function legacySignBuildTransaction(): Promise<any> {
+    if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
+    const sdkAny = web3Sdk as any;
+    const msg = sdkAny.message;
+    const metadata = sdkAny._metadata || {};
+    if (!msg?.sendMessage) {
+      throw new Error("Legacy signBuildTransaction unavailable");
+    }
+    dbg?.("Web3 SDK try legacy signBuildTransaction");
+    return await new Promise((resolve, reject) => {
+      let done = false;
+      const t = setTimeout(() => {
+        if (done) return;
+        done = true;
+        reject(new Error("WEB3_SIGN_BUILD_TIMEOUT"));
+      }, 25000);
+      try {
+        msg.sendMessage(
+          {
+            uuid: `${Date.now()}`,
+            methodName: "signBuildTransaction",
+            metadata,
+            data: {
+              transactionData: txHex,
+              sender: connectedAddress,
+              type: "simple",
+            },
+          },
+          (res: any) => {
+            if (done) return;
+            done = true;
+            clearTimeout(t);
+            resolve(res);
+          }
+        );
+      } catch (e) {
+        if (done) return;
+        done = true;
+        clearTimeout(t);
+        reject(e);
+      }
+    });
+  }
+
+  let signPromise: Promise<any>;
+  try {
+    // Per Endless web3 docs, signTransaction expects built txn object.
+    signPromise = (web3Sdk as any).signTransaction(tx, EndlessWalletTransactionType.SIMPLE);
+    dbg?.("Web3 SDK signTransaction(txn object)");
+  } catch {
+    // Keep hex fallback for SDK variants that still expect serialized value.
+    signPromise = web3Sdk.signTransaction(txHex as any, EndlessWalletTransactionType.SIMPLE);
+    dbg?.("Web3 SDK signTransaction(hex fallback)");
+  }
+  let settled = false;
+  const wrappedSign = signPromise.then((v: any) => {
+    settled = true;
+    return v;
+  });
+  setTimeout(() => {
+    if (settled || !web3Sdk) return;
+    const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+    if (openFn) {
+      dbg?.("Web3 SDK open view fallback (signature-only)");
+      try {
+        const maybe = openFn();
+        Promise.resolve(maybe).catch(() => undefined);
+      } catch {
+        // ignore
+      }
+    }
+  }, 1200);
+  const signTimeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("WEB3_SIGN_TX_TIMEOUT")), 25000)
+  );
+  let signResult: any;
+  try {
+    signResult = await Promise.race([wrappedSign, signTimeout]);
+  } catch (e: any) {
+    if (e?.message === "WEB3_SIGN_TX_TIMEOUT") {
+      const legacy = await legacySignBuildTransaction();
+      if (legacy?.signature || legacy?.data) {
+        signResult = {
+          status: UserResponseStatus.APPROVED,
+          args: {
+            signature: legacy.signature,
+            data: legacy.data,
+          },
+        };
+      } else {
+        throw new Error(`Legacy signing failed: ${legacy?.message || "empty response"}`);
+      }
+    } else {
+      throw e;
+    }
+  }
+  if (signResult.status !== UserResponseStatus.APPROVED) {
+    throw new Error(`Signature rejected: ${signResult.message || signResult.status}`);
+  }
+  const signatureRaw = signResult.args?.signature || signResult.args?.data;
+  if (!signatureRaw || getHexByteLen(signatureRaw) !== 64) {
+    throw new Error("Wallet returned invalid signature payload");
+  }
+  const publicKeyHex = await ensureWeb3PublicKeyHex(mode, dbg);
+  const pub = new Ed25519PublicKey(publicKeyHex);
+  const sig = new Ed25519Signature(normalizeHex(signatureRaw));
+  const signingMessage = endless.transaction.getSigningMessage({ transaction: tx });
+  if (!pub.verifySignature({ message: signingMessage, signature: sig })) {
+    throw new Error("Signature verification failed");
+  }
+  dbg?.("Web3 SDK signature verified; submitting tx");
+  const senderAuthenticator = new AccountAuthenticatorEd25519(pub, sig);
+  const pending = await endless.transaction.submit.simple({
+    transaction: tx,
+    senderAuthenticator,
+  });
+  await endless.waitForTransaction({ transactionHash: pending.hash });
+  dbg?.(`Web3 SDK signature-only submitted hash=${String(pending.hash)}`);
+  return { hash: pending.hash };
+}
+
+async function signAndSubmitBuiltViaWeb3(
+  payload: { function: `${string}::${string}::${string}`; typeArguments: string[]; functionArguments: any[] },
+  mode?: "testnet" | "mainnet",
+  dbg?: (msg: string) => void
+) {
+  if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
+  if (!connectedAddress) throw new Error("Wallet is not connected");
+  const { AccountAddress, TypeTagU64 } = await loadSdk();
+  const endless = await getEndless(mode);
+  const sender = connectedAddress.startsWith("0x")
+    ? AccountAddress.from(connectedAddress)
+    : AccountAddress.fromBs58String(connectedAddress);
+
+  const functionName = payload.function.split("::").pop() || "";
+  const withAbiPayload: any = { ...payload };
+  if (functionName === "deposit_u64" || functionName === "withdraw_u64" || functionName === "fund_bankroll_u64") {
+    withAbiPayload.abi = {
+      typeParameters: [],
+      parameters: [new TypeTagU64()],
+    };
+    dbg?.(`Web3 SDK signAndSubmit ABI injected (${functionName})`);
+  }
+
+  const tx = await endless.transaction.build.simple({
+    sender,
+    data: withAbiPayload,
+  });
+  const txHex = tx.bcsToHex().toString();
+  const sdkAny = web3Sdk as any;
+  const msg = sdkAny.message;
+  const metadata = sdkAny._metadata || {};
+  if (!msg?.sendMessage) {
+    throw new Error("Direct signAndSubmit unavailable");
+  }
+  try {
+    const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+    if (openFn) {
+      dbg?.("Web3 SDK open view (direct signAndSubmit)");
+      const maybe = openFn();
+      Promise.resolve(maybe).catch(() => undefined);
+    }
+  } catch {
+    // ignore
+  }
+  dbg?.("Web3 SDK direct signAndSubmit start");
+  const res: any = await new Promise((resolve, reject) => {
+    let done = false;
+    const t = setTimeout(() => {
+      if (done) return;
+      done = true;
+      reject(new Error("WEB3_DIRECT_SIGN_AND_SUBMIT_TIMEOUT"));
+    }, 25000);
+    try {
+      msg.sendMessage(
+        {
+          uuid: `${Date.now()}`,
+          methodName: "signAndSubmitTransaction",
+          metadata,
+          data: {
+            options: {},
+            type: "signAndSubmit",
+            serializedTransaction: txHex,
+          },
+        },
+        (r: any) => {
+          if (done) return;
+          done = true;
+          clearTimeout(t);
+          resolve(r);
+        }
+      );
+    } catch (e) {
+      if (done) return;
+      done = true;
+      clearTimeout(t);
+      reject(e);
+    }
+  });
+  const hash = res?.hash;
+  if (!hash) {
+    throw new Error(`Direct signAndSubmit failed: ${res?.message || "empty response"}`);
+  }
+  await endless.waitForTransaction({ transactionHash: hash });
+  dbg?.(`Web3 SDK direct signAndSubmit submitted hash=${String(hash)}`);
+  return { hash };
+}
+
+async function signAndSubmitViaSdkWithAbi(
+  payload: { function: `${string}::${string}::${string}`; typeArguments: string[]; functionArguments: any[] },
+  mode?: "testnet" | "mainnet",
+  dbg?: (msg: string) => void
+) {
+  if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
+  const { TypeTagU64 } = await loadSdk();
+  const functionName = payload.function.split("::").pop() || "";
+  const argsWithTypes = payload.functionArguments.map((v: any) => {
+    if (typeof v === "number") return BigInt(v);
+    if (typeof v === "string" && /^\d+$/.test(v)) return BigInt(v);
+    return v;
+  });
+  const withAbiPayload: any = {
+    function: payload.function,
+    typeArguments: payload.typeArguments || [],
+    functionArguments: argsWithTypes,
+  };
+  if (functionName === "deposit_u64" || functionName === "withdraw_u64" || functionName === "fund_bankroll_u64") {
+    withAbiPayload.abi = {
+      typeParameters: [],
+      parameters: [new TypeTagU64()],
+    };
+    dbg?.(`Web3 SDK sdk-abi path injected (${functionName})`);
+  }
+  try {
+    const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+    if (openFn) {
+      dbg?.("Web3 SDK open view (sdk-abi path)");
+      const maybe = openFn();
+      Promise.resolve(maybe).catch(() => undefined);
+    }
+  } catch {
+    // ignore
+  }
+  dbg?.("Web3 SDK signAndSubmit start (sdk-abi path)");
+  const submitPromise = web3Sdk.signAndSubmitTransaction({ payload: withAbiPayload });
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("WEB3_SDK_ABI_TIMEOUT")), 20000)
+  );
+  const res: any = await Promise.race([submitPromise, timeoutPromise]);
+  if (res.status !== UserResponseStatus.APPROVED) {
+    throw new Error(`Web3 SDK ABI rejected: ${res?.message || res?.status || "unknown"}`);
+  }
+  const hash = res?.args?.hash;
+  if (!hash) {
+    throw new Error("Web3 SDK ABI missing tx hash");
+  }
+  const endless = await getEndless(mode);
+  await endless.waitForTransaction({ transactionHash: hash });
+  dbg?.(`Web3 SDK sdk-abi submitted hash=${String(hash)}`);
+  return res.args;
+}
+
 // ==================== TRANSACTION SUBMISSION ====================
 
 async function submitEntryFunction(functionName: string, args: any[], mode?: "testnet" | "mainnet") {
@@ -308,22 +677,143 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   dbg?.(`Wallet state: active=${activeWalletType || "null"} connected=${connectedAddress ? "yes" : "no"}`);
   // Ensure we have an active wallet session before trying to sign
   if (!activeWalletType || !connectedAddress) {
-    const w = window as any;
-    if (w?.endless) {
-      dbg?.("Connecting via endless extension...");
+    if (preferredWalletType === "luffa") {
+      dbg?.("Connecting via preferred luffa...");
+      await connectLuffa(mode);
+    } else if (preferredWalletType === "endless") {
+      dbg?.("Connecting via preferred endless extension...");
       await connectEndlessExtension(mode);
-    } else {
-      dbg?.("Connecting via web3 sdk...");
+    } else if (preferredWalletType === "web3") {
+      dbg?.("Connecting via preferred web3 sdk...");
       await connectWallet(mode);
+    } else {
+      const w = window as any;
+      if (w?.endless) {
+        dbg?.("Connecting via endless extension...");
+        await connectEndlessExtension(mode);
+      } else {
+        dbg?.("Connecting via web3 sdk...");
+        await connectWallet(mode);
+      }
     }
     dbg?.(`Post-connect: active=${activeWalletType || "null"} connected=${connectedAddress ? "yes" : "no"}`);
   }
-  // Pass args as-is — SDK expects BigInt for u128, strings for addresses, etc.
-  const payload = {
+  const web3Args = args.map((a) => (typeof a === "bigint" ? a.toString() : a));
+  const web3Payload = {
     function: func as `${string}::${string}::${string}`,
     typeArguments: [] as string[],
-    functionArguments: args,
+    functionArguments: web3Args,
   };
+  const web3NumericArgs = args.map((a) =>
+    typeof a === "bigint"
+      ? (a <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(a) : a.toString())
+      : a
+  );
+  const web3NumericPayload = {
+    function: func as `${string}::${string}::${string}`,
+    typeArguments: [] as string[],
+    functionArguments: web3NumericArgs,
+  };
+  const web3NumericDataPayload = {
+    function: func,
+    typeArguments: [],
+    functionArguments: web3NumericArgs,
+    type_arguments: [],
+    arguments: web3NumericArgs,
+  };
+
+  async function signWithWeb3Sdk(
+    payloadToSend: typeof web3Payload,
+    op: string,
+    dataFallback?: any
+  ) {
+    if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
+    let settled = false;
+    const signPromise = web3Sdk.signAndSubmitTransaction({ payload: payloadToSend }).then((v: any) => {
+      settled = true;
+      return v;
+    });
+    // If wallet UI did not appear, nudge it open without blocking tx flow.
+    setTimeout(() => {
+      if (settled || !web3Sdk) return;
+      const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+      if (openFn) {
+        dbg?.(`Web3 SDK open view fallback (${op})`);
+        try {
+          const maybe = openFn();
+          Promise.resolve(maybe).catch(() => undefined);
+        } catch {
+          // ignore
+        }
+      }
+    }, 1200);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("WEB3_TX_TIMEOUT")), 20000)
+    );
+    try {
+      return await Promise.race([signPromise, timeoutPromise]);
+    } catch (e: any) {
+      if (e?.message === "WEB3_TX_TIMEOUT" && dataFallback) {
+        dbg?.(`Web3 SDK timeout; retry with data payload (${op})`);
+        let dataSettled = false;
+        const dataPromise = web3Sdk.signAndSubmitTransaction({ data: dataFallback } as any).then((v: any) => {
+          dataSettled = true;
+          return v;
+        });
+        setTimeout(() => {
+          if (dataSettled || !web3Sdk) return;
+          const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+          if (openFn) {
+            dbg?.(`Web3 SDK open view fallback (${op}:data)`);
+            try {
+              const maybe = openFn();
+              Promise.resolve(maybe).catch(() => undefined);
+            } catch {
+              // ignore
+            }
+          }
+        }, 1200);
+        const dataTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("WEB3_TX_TIMEOUT_DATA")), 15000)
+        );
+        return await Promise.race([dataPromise, dataTimeout]);
+      }
+      throw e;
+    }
+  }
+
+  // For player bank ops prefer injected Endless provider first.
+  // Web3 iframe sometimes returns "wallet closed" on these methods.
+  if (functionName === "deposit" || functionName === "withdraw") {
+    const wallet = getInjectedWallet();
+    if (wallet?.signAndSubmitTransaction) {
+      dbg?.("TX route: injected wallet (priority for player bank ops)");
+      const fallbackPayload = {
+        function: func,
+        typeArguments: [],
+        functionArguments: args,
+        type_arguments: [],
+        arguments: args,
+      };
+      try {
+        const result = await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+        const hash = result?.hash || result?.args?.hash;
+        if (hash) {
+          const endless = await getEndless(mode);
+          await endless.waitForTransaction({ transactionHash: hash });
+        }
+        return result;
+      } catch {
+        const result = await wallet.signAndSubmitTransaction({ data: fallbackPayload });
+        const hash = result?.hash || result?.args?.hash;
+        if (hash) {
+          const endless = await getEndless(mode);
+          await endless.waitForTransaction({ transactionHash: hash });
+        }
+        return result;
+      }
+    }
+  }
 
   // Route based on active wallet type
   if (activeWalletType === "endless") {
@@ -355,52 +845,93 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
   // Web3 SDK (iframe wallet)
   if (activeWalletType === "web3" && web3Sdk) {
     dbg?.("TX route: web3 sdk");
-    if (isMobile()) {
-      const wallet = getInjectedWallet();
-      if (wallet?.signAndSubmitTransaction) {
-        dbg?.("Mobile: using injected wallet instead of web3 sdk");
-        const fallbackPayload = {
-          function: func,
-          typeArguments: [],
-          functionArguments: args,
-          type_arguments: [],
-          arguments: args,
-        };
-        try {
-          const result = await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
-          const hash = result?.hash || result?.args?.hash;
-          if (hash) {
-            const endless = await getEndless(mode);
-            await endless.waitForTransaction({ transactionHash: hash });
-          }
-          return result;
-        } catch {
-          return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
-        }
-      }
-      dbg?.("Mobile: no injected wallet, opening picker");
-      const openPicker = (window as any).__openWalletPicker as (() => void) | undefined;
-      openPicker?.();
-      throw new Error("WALLET_PICKER_REQUIRED");
-    }
-    try {
-      dbg?.("Web3 SDK pre-connect (wake iframe)");
-      await web3Sdk.connect();
-      const openFn = (web3Sdk as any).open as (() => Promise<any>) | undefined;
-      if (openFn) {
-        dbg?.("Web3 SDK open view");
-        await openFn();
-      }
-    } catch (e) {
-      dbg?.(`Web3 SDK pre-connect error: ${e instanceof Error ? e.message : String(e)}`);
-    }
     let res: any;
+    const canUseSignatureFallback =
+      functionName === "deposit_u64" ||
+      functionName === "withdraw_u64" ||
+      functionName === "fund_bankroll_u64";
+    if (canUseSignatureFallback) {
+      try {
+        dbg?.(`Web3 SDK sdk-abi path (${functionName})`);
+        return await signAndSubmitViaSdkWithAbi(
+          web3NumericPayload,
+          mode,
+          dbg
+        );
+      } catch (sdkAbiErr: any) {
+        dbg?.(`Web3 SDK sdk-abi error: ${sdkAbiErr?.message || sdkAbiErr}`);
+      }
+      try {
+        dbg?.(`Web3 SDK direct signAndSubmit path (${functionName})`);
+        return await signAndSubmitBuiltViaWeb3(
+          web3NumericPayload,
+          mode,
+          dbg
+        );
+      } catch (directErr: any) {
+        dbg?.(`Web3 SDK direct signAndSubmit error: ${directErr?.message || directErr}`);
+      }
+      dbg?.(`Web3 SDK signature-only fallback path (${functionName})`);
+      return await signViaWeb3AndSubmit(
+        web3NumericPayload,
+        mode,
+        dbg
+      );
+    }
     try {
-      res = await web3Sdk.signAndSubmitTransaction({ payload });
+      const isPlayerBankOp =
+        functionName === "deposit" ||
+        functionName === "withdraw" ||
+        functionName === "deposit_u64" ||
+        functionName === "withdraw_u64";
+      const isSimpleWeb3Flow = isPlayerBankOp || functionName === "fund_bankroll" || functionName === "fund_bankroll_u64";
+      if (isSimpleWeb3Flow) {
+        dbg?.(`Web3 SDK signAndSubmit start (${functionName})`);
+        // Minimal path (same idea as faucet): avoids SDK flows that close wallet without tx prompt.
+        if (isPlayerBankOp) {
+          res = await signWithWeb3Sdk(
+            web3NumericPayload,
+            `${functionName}:numeric`,
+            web3NumericDataPayload
+          );
+        } else {
+          res = await signWithWeb3Sdk(web3Payload, functionName);
+        }
+      } else {
+        try {
+          dbg?.("Web3 SDK pre-connect");
+          await web3Sdk.connect();
+          const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+          if (openFn) {
+            dbg?.("Web3 SDK open view");
+            const maybePromise = openFn();
+            Promise.resolve(maybePromise).catch(() => undefined);
+          }
+        } catch (e: any) {
+          dbg?.(`Web3 SDK pre-open error: ${e?.message || e}`);
+        }
+        dbg?.("Web3 SDK signAndSubmit start");
+        res = await signWithWeb3Sdk(web3Payload, functionName);
+      }
+      dbg?.(`Web3 SDK response status=${String(res?.status || "unknown")}`);
+      if (res?.message) {
+        dbg?.(`Web3 SDK response message=${String(res.message)}`);
+      }
     } catch (sdkErr: any) {
       console.error("Web3 SDK signAndSubmitTransaction error:", sdkErr);
       dbg?.(`Web3 SDK error: ${sdkErr?.message || sdkErr}`);
-      const errMsg = String(sdkErr?.message || sdkErr).toLowerCase();
+      if (canUseSignatureFallback) {
+        try {
+          dbg?.("Web3 SDK fallback to signature-only submit");
+          return await signViaWeb3AndSubmit(
+            web3NumericPayload,
+            mode,
+            dbg
+          );
+        } catch (sigErr: any) {
+          dbg?.(`Web3 SDK signature-only error: ${sigErr?.message || sigErr}`);
+        }
+      }
       // Fallback to injected wallet if available (browser extension)
       const wallet = getInjectedWallet();
       if (wallet?.signAndSubmitTransaction) {
@@ -424,22 +955,33 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
           return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
         }
       }
-      if (errMsg.includes("wallet closed")) {
-        const openPicker = (window as any).__openWalletPicker as (() => void) | undefined;
-        openPicker?.();
-      }
       throw new Error(`Wallet SDK error: ${sdkErr?.message || sdkErr}`);
     }
     console.log("signAndSubmitTransaction response:", JSON.stringify(res, null, 2));
     if (res.status === UserResponseStatus.APPROVED) {
+      dbg?.(`Web3 SDK approved hash=${String(res?.args?.hash || "n/a")}`);
       try {
         const endless = await getEndless(mode);
         await endless.waitForTransaction({ transactionHash: res.args.hash });
+        dbg?.("Web3 SDK tx confirmed on-chain");
       } catch (waitErr: any) {
         console.error("Transaction on-chain error:", waitErr);
+        dbg?.(`Web3 SDK wait error: ${waitErr?.message || waitErr}`);
         throw new Error(`On-chain error: ${waitErr?.message || waitErr}`);
       }
       return res.args;
+    }
+    if (canUseSignatureFallback) {
+      try {
+        dbg?.("Web3 SDK rejected; trying signature-only submit");
+        return await signViaWeb3AndSubmit(
+          web3NumericPayload,
+          mode,
+          dbg
+        );
+      } catch (sigErr: any) {
+        dbg?.(`Web3 SDK signature-only rejected: ${sigErr?.message || sigErr}`);
+      }
     }
     throw new Error(`Rejected: ${res.message || res.status}`);
   }
@@ -492,6 +1034,16 @@ export async function requestFaucet(address: string, mode?: "testnet" | "mainnet
     typeArguments: [] as string[],
     functionArguments: [address],
   };
+
+  // Ensure wallet session exists before trying to sign faucet tx.
+  if (!activeWalletType || !connectedAddress) {
+    const w = window as any;
+    if (w?.endless) {
+      await connectEndlessExtension(mode);
+    } else {
+      await connectWallet(mode);
+    }
+  }
 
   // Route based on active wallet type (same logic as submitEntryFunction)
   if (activeWalletType === "endless") {
@@ -677,7 +1229,10 @@ export async function claimPayout(playerAddress: string, gameId: number, network
 }
 
 export async function fundBankroll(amount: number, networkMode?: "testnet" | "mainnet") {
-  return await submitEntryFunction("fund_bankroll", [BigInt(amount)], networkMode);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > Number.MAX_SAFE_INTEGER) {
+    throw new Error("Invalid bankroll amount");
+  }
+  return await submitEntryFunction("fund_bankroll_u64", [Math.floor(amount)], networkMode);
 }
 
 export async function withdrawFees(amount: number, toAddress: string, networkMode?: "testnet" | "mainnet") {
@@ -687,11 +1242,17 @@ export async function withdrawFees(amount: number, toAddress: string, networkMod
 // ==================== PLAYER BANK (Deposit/Withdraw) ====================
 
 export async function deposit(amount: number, networkMode?: "testnet" | "mainnet") {
-  return await submitEntryFunction("deposit", [BigInt(amount)], networkMode);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > Number.MAX_SAFE_INTEGER) {
+    throw new Error("Invalid deposit amount");
+  }
+  return await submitEntryFunction("deposit_u64", [Math.floor(amount)], networkMode);
 }
 
 export async function withdraw(amount: number, networkMode?: "testnet" | "mainnet") {
-  return await submitEntryFunction("withdraw", [BigInt(amount)], networkMode);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > Number.MAX_SAFE_INTEGER) {
+    throw new Error("Invalid withdraw amount");
+  }
+  return await submitEntryFunction("withdraw_u64", [Math.floor(amount)], networkMode);
 }
 
 export async function getPlayerBalance(address: string, networkMode?: "testnet" | "mainnet"): Promise<number> {
