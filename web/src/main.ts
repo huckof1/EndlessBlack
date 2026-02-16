@@ -1606,6 +1606,7 @@ function init() {
     cleanUrl.searchParams.delete("room");
     cleanUrl.searchParams.delete("host_id");
     cleanUrl.searchParams.delete("wallet_addr");
+    // wallet=luffa оставляем — нужен для автоконнекта
     history.replaceState({}, "", cleanUrl.toString());
   }
 
@@ -3371,6 +3372,7 @@ function handleInvite() {
   url.searchParams.set("mode", mode);
   if (walletAddress) {
     url.searchParams.set("wallet_addr", walletAddress);
+    url.searchParams.set("wallet", "luffa");
   }
   if (!multiplayerRoom) {
     multiplayerRoom = Math.random().toString(36).slice(2, 10);
@@ -3427,16 +3429,16 @@ function showInviteBanner() {
   document.body.classList.add("invite-mode");
   if (mascot) mascot.style.display = "none";
   const isOnChain = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
-  if (isOnChain && !walletAddress) {
-    showMessage(
-      currentLocale === "ru"
+  showMessage(
+    currentLocale === "ru"
+      ? isOnChain
         ? "ON-CHAIN ИГРА. НАЖМИ ACCEPT — КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ"
-        : "ON-CHAIN GAME. PRESS ACCEPT — WALLET WILL CONNECT AUTOMATICALLY",
-      "info"
-    );
-  } else {
-    showMessage(currentLocale === "ru" ? "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ" : "ACCEPT OR DECLINE THE INVITE", "info");
-  }
+        : "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ"
+      : isOnChain
+        ? "ON-CHAIN GAME. PRESS ACCEPT — WALLET CONNECTS AUTOMATICALLY"
+        : "ACCEPT OR DECLINE THE INVITE",
+    "info"
+  );
 }
 
 function handleInviteDecline() {
@@ -3472,29 +3474,31 @@ async function handleInviteAccept() {
   const isOnChainInvite = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
   mpOnChainMode = isOnChainInvite;
 
-  // On-chain: подключить кошелёк если не подключён
+  // On-chain: подключить кошелёк автоматически
   if (isOnChainInvite && !walletAddress) {
     showMessage(
       currentLocale === "ru"
-        ? "Подключение кошелька..."
-        : "Connecting wallet...",
+        ? "ПОДКЛЮЧЕНИЕ КОШЕЛЬКА..."
+        : "CONNECTING WALLET...",
       "info"
     );
-    pendingInviteAutoAccept = true;
-    await connectWalletFlow(false);
-    // connectWalletFlow вызовет onWalletConnectSuccess
-    // после подключения pendingInviteAutoAccept сработает через onWalletConnectSuccess
-    if (!walletAddress) {
-      pendingInviteAutoAccept = false;
+    try {
+      if (isLuffaInApp()) {
+        walletAddress = await connectLuffa(networkMode);
+      } else {
+        walletAddress = await connectWallet(networkMode);
+      }
+      await onWalletConnectSuccess();
+    } catch (err) {
+      debugLogLine(`Invite auto-connect failed: ${err}`);
       showMessage(
         currentLocale === "ru"
-          ? "Подключите кошелёк чтобы принять приглашение."
-          : "Connect wallet to accept the invite.",
+          ? "НЕ УДАЛОСЬ ПОДКЛЮЧИТЬ КОШЕЛЁК. ПОПРОБУЙТЕ ОТКРЫТЬ ССЫЛКУ В LUFFA."
+          : "FAILED TO CONNECT WALLET. TRY OPENING THE LINK IN LUFFA.",
         "error"
       );
       return;
     }
-    // Кошелёк подключился — продолжаем
   }
 
   // Запуск сессии
