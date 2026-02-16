@@ -122,8 +122,6 @@ const feedEl = document.getElementById("feed") as HTMLDivElement;
 const activePlayersEl = document.getElementById("active-players") as HTMLDivElement;
 const resetDemoBtn = document.getElementById("reset-demo-btn") as HTMLButtonElement;
 const inviteBtnHeader = document.getElementById("invite-btn-header") as HTMLButtonElement;
-const inviteNoteHeader = document.getElementById("invite-note-header") as HTMLSpanElement;
-const inviteNote = document.getElementById("invite-note") as HTMLDivElement;
 const inviteBanner = document.getElementById("invite-banner") as HTMLDivElement;
 const inviteText = document.getElementById("invite-text") as HTMLDivElement;
 const inviteAccept = document.getElementById("invite-accept") as HTMLButtonElement;
@@ -431,6 +429,13 @@ const multiplayer = new MultiplayerClient((state) => {
     }
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
     showDebugState("bet_accept");
+    showMessage(
+      currentLocale === "ru"
+        ? "ИГРОК ПРИНЯЛ СТАВКУ! РАЗДАЁМ КАРТЫ..."
+        : "PLAYER ACCEPTED! DEALING CARDS...",
+      "success"
+    );
+    playSound("chip");
     if (multiplayerSnapshot.phase === "lobby" && multiplayerSnapshot.players.length >= 2) {
       handleStartGame();
     }
@@ -440,6 +445,13 @@ const multiplayer = new MultiplayerClient((state) => {
     multiplayerSnapshot.pendingBy = null;
     multiplayerSnapshot.agreed = false;
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
+    showMessage(
+      currentLocale === "ru"
+        ? "ИГРОК ОТКЛОНИЛ ПРИГЛАШЕНИЕ"
+        : "PLAYER DECLINED THE INVITE",
+      "error"
+    );
+    playSound("lose");
   }
   if (event.type === "game:hit") {
     applyMultiplayerHit();
@@ -3379,21 +3391,22 @@ function handleInvite() {
     updateMpDebug("invite");
   }
   navigator.clipboard.writeText(url.toString()).then(() => {
-    if (inviteNote) {
-      inviteNote.style.display = "block";
-      inviteNote.textContent = currentLocale === "ru" ? "Ссылка скопирована в буфер обмена!" : "Link copied to clipboard!";
-      setTimeout(() => {
-        inviteNote.style.display = "none";
-      }, 3000);
-    }
-    if (inviteNoteHeader) {
-      inviteNoteHeader.style.display = "inline-block";
-      inviteNoteHeader.textContent = currentLocale === "ru" ? "Ссылка скопирована!" : "Link copied!";
-      setTimeout(() => {
-        inviteNoteHeader.style.display = "none";
-      }, 3000);
-    }
+    showMessage(
+      currentLocale === "ru"
+        ? "ССЫЛКА СКОПИРОВАНА В БУФЕР ОБМЕНА!"
+        : "LINK COPIED TO CLIPBOARD!",
+      "success"
+    );
+    setTimeout(() => {
+      showMessage(
+        currentLocale === "ru"
+          ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
+          : "WAITING FOR INVITED PLAYER TO CONFIRM...",
+        "info"
+      );
+    }, 3000);
   });
+  updateUI();
 }
 
 function showInviteBanner() {
