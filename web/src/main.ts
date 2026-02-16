@@ -429,6 +429,9 @@ const multiplayer = new MultiplayerClient((state) => {
     }
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
     showDebugState("bet_accept");
+    // Скрыть секцию приглашения
+    const shareEl = document.getElementById("invite-share");
+    if (shareEl) shareEl.style.display = "none";
     showMessage(
       currentLocale === "ru"
         ? "ИГРОК ПРИНЯЛ СТАВКУ! РАЗДАЁМ КАРТЫ..."
@@ -445,6 +448,9 @@ const multiplayer = new MultiplayerClient((state) => {
     multiplayerSnapshot.pendingBy = null;
     multiplayerSnapshot.agreed = false;
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
+    // Скрыть секцию приглашения
+    const shareDecl = document.getElementById("invite-share");
+    if (shareDecl) shareDecl.style.display = "none";
     showMessage(
       currentLocale === "ru"
         ? "ИГРОК ОТКЛОНИЛ ПРИГЛАШЕНИЕ"
@@ -3396,7 +3402,8 @@ function handleInvite() {
     }
     updateMpDebug("invite");
   }
-  navigator.clipboard.writeText(url.toString()).then(() => {
+  const inviteUrl = url.toString();
+  navigator.clipboard.writeText(inviteUrl).then(() => {
     showMessage(
       currentLocale === "ru"
         ? "ССЫЛКА СКОПИРОВАНА В БУФЕР ОБМЕНА!"
@@ -3412,6 +3419,51 @@ function handleInvite() {
       );
     }, 3000);
   });
+
+  // Показать секцию с ссылкой + QR для хоста
+  const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
+  const inviteShareLink = document.getElementById("invite-share-link") as HTMLDivElement;
+  const inviteShareQr = document.getElementById("invite-share-qr") as HTMLDivElement;
+  const inviteShareHint = document.getElementById("invite-share-hint") as HTMLDivElement;
+  if (inviteShare) {
+    inviteShare.style.display = "flex";
+
+    // Показать ссылку (по тапу — копировать)
+    if (inviteShareLink) {
+      inviteShareLink.textContent = inviteUrl;
+      inviteShareLink.onclick = () => {
+        navigator.clipboard.writeText(inviteUrl).then(() => {
+          showMessage(
+            currentLocale === "ru" ? "ССЫЛКА СКОПИРОВАНА!" : "LINK COPIED!",
+            "success"
+          );
+        });
+      };
+    }
+
+    // QR без wallet=luffa — чистый HTTPS URL для сканера Luffa
+    if (inviteShareQr) {
+      const qrUrl = new URL(inviteUrl);
+      qrUrl.searchParams.delete("wallet");
+      inviteShareQr.innerHTML = "";
+      QRCode.toCanvas(qrUrl.toString(), {
+        width: 180,
+        margin: 2,
+        color: { dark: "#000000", light: "#ffffff" },
+      }).then((canvas: HTMLCanvasElement) => {
+        inviteShareQr.appendChild(canvas);
+      }).catch(() => {
+        inviteShareQr.textContent = qrUrl.toString();
+      });
+    }
+
+    if (inviteShareHint) {
+      inviteShareHint.textContent = currentLocale === "ru"
+        ? "Отправьте ссылку или покажите QR для сканирования в Luffa"
+        : "Share the link or show QR to scan in Luffa";
+    }
+  }
+
   updateUI();
 }
 
@@ -3517,7 +3569,8 @@ function buildInviteQrUrl(): string {
   // Адрес хоста из сохранённых
   const hostAddr = multiplayerHost ? mpWalletAddresses[multiplayerHost] : null;
   if (hostAddr) params.set("wallet_addr", hostAddr);
-  params.set("wallet", "luffa");
+  // НЕ добавляем wallet=luffa — сканер Luffa откроет как обычный URL,
+  // isLuffaInApp() сработает автоматически в Luffa browser
   if (playerName) params.set("name", playerName);
   return base + "?" + params.toString();
 }
@@ -3834,6 +3887,8 @@ function cleanupMultiplayer() {
   if (mascot) mascot.style.display = "flex";
   const luffaQrScreen = document.getElementById("luffa-qr-screen");
   if (luffaQrScreen) luffaQrScreen.style.display = "none";
+  const inviteShareCleanup = document.getElementById("invite-share");
+  if (inviteShareCleanup) inviteShareCleanup.style.display = "none";
   playerCardsEl.innerHTML = "";
   opponentCardsEl.innerHTML = "";
   dealerCardsEl.innerHTML = "";
