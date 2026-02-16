@@ -64,14 +64,18 @@
       <!-- Sound sliders removed: toggle only -->
     </header>
 
+    <!-- Экран "откройте в Luffa" -->
+    <div id="luffa-qr-screen" style="display: none; position: fixed; inset: 0; z-index: 9999; background: #0a0a1a; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center;">
+      <div style="font-size: 20px; font-weight: bold; color: #ffd700; text-transform: uppercase;" id="luffa-qr-title"></div>
+      <div id="luffa-qr-info" style="font-size: 14px; color: #ccc; max-width: 320px;"></div>
+      <div id="luffa-qr-code" style="background: #fff; padding: 12px; border-radius: 12px; margin: 12px 0;"></div>
+      <div id="luffa-qr-hint" style="font-size: 13px; color: #aaa; max-width: 300px;"></div>
+    </div>
+
     <!-- Игровая область -->
     <div id="game-area" class="game-area" style="display: none;">
       <div id="invite-banner" class="invite-banner" style="display: none;">
         <div id="invite-text" class="invite-text"></div>
-        <div id="invite-qr-section" style="display: none; flex-direction: column; align-items: center; gap: 8px; margin: 10px 0;">
-          <div id="invite-qr" style="background: #fff; padding: 8px; border-radius: 8px;"></div>
-          <div id="invite-qr-hint" style="font-size: 12px; opacity: 0.8; text-align: center;"></div>
-        </div>
         <div class="invite-actions">
           <button id="invite-accept" class="btn btn-success btn-small" data-i18n="invite_accept">ACCEPT</button>
           <button id="invite-decline" class="btn btn-small" data-i18n="invite_decline">DECLINE</button>

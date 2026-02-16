@@ -3431,42 +3431,55 @@ function showInviteBanner() {
   const isOnChain = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
   const notInLuffa = isOnChain && !isLuffaInApp();
 
-  // Если on-chain и НЕ в Luffa — показать QR для сканирования в Luffa
-  const inviteQrSection = document.getElementById("invite-qr-section") as HTMLDivElement;
-  const inviteQrEl = document.getElementById("invite-qr") as HTMLDivElement;
-  const inviteQrHint = document.getElementById("invite-qr-hint") as HTMLDivElement;
-  const inviteAcceptBtn = document.getElementById("invite-accept") as HTMLButtonElement;
+  // Если on-chain и НЕ в Luffa — полноэкранный QR-оверлей
+  const luffaQrScreen = document.getElementById("luffa-qr-screen") as HTMLDivElement;
+  const luffaQrTitle = document.getElementById("luffa-qr-title") as HTMLDivElement;
+  const luffaQrInfo = document.getElementById("luffa-qr-info") as HTMLDivElement;
+  const luffaQrCode = document.getElementById("luffa-qr-code") as HTMLDivElement;
+  const luffaQrHint = document.getElementById("luffa-qr-hint") as HTMLDivElement;
 
-  if (notInLuffa && inviteQrSection && inviteQrEl) {
-    // Сгенерировать QR с полной инвайт-ссылкой + wallet=luffa
-    const qrUrl = buildInviteQrUrl();
-    inviteQrSection.style.display = "flex";
-    inviteQrEl.innerHTML = "";
-    QRCode.toCanvas(qrUrl, {
-      width: 180,
-      margin: 2,
-      color: { dark: "#000000", light: "#ffffff" },
-    }).then((canvas: HTMLCanvasElement) => {
-      inviteQrEl.appendChild(canvas);
-    }).catch(() => {
-      inviteQrEl.textContent = qrUrl;
-    });
-    if (inviteQrHint) {
-      inviteQrHint.textContent = currentLocale === "ru"
-        ? "ОТСКАНИРУЙТЕ QR В ПРИЛОЖЕНИИ LUFFA — СТРАНИЦА ОТКРОЕТСЯ В БРАУЗЕРЕ LUFFA И КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ"
-        : "SCAN QR IN LUFFA APP — PAGE WILL OPEN IN LUFFA BROWSER AND WALLET CONNECTS AUTOMATICALLY";
+  if (notInLuffa && luffaQrScreen) {
+    // Скрыть всё остальное — оверлей покроет экран
+    inviteBanner.style.display = "none";
+
+    // Заполнить оверлей
+    if (luffaQrTitle) {
+      luffaQrTitle.textContent = currentLocale === "ru"
+        ? "ОТКРОЙТЕ В LUFFA"
+        : "OPEN IN LUFFA";
     }
-    // Скрыть кнопку ACCEPT — нет смысла если не в Luffa
-    if (inviteAcceptBtn) inviteAcceptBtn.style.display = "none";
-    showMessage(
-      currentLocale === "ru"
-        ? "ОТКРОЙТЕ ЭТУ ССЫЛКУ В LUFFA! ОТСКАНИРУЙТЕ QR НИЖЕ"
-        : "OPEN THIS LINK IN LUFFA! SCAN QR BELOW",
-      "error"
-    );
+    if (luffaQrInfo) {
+      const hostName = pendingInvite.name || "???";
+      luffaQrInfo.textContent = currentLocale === "ru"
+        ? `${hostName} приглашает вас в игру · Ставка: ${pendingInvite.bet} EDS · ${modeLabel}`
+        : `${hostName} invites you to play · Bet: ${pendingInvite.bet} EDS · ${modeLabel}`;
+    }
+
+    // QR-код
+    if (luffaQrCode) {
+      const qrUrl = buildInviteQrUrl();
+      luffaQrCode.innerHTML = "";
+      QRCode.toCanvas(qrUrl, {
+        width: 200,
+        margin: 2,
+        color: { dark: "#000000", light: "#ffffff" },
+      }).then((canvas: HTMLCanvasElement) => {
+        luffaQrCode.appendChild(canvas);
+      }).catch(() => {
+        luffaQrCode.textContent = qrUrl;
+      });
+    }
+
+    if (luffaQrHint) {
+      luffaQrHint.textContent = currentLocale === "ru"
+        ? "Отсканируйте QR в приложении Luffa — страница откроется в браузере Luffa и кошелёк подключится автоматически"
+        : "Scan QR in Luffa app — page will open in Luffa browser and wallet connects automatically";
+    }
+
+    luffaQrScreen.style.display = "flex";
   } else {
-    if (inviteQrSection) inviteQrSection.style.display = "none";
-    if (inviteAcceptBtn) inviteAcceptBtn.style.display = "inline-flex";
+    // Обычный режим — скрыть QR-оверлей, показать баннер
+    if (luffaQrScreen) luffaQrScreen.style.display = "none";
     showMessage(
       currentLocale === "ru"
         ? isOnChain
@@ -3509,6 +3522,8 @@ function handleInviteDecline() {
   pendingInvite = null;
   invitedByLink = false;
   if (inviteBanner) inviteBanner.style.display = "none";
+  const luffaQr = document.getElementById("luffa-qr-screen");
+  if (luffaQr) luffaQr.style.display = "none";
   betMinus.disabled = false;
   betPlus.disabled = false;
   betInput.disabled = false;
@@ -3804,6 +3819,8 @@ function cleanupMultiplayer() {
   if (turnIndicator) turnIndicator.style.display = "none";
   if (dealerHandEl) dealerHandEl.style.display = "flex";
   if (mascot) mascot.style.display = "flex";
+  const luffaQrScreen = document.getElementById("luffa-qr-screen");
+  if (luffaQrScreen) luffaQrScreen.style.display = "none";
   playerCardsEl.innerHTML = "";
   opponentCardsEl.innerHTML = "";
   dealerCardsEl.innerHTML = "";

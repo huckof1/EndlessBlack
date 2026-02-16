@@ -1,0 +1,42 @@
+name: Compile Move Package
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Endless CLI (Linux x86_64)
+        run: |
+          set -euo pipefail
+          URLS=(
+            "https://github.com/endless-labs/endless-release/releases/download/endless_v1.0.3/endless-cli-Ubuntu-x86_64.zip"
+            "https://github.com/endless-labs/endless-release/releases/download/endless_v1.0.3/endless-cli-Ubuntu-22-x86_64.zip"
+          )
+          for url in "${URLS[@]}"; do
+            echo "Trying: $url"
+            if curl -fL "$url" -o /tmp/endless.zip; then
+              break
+            fi
+          done
+          unzip -o /tmp/endless.zip -d /tmp/endless-cli
+          chmod +x /tmp/endless-cli/endless
+          /tmp/endless-cli/endless --version
+
+      - name: Compile Move package
+        working-directory: move
+        run: |
+          set -euo pipefail
+          /tmp/endless-cli/endless move compile \
+            --save-metadata \
+            --named-addresses pixel_blackjack=0x1329ceb3251b7593e20755b5ac2a4ee848ef1430c71d18b8bddff6510d81a792
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: move-build
+          path: move/build/pixel_blackjack
