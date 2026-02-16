@@ -33,3 +33,4 @@ npm-debug.log*
 
 # Local tools
 tools/
+.github/workflows/compile-move.yml
