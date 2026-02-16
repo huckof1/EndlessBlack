@@ -3410,6 +3410,7 @@ function handleInvite() {
   // Показать секцию с QR для хоста
   const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
   const inviteShareQr = document.getElementById("invite-share-qr") as HTMLDivElement;
+  const inviteShareCopy = document.getElementById("invite-share-copy") as HTMLButtonElement;
   const inviteShareHint = document.getElementById("invite-share-hint") as HTMLDivElement;
   if (inviteShare && inviteShareQr) {
     inviteShare.style.display = "flex";
@@ -3421,59 +3422,77 @@ function handleInvite() {
       color: { dark: "#000000", light: "#ffffff" },
     }).then((canvas: HTMLCanvasElement) => {
       inviteShareQr.appendChild(canvas);
-
-      // Копируем QR-картинку в буфер обмена
-      canvas.toBlob((blob) => {
-        if (blob) {
-          navigator.clipboard.write([
-            new ClipboardItem({ "image/png": blob })
-          ]).then(() => {
-            showMessage(
-              currentLocale === "ru"
-                ? "QR СКОПИРОВАН В БУФЕР ОБМЕНА!"
-                : "QR COPIED TO CLIPBOARD!",
-              "success"
-            );
-            setTimeout(() => {
-              showMessage(
-                currentLocale === "ru"
-                  ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
-                  : "WAITING FOR INVITED PLAYER TO CONFIRM...",
-                "info"
-              );
-            }, 3000);
-          }).catch(() => {
-            // Fallback: копируем ссылку текстом
-            navigator.clipboard.writeText(qrUrlStr).catch(() => {});
-            showMessage(
-              currentLocale === "ru"
-                ? "QR ГОТОВ. ОТПРАВЬТЕ ИЛИ ПОКАЖИТЕ ДЛЯ СКАНИРОВАНИЯ"
-                : "QR READY. SHARE OR SHOW TO SCAN",
-              "info"
-            );
-            setTimeout(() => {
-              showMessage(
-                currentLocale === "ru"
-                  ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
-                  : "WAITING FOR INVITED PLAYER TO CONFIRM...",
-                "info"
-              );
-            }, 3000);
-          });
-        }
-      }, "image/png");
     }).catch(() => {
       inviteShareQr.textContent = qrUrlStr;
     });
 
+    // Кнопка копирования QR — тап = user gesture → clipboard.write работает
+    if (inviteShareCopy) {
+      inviteShareCopy.textContent = currentLocale === "ru"
+        ? "СКОПИРОВАТЬ QR"
+        : "COPY QR";
+      inviteShareCopy.onclick = () => {
+        const canvas = inviteShareQr.querySelector("canvas");
+        if (!canvas) return;
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          // Попробовать скопировать картинку
+          if (typeof ClipboardItem !== "undefined") {
+            navigator.clipboard.write([
+              new ClipboardItem({ "image/png": blob })
+            ]).then(() => {
+              showMessage(
+                currentLocale === "ru"
+                  ? "QR СКОПИРОВАН В БУФЕР!"
+                  : "QR COPIED!",
+                "success"
+              );
+            }).catch(() => {
+              // Clipboard write не сработал — попробовать share
+              shareQrBlob(blob, qrUrlStr);
+            });
+          } else {
+            // ClipboardItem недоступен — share
+            shareQrBlob(blob, qrUrlStr);
+          }
+        }, "image/png");
+      };
+    }
+
     if (inviteShareHint) {
       inviteShareHint.textContent = currentLocale === "ru"
-        ? "Отправьте QR или покажите для сканирования в Luffa"
-        : "Share QR or show it to scan in Luffa";
+        ? "Скопируйте QR и отправьте, или покажите для сканирования в Luffa"
+        : "Copy QR and send it, or show to scan in Luffa";
     }
   }
 
+  showMessage(
+    currentLocale === "ru"
+      ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
+      : "WAITING FOR INVITED PLAYER TO CONFIRM...",
+    "info"
+  );
   updateUI();
+}
+
+function shareQrBlob(blob: Blob, _fallbackUrl: string) {
+  if (navigator.share) {
+    const file = new File([blob], "invite-qr.png", { type: "image/png" });
+    navigator.share({ files: [file] }).catch(() => {});
+  } else {
+    // Последний fallback — скачать картинку
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "invite-qr.png";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showMessage(
+      currentLocale === "ru"
+        ? "QR СОХРАНЁН"
+        : "QR SAVED",
+      "success"
+    );
+  }
 }
 
 function showInviteBanner() {
