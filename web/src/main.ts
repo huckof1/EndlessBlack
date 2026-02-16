@@ -3463,9 +3463,30 @@ async function handleInvite() {
   if (!isSessionStarted) {
     await startDemoSession();
   }
+  const betValue = parseFloat(betInput.value) || 1;
+
+  // Проверка баланса хоста перед инвайтом
+  if (walletAddress) {
+    await updateInGameBalance();
+    const betOctas = parseEDS(betValue.toString());
+    if (inGameBalance < betOctas) {
+      const neededEDS = ((betOctas - inGameBalance) / 100000000) + 0.01;
+      showMessage(
+        currentLocale === "ru"
+          ? `НЕДОСТАТОЧНО БАЛАНСА НА ИГРОВОМ СЧЁТЕ. НУЖНО ЕЩЁ ${neededEDS.toFixed(2)} EDS. ПОПОЛНИТЕ СЧЁТ.`
+          : `INSUFFICIENT IN-GAME BALANCE. NEED ${neededEDS.toFixed(2)} MORE EDS. DEPOSIT FIRST.`,
+        "error"
+      );
+      if (depositModal && depositAmountInput) {
+        depositAmountInput.value = Math.ceil(neededEDS).toString();
+        depositModal.style.display = "flex";
+      }
+      return;
+    }
+  }
+
   const url = new URL(window.location.href);
   url.searchParams.set("invite", name);
-  const betValue = parseFloat(betInput.value) || 1;
   url.searchParams.set("bet", betValue.toString());
   const mode = walletAddress ? "testnet" : "demo";
   url.searchParams.set("mode", mode);
@@ -3705,7 +3726,9 @@ function handleInviteDecline() {
 }
 
 async function handleInviteAccept() {
-  if (!pendingInvite) return;
+  if (!pendingInvite) { debugLogLine("handleInviteAccept: no pendingInvite"); return; }
+  debugLogLine(`handleInviteAccept: start, invite=${pendingInvite.name}, bet=${pendingInvite.bet}, mode=${pendingInvite.mode}`);
+
   if (!playerName) {
     pendingInviteAutoAccept = true;
     if (nicknameModal) nicknameModal.style.display = "flex";
@@ -3715,18 +3738,19 @@ async function handleInviteAccept() {
     }
     return;
   }
-  setNetwork("testnet");
-  betInput.value = pendingInvite.bet.toString();
 
   const isOnChainInvite = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
   mpOnChainMode = isOnChainInvite;
 
+  if (isOnChainInvite) {
+    setNetwork(pendingInvite.mode === "mainnet" ? "mainnet" : "testnet");
+  }
+  betInput.value = pendingInvite.bet.toString();
+
   // On-chain: подключить кошелёк автоматически
   if (isOnChainInvite && !walletAddress) {
     showMessage(
-      currentLocale === "ru"
-        ? "ПОДКЛЮЧЕНИЕ КОШЕЛЬКА..."
-        : "CONNECTING WALLET...",
+      currentLocale === "ru" ? "ПОДКЛЮЧЕНИЕ КОШЕЛЬКА..." : "CONNECTING WALLET...",
       "info"
     );
     try {
@@ -3736,12 +3760,13 @@ async function handleInviteAccept() {
         walletAddress = await connectWallet(networkMode);
       }
       await onWalletConnectSuccess();
+      console.log("[MP-ACCEPT]", "handleInviteAccept:"); debugLogLine("handleInviteAccept: wallet connected = " + walletAddress);
     } catch (err) {
-      debugLogLine(`Invite auto-connect failed: ${err}`);
+      debugLogLine(`handleInviteAccept: wallet connect failed: ${err}`);
       showMessage(
         currentLocale === "ru"
-          ? "НЕ УДАЛОСЬ ПОДКЛЮЧИТЬ КОШЕЛЁК. ПОПРОБУЙТЕ ОТКРЫТЬ ССЫЛКУ В LUFFA."
-          : "FAILED TO CONNECT WALLET. TRY OPENING THE LINK IN LUFFA.",
+          ? "НЕ УДАЛОСЬ ПОДКЛЮЧИТЬ КОШЕЛЁК. ОТКРОЙТЕ ССЫЛКУ В LUFFA."
+          : "FAILED TO CONNECT WALLET. OPEN LINK IN LUFFA.",
         "error"
       );
       return;
@@ -3750,8 +3775,8 @@ async function handleInviteAccept() {
 
   // Запуск сессии
   if (!isSessionStarted) {
+    console.log("[MP-ACCEPT]", "handleInviteAccept:"); debugLogLine("handleInviteAccept: starting session");
     if (isOnChainInvite && walletAddress) {
-      // on-chain: стартуем сессию с кошельком
       nameSection.style.display = "none";
       walletSection.style.display = "block";
       gameArea.style.display = "block";
@@ -3771,20 +3796,25 @@ async function handleInviteAccept() {
 
   // On-chain: проверка баланса
   if (isOnChainInvite && walletAddress) {
-    await updateInGameBalance();
+    try {
+      await updateInGameBalance();
+    } catch (e) {
+      debugLogLine(`handleInviteAccept: updateInGameBalance failed: ${e}`);
+    }
     const betOctas = parseEDS(pendingInvite.bet.toString());
     if (inGameBalance < betOctas) {
       const neededEDS = ((betOctas - inGameBalance) / 100000000) + 0.01;
       showMessage(
         currentLocale === "ru"
-          ? `Недостаточно баланса. Нужно ещё ${neededEDS.toFixed(2)} EDS. Пополните и нажмите ACCEPT снова.`
-          : `Insufficient balance. Need ${neededEDS.toFixed(2)} more EDS. Deposit and press ACCEPT again.`,
+          ? `ПОПОЛНИТЕ ИГРОВОЙ СЧЁТ! НЕ ХВАТАЕТ ${neededEDS.toFixed(2)} EDS`
+          : `TOP UP GAME BALANCE! NEED ${neededEDS.toFixed(2)} MORE EDS`,
         "error"
       );
       if (depositModal && depositAmountInput) {
         depositAmountInput.value = Math.ceil(neededEDS).toString();
         depositModal.style.display = "flex";
       }
+      // НЕ возвращаемся — показываем баннер обратно чтобы можно было нажать ACCEPT снова
       return;
     }
   }
@@ -3795,26 +3825,29 @@ async function handleInviteAccept() {
   }
 
   // Подключаемся к комнате
+  debugLogLine(`handleInviteAccept: connecting to room=${multiplayerRoom}`);
   if (multiplayerRoom && LS_PUBLIC_KEY) {
     showMessage(
-      currentLocale === "ru"
-        ? "ПОДКЛЮЧЕНИЕ К ИГРЕ..."
-        : "CONNECTING TO GAME...",
+      currentLocale === "ru" ? "ПОДКЛЮЧЕНИЕ К ИГРЕ..." : "CONNECTING TO GAME...",
       "info"
     );
     const host = multiplayerHost || pendingInvite?.name || playerName;
     if (!mpNameFrozen) mpNameFrozen = getMpName();
     multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
     isRoomHost = false;
+    // Небольшая задержка чтобы WS успел подключиться
+    await new Promise(r => setTimeout(r, 500));
     multiplayer.acceptBet();
+    console.log("[MP-ACCEPT]", "handleInviteAccept:"); debugLogLine("handleInviteAccept: acceptBet sent");
     if (walletAddress) {
       multiplayer.sendWalletInfo(walletAddress);
     }
     updateMpDebug("accept");
+  } else {
+    debugLogLine(`handleInviteAccept: NO room or key! room=${multiplayerRoom} key=${LS_PUBLIC_KEY ? "yes" : "no"}`);
   }
 
   if (inviteBanner) inviteBanner.style.display = "none";
-  // Скрыть QR-оверлей если был показан
   const luffaQrOverlay = document.getElementById("luffa-qr-screen");
   if (luffaQrOverlay) luffaQrOverlay.style.display = "none";
   pendingInvite = null;
