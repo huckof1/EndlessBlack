@@ -2577,10 +2577,12 @@ async function handleStartGame() {
   const betEDS = (betAmount / 100000000).toFixed(2);
 
   // Check balance before starting
+  debugLogLine(`DEAL check: isDemoActive=${isDemoActive()}, walletAddress=${!!walletAddress}, inGameBalance=${inGameBalance}, betAmount=${betAmount}`);
   if (!isDemoActive() && walletAddress) {
     // When wallet connected, use in-game balance (deposit-based)
     if (inGameBalance < betAmount) {
       playSound("lose");
+      debugLogLine(`DEAL blocked: balance ${inGameBalance} < bet ${betAmount}`);
       showMessage(
         currentLocale === "ru"
           ? `Недостаточно игрового баланса: ${(inGameBalance / 100000000).toFixed(2)} EDS. Нажмите ПОПОЛНИТЬ.`
@@ -3578,11 +3580,14 @@ async function executeDeposit() {
     // Indexers/view can lag for a moment after tx confirmation.
     for (let i = 0; i < 6; i++) {
       await updateInGameBalance();
+      debugLogLine(`DEPOSIT sync attempt ${i + 1}: inGameBalance=${inGameBalance}, expected=${expectedInGame}`);
       if (inGameBalance >= expectedInGame) break;
       await delay(600);
     }
+    debugLogLine(`DEPOSIT sync done: inGameBalance=${inGameBalance}`);
     await updateBalance();
     showMessage(I18N[currentLocale].deposit_success, "success");
+    debugLogLine("DEPOSIT complete, game ready");
   } catch (err: any) {
     console.error("Deposit failed:", err);
     const msg = err?.message || err;
@@ -3657,10 +3662,12 @@ async function updateInGameBalance() {
   }
   try {
     inGameBalance = await getPlayerBalanceOnChain(walletAddress, networkMode);
+    debugLogLine(`BALANCE sync: ${inGameBalance} octas (${formatEDS(inGameBalance)})`);
     if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
     if (ingameBalanceRow) ingameBalanceRow.style.display = "flex";
     updateBetLimitsUI();
-  } catch {
+  } catch (err) {
+    debugLogLine(`BALANCE sync error: ${err}`);
     inGameBalance = 0;
     if (ingameBalanceEl) ingameBalanceEl.textContent = "0.00 EDS";
     if (ingameBalanceRow) ingameBalanceRow.style.display = walletAddress ? "flex" : "none";
