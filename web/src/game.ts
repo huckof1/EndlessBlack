@@ -383,6 +383,25 @@ export class PixelBlackjack {
     return this.stats;
   }
 
+  // Записать результат on-chain игры в локальную статистику
+  recordOnChainResult(result: number, betOctas: number, payoutOctas: number) {
+    this.stats.totalGames++;
+    if (result === 1) {
+      this.stats.wins++;
+      this.stats.totalWon += payoutOctas - betOctas;
+    } else if (result === 2) {
+      this.stats.losses++;
+      this.stats.totalLost += betOctas;
+    } else if (result === 3) {
+      this.stats.draws++;
+    } else if (result === 4) {
+      this.stats.wins++;
+      this.stats.blackjacks++;
+      this.stats.totalWon += payoutOctas - betOctas;
+    }
+    this.saveStats();
+  }
+
   // Форматирование карты для отображения
   formatCard(card: Card): string {
     return `${RANKS[card.rank]}${SUITS[card.suit]}`;

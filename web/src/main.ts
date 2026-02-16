@@ -2637,6 +2637,7 @@ async function handleStartGame() {
           await updateInGameBalance();
           await updateBank();
         }
+        game.recordOnChainResult(4, betAmount, chainGame.payoutDue || 0);
         await showBlackjackEffect(betAmount);
       } else {
         setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
@@ -2713,6 +2714,7 @@ async function handleHit() {
     if (gameState.playerScore > 21) {
       setTurn(null);
       if (!isDemoActive() && walletAddress) {
+        game.recordOnChainResult(2, gameState.betAmount, 0);
         await updateInGameBalance();
         await updateBank();
       }
@@ -2795,6 +2797,11 @@ async function handleStand() {
       // Loss — just refresh balances
       await updateInGameBalance();
       await updateBank();
+    }
+
+    // Record on-chain result in local stats for leaderboard
+    if (!isDemoActive() && walletAddress) {
+      game.recordOnChainResult(result, bet, gameState.payoutDue || 0);
     }
 
     if (result === 1) {
@@ -3994,7 +4001,6 @@ async function handleClaim() {
 
 // ==================== LEADERBOARD ====================
 function getLeaderboard(): LeaderboardEntry[] {
-  if (!isDemoActive()) return [];
   const today = new Date().toISOString().slice(0, 10);
   const saved = localStorage.getItem("leaderboard");
   if (saved) {
@@ -4025,7 +4031,6 @@ function getLeaderboard(): LeaderboardEntry[] {
 }
 
 function updateLeaderboardEntry() {
-  if (!isDemoActive()) return;
   if (!playerName) return;
 
   const today = new Date().toISOString().slice(0, 10);
