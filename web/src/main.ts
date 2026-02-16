@@ -475,6 +475,23 @@ let mpWalletAddresses: Record<string, string> = {};
 let mpBetsDeducted = false;
 let mpOnChainMode = false;
 let mpWaitingForGuest = false;
+let mpLogLines: string[] = [];
+function mpLog(msg: string) {
+  const ts = new Date().toISOString().slice(11, 19);
+  const line = `[${ts}] ${msg}`;
+  mpLogLines.push(line);
+  if (mpLogLines.length > 20) mpLogLines = mpLogLines.slice(-20);
+  // Показать на экране
+  let el = document.getElementById("mp-debug-log");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "mp-debug-log";
+    el.style.cssText = "position:fixed;bottom:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;font-family:monospace;padding:6px;max-height:30vh;overflow-y:auto;white-space:pre-wrap;";
+    document.body.appendChild(el);
+  }
+  el.textContent = mpLogLines.join("\n");
+  el.scrollTop = el.scrollHeight;
+}
 
 // Normalize address: convert base58 to hex if needed, lowercase
 function normalizeAddress(addr: string): string {
@@ -3726,7 +3743,7 @@ function handleInviteDecline() {
 }
 
 async function handleInviteAccept() {
-  if (!pendingInvite) { debugLogLine("handleInviteAccept: no pendingInvite"); return; }
+  if (!pendingInvite) { mpLog("no pendingInvite"); return; }
   debugLogLine(`handleInviteAccept: start, invite=${pendingInvite.name}, bet=${pendingInvite.bet}, mode=${pendingInvite.mode}`);
 
   if (!playerName) {
@@ -3760,9 +3777,9 @@ async function handleInviteAccept() {
         walletAddress = await connectWallet(networkMode);
       }
       await onWalletConnectSuccess();
-      console.log("[MP-ACCEPT]", "handleInviteAccept:"); debugLogLine("handleInviteAccept: wallet connected = " + walletAddress);
+      mpLog("handleInviteAccept: wallet connected = " + walletAddress);
     } catch (err) {
-      debugLogLine(`handleInviteAccept: wallet connect failed: ${err}`);
+      mpLog(`wallet connect failed: ${err}`);
       showMessage(
         currentLocale === "ru"
           ? "НЕ УДАЛОСЬ ПОДКЛЮЧИТЬ КОШЕЛЁК. ОТКРОЙТЕ ССЫЛКУ В LUFFA."
@@ -3775,7 +3792,7 @@ async function handleInviteAccept() {
 
   // Запуск сессии
   if (!isSessionStarted) {
-    console.log("[MP-ACCEPT]", "handleInviteAccept:"); debugLogLine("handleInviteAccept: starting session");
+    mpLog("handleInviteAccept: starting session");
     if (isOnChainInvite && walletAddress) {
       nameSection.style.display = "none";
       walletSection.style.display = "block";
@@ -3799,7 +3816,7 @@ async function handleInviteAccept() {
     try {
       await updateInGameBalance();
     } catch (e) {
-      debugLogLine(`handleInviteAccept: updateInGameBalance failed: ${e}`);
+      mpLog(`updateInGameBalance failed: ${e}`);
     }
     const betOctas = parseEDS(pendingInvite.bet.toString());
     if (inGameBalance < betOctas) {
@@ -3838,13 +3855,13 @@ async function handleInviteAccept() {
     // Небольшая задержка чтобы WS успел подключиться
     await new Promise(r => setTimeout(r, 500));
     multiplayer.acceptBet();
-    console.log("[MP-ACCEPT]", "handleInviteAccept:"); debugLogLine("handleInviteAccept: acceptBet sent");
+    mpLog("handleInviteAccept: acceptBet sent");
     if (walletAddress) {
       multiplayer.sendWalletInfo(walletAddress);
     }
     updateMpDebug("accept");
   } else {
-    debugLogLine(`handleInviteAccept: NO room or key! room=${multiplayerRoom} key=${LS_PUBLIC_KEY ? "yes" : "no"}`);
+    mpLog(`NO room or key! room=${multiplayerRoom} key=${LS_PUBLIC_KEY ? "yes" : "no"}`);
   }
 
   if (inviteBanner) inviteBanner.style.display = "none";
