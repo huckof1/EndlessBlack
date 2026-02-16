@@ -34,6 +34,8 @@ type BetAcceptEvent = { type: "game:bet_accept"; by: string };
 type BetDeclineEvent = { type: "game:bet_decline"; by: string };
 type HitEvent = { type: "game:hit"; by: string };
 type StandEvent = { type: "game:stand"; by: string };
+type WalletInfoEvent = { type: "game:wallet_info"; by: string; address: string };
+type ForfeitEvent = { type: "game:forfeit"; by: string };
 
 export class MultiplayerClient {
   private ws: WebSocket | null = null;
@@ -115,6 +117,28 @@ export class MultiplayerClient {
 
   reset() {
     this.sendEvent({ type: "game:reset" } satisfies ResetEvent);
+  }
+
+  sendWalletInfo(address: string) {
+    this.sendEvent({ type: "game:wallet_info", by: this.name, address } satisfies WalletInfoEvent);
+  }
+
+  forfeit() {
+    this.sendEvent({ type: "game:forfeit", by: this.name } satisfies ForfeitEvent);
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    if (this.bc) {
+      this.bc.close();
+      this.bc = null;
+    }
+    this.players = [];
+    this.turnIndex = null;
+    this.pending = [];
   }
 
   private handleMessage(raw: string) {
@@ -221,6 +245,8 @@ export class MultiplayerClient {
       | BetDeclineEvent
       | HitEvent
       | StandEvent
+      | WalletInfoEvent
+      | ForfeitEvent
   ) {
     this.send({
       event: "game:event",

@@ -23,6 +23,7 @@ import {
   hit as hitOnChain,
   stand as standOnChain,
   creditPayout,
+  deductBet,
   type ChainGame,
 } from "./chain";
 import QRCode from "qrcode";
@@ -103,6 +104,7 @@ const soundIcon = document.getElementById("sound-icon") as HTMLSpanElement;
 const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement;
 const gameResultAmount = document.getElementById("game-result-amount") as HTMLSpanElement;
 const rematchBtn = document.getElementById("rematch-btn") as HTMLButtonElement;
+const leaveGameBtn = document.getElementById("leave-game-btn") as HTMLButtonElement;
 const themeToggle = document.getElementById("theme-toggle") as HTMLButtonElement;
 const themeIcon = document.getElementById("theme-icon") as HTMLSpanElement;
 const langToggle = document.getElementById("lang-toggle") as HTMLButtonElement;
@@ -341,6 +343,28 @@ const multiplayer = new MultiplayerClient((state) => {
   multiplayerSnapshot = snapshot;
   renderMultiplayerSnapshot(snapshot);
 }, (event) => {
+  // wallet_info handled by all players
+  if (event.type === "game:wallet_info") {
+    const addr = event.address as string;
+    const by = event.by as string;
+    if (addr && by && by !== getMpName()) {
+      mpWalletAddresses[by] = addr;
+      // Send our own wallet info back
+      if (walletAddress) {
+        multiplayer.sendWalletInfo(walletAddress);
+      }
+    }
+    // If both sent wallet info, we are in on-chain mode
+    if (walletAddress && Object.keys(mpWalletAddresses).length >= 1) {
+      mpOnChainMode = true;
+    }
+    return;
+  }
+  // forfeit handled by all players
+  if (event.type === "game:forfeit") {
+    handleForfeitReceived(event.by as string);
+    return;
+  }
   if (!isRoomHost) return;
   if (!multiplayerSnapshot) {
     multiplayerSnapshot = {
@@ -427,6 +451,9 @@ const multiplayer = new MultiplayerClient((state) => {
 let multiplayerHost: string | null = null;
 let isRoomHost = false;
 let pendingInviteAutoAccept = false;
+let mpWalletAddresses: Record<string, string> = {};
+let mpBetsDeducted = false;
+let mpOnChainMode = false;
 
 // Normalize address: convert base58 to hex if needed, lowercase
 function normalizeAddress(addr: string): string {
@@ -1277,7 +1304,22 @@ function init() {
     }
     updateFeeFromBet();
   });
-  betAccept.addEventListener("click", () => multiplayer.acceptBet());
+  betAccept.addEventListener("click", async () => {
+    if (mpOnChainMode && walletAddress && multiplayerSnapshot?.pendingBet) {
+      const newBetOctas = parseEDS(multiplayerSnapshot.pendingBet.toString());
+      await updateInGameBalance();
+      if (inGameBalance < newBetOctas) {
+        showMessage(
+          currentLocale === "ru"
+            ? `Недостаточно баланса для ставки ${multiplayerSnapshot.pendingBet} EDS. Пополните баланс.`
+            : `Insufficient balance for ${multiplayerSnapshot.pendingBet} EDS bet. Please deposit.`,
+          "error"
+        );
+        return;
+      }
+    }
+    multiplayer.acceptBet();
+  });
   betDecline.addEventListener("click", () => multiplayer.declineBet());
   updateFeeFromBet();
 
@@ -1316,6 +1358,11 @@ function init() {
         inviteBetInput.value = betInput.value || "1";
         inviteModal.style.display = "flex";
       }
+    });
+  }
+  if (leaveGameBtn) {
+    leaveGameBtn.addEventListener("click", () => {
+      handleLeaveGame();
     });
   }
   themeToggle.addEventListener("click", toggleTheme);
@@ -1518,10 +1565,14 @@ function init() {
   const inviteBet = parseFloat(params.get("bet") || "0");
   const inviteRoom = params.get("room");
   const inviteHost = params.get("host_id");
+  const inviteWalletAddr = params.get("wallet_addr");
   if (inviteFrom) {
     invitedByLink = true;
     const mode: "demo" | "testnet" | "mainnet" =
       inviteMode === "mainnet" ? "mainnet" : inviteMode === "testnet" ? "testnet" : "demo";
+    if (inviteWalletAddr && inviteHost) {
+      mpWalletAddresses[inviteHost] = inviteWalletAddr;
+    }
     const inviteKey = `invite_seen_${inviteRoom || "no-room"}_${inviteFrom}`;
     if (!sessionStorage.getItem(inviteKey)) {
     pendingInvite = {
@@ -1542,6 +1593,7 @@ function init() {
     cleanUrl.searchParams.delete("bet");
     cleanUrl.searchParams.delete("room");
     cleanUrl.searchParams.delete("host_id");
+    cleanUrl.searchParams.delete("wallet_addr");
     history.replaceState({}, "", cleanUrl.toString());
   }
 
@@ -1967,6 +2019,12 @@ function mpFinalizeResults(snapshot: MultiplayerSnapshot) {
   snapshot.results = computed.results;
   snapshot.payouts = computed.payouts;
   snapshot.claimed = computed.claimed;
+  // Trigger on-chain payouts (fire-and-forget)
+  if (mpOnChainMode && mpBetsDeducted && isRoomHost) {
+    mpCreditOnChainPayouts(snapshot).catch(err => {
+      debugLogLine(`mpCreditOnChainPayouts error: ${err}`);
+    });
+  }
 }
 
 function mpComputeResults(snapshot: MultiplayerSnapshot) {
@@ -2009,6 +2067,47 @@ function mpComputeResults(snapshot: MultiplayerSnapshot) {
   }
   claimed.push(false, false);
   return { results, payouts, claimed };
+}
+
+async function mpCreditOnChainPayouts(snapshot: MultiplayerSnapshot) {
+  if (!mpOnChainMode || !mpBetsDeducted || !isRoomHost) return;
+  const players = snapshot.players || [];
+  if (players.length < 2) return;
+  const computed = snapshot.results && snapshot.payouts
+    ? { results: snapshot.results, payouts: snapshot.payouts }
+    : mpComputeResults(snapshot);
+
+  const playerAddresses = players.map(p => {
+    if (p === getMpName()) return walletAddress;
+    return mpWalletAddresses[p] || "";
+  });
+
+  try {
+    for (let i = 0; i < players.length; i++) {
+      const addr = playerAddresses[i];
+      if (!addr) continue;
+      const payoutEDS = computed.payouts[i];
+      if (payoutEDS > 0) {
+        const payoutOctas = parseEDS(payoutEDS.toString());
+        debugLogLine(`MP payout: ${payoutOctas} octas to ${addr}`);
+        await creditPayout(addr, payoutOctas, networkMode);
+      }
+    }
+    mpBetsDeducted = false;
+    debugLogLine("MP on-chain payouts completed");
+    // Refresh balances after a short delay
+    setTimeout(() => {
+      updateInGameBalance();
+    }, 2000);
+  } catch (err) {
+    debugLogLine(`MP payout error: ${err}`);
+    showMessage(
+      currentLocale === "ru"
+        ? "Ошибка при выплате. Попробуйте CLAIM."
+        : "Payout error. Try CLAIM.",
+      "error"
+    );
+  }
 }
 
 function mpIsRematch(snapshot: MultiplayerSnapshot) {
@@ -2262,7 +2361,20 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
         mpPayoutRoom = multiplayerRoom;
         localStorage.setItem("mpPayoutRoom", mpPayoutRoom);
       }
-      if (isDemoActive() && payout > 0) {
+      if (mpOnChainMode && walletAddress) {
+        // On-chain mode: payouts handled by host via mpCreditOnChainPayouts
+        // Just refresh balance after delay
+        const winKey = `${multiplayerRoom || "_"}:${snapshot.results?.join(",") || ""}:${snapshot.phase}:${snapshot.bet}`;
+        if (winKey !== mpLastWinKey) {
+          mpLastWinKey = winKey;
+          localStorage.setItem("mpLastWinKey", winKey);
+          mpPayoutBucket = 0;
+          localStorage.setItem("mpPayoutBucket", "0");
+          setTimeout(() => {
+            updateInGameBalance();
+          }, 3000);
+        }
+      } else if (isDemoActive() && payout > 0) {
         const winKey = `${multiplayerRoom || "_"}:${snapshot.results?.join(",") || ""}:${snapshot.payouts?.join(",") || ""}:${snapshot.phase}:${snapshot.bet}:${snapshot.players.join(",")}`;
         if (winKey !== mpLastWinKey) {
           mpLastWinKey = winKey;
@@ -2508,9 +2620,65 @@ async function handleStartGame() {
       showMessage(currentLocale === "ru" ? "Ждём второго игрока..." : "Waiting for second player...", "info");
       return;
     }
+    const betValue = parseFloat(betInput.value) || 1;
+
+    // On-chain: deduct bets from both players
+    if (mpOnChainMode && walletAddress) {
+      const betOctas = parseEDS(betValue.toString());
+      const playerAddresses = players.map(p => {
+        if (p === getMpName()) return walletAddress;
+        return mpWalletAddresses[p] || "";
+      });
+      if (playerAddresses.some(a => !a)) {
+        showMessage(
+          currentLocale === "ru"
+            ? "Не все игроки подключили кошельки."
+            : "Not all players have connected wallets.",
+          "error"
+        );
+        return;
+      }
+      try {
+        showMessage(
+          currentLocale === "ru"
+            ? "Списание ставок..."
+            : "Deducting bets...",
+          "info"
+        );
+        // Deduct from first player
+        await deductBet(playerAddresses[0], betOctas, networkMode);
+        // Deduct from second player
+        try {
+          await deductBet(playerAddresses[1], betOctas, networkMode);
+        } catch (err2) {
+          // Second deduction failed — refund first player
+          debugLogLine(`MP deductBet[1] failed, refunding player 0: ${err2}`);
+          await creditPayout(playerAddresses[0], betOctas, networkMode);
+          showMessage(
+            currentLocale === "ru"
+              ? "Не удалось списать ставку второго игрока. Ставки возвращены."
+              : "Failed to deduct second player's bet. Bets refunded.",
+            "error"
+          );
+          return;
+        }
+        mpBetsDeducted = true;
+        debugLogLine(`MP bets deducted: ${betOctas} from each player`);
+        await updateInGameBalance();
+      } catch (err) {
+        debugLogLine(`MP deductBet[0] failed: ${err}`);
+        showMessage(
+          currentLocale === "ru"
+            ? "Не удалось списать ставку. Проверьте баланс."
+            : "Failed to deduct bet. Check your balance.",
+          "error"
+        );
+        return;
+      }
+    }
+
     const deck = mpCreateDeck();
     const hands = players.map(() => ({ cards: [mpDraw(deck), mpDraw(deck)], done: false }));
-    const betValue = parseFloat(betInput.value) || 1;
     const snapshot: MultiplayerSnapshot = {
       players,
       dealerCards: [],
@@ -3187,8 +3355,11 @@ function handleInvite() {
   url.searchParams.set("invite", name);
   const betValue = parseFloat(betInput.value) || 1;
   url.searchParams.set("bet", betValue.toString());
-  const mode = "demo";
+  const mode = walletAddress ? "testnet" : "demo";
   url.searchParams.set("mode", mode);
+  if (walletAddress) {
+    url.searchParams.set("wallet_addr", walletAddress);
+  }
   if (!multiplayerRoom) {
     multiplayerRoom = Math.random().toString(36).slice(2, 10);
   }
@@ -3197,26 +3368,30 @@ function handleInvite() {
   url.searchParams.set("host_id", hostId);
   multiplayerHost = hostId;
   isRoomHost = true;
+  mpOnChainMode = Boolean(walletAddress);
   if (LS_PUBLIC_KEY && isSessionStarted) {
     if (!mpNameFrozen) mpNameFrozen = getMpName();
     multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), multiplayerHost);
     multiplayer.proposeBet(betValue);
+    if (walletAddress) {
+      multiplayer.sendWalletInfo(walletAddress);
+    }
     updateMpDebug("invite");
   }
   navigator.clipboard.writeText(url.toString()).then(() => {
     if (inviteNote) {
       inviteNote.style.display = "block";
-      inviteNote.textContent = I18N[currentLocale].invite_note;
+      inviteNote.textContent = currentLocale === "ru" ? "Ссылка скопирована в буфер обмена!" : "Link copied to clipboard!";
       setTimeout(() => {
         inviteNote.style.display = "none";
-      }, 2000);
+      }, 3000);
     }
     if (inviteNoteHeader) {
       inviteNoteHeader.style.display = "inline-block";
-      inviteNoteHeader.textContent = I18N[currentLocale].invite_note;
+      inviteNoteHeader.textContent = currentLocale === "ru" ? "Ссылка скопирована!" : "Link copied!";
       setTimeout(() => {
         inviteNoteHeader.style.display = "none";
-      }, 2000);
+      }, 3000);
     }
   });
 }
@@ -3238,7 +3413,17 @@ function showInviteBanner() {
   betInput.disabled = true;
   document.body.classList.add("invite-mode");
   if (mascot) mascot.style.display = "none";
-  showMessage(currentLocale === "ru" ? "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ" : "ACCEPT OR DECLINE THE INVITE", "info");
+  const isOnChain = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
+  if (isOnChain && !walletAddress) {
+    showMessage(
+      currentLocale === "ru"
+        ? "ON-CHAIN ИГРА. НАЖМИ ACCEPT — КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ"
+        : "ON-CHAIN GAME. PRESS ACCEPT — WALLET WILL CONNECT AUTOMATICALLY",
+      "info"
+    );
+  } else {
+    showMessage(currentLocale === "ru" ? "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ" : "ACCEPT OR DECLINE THE INVITE", "info");
+  }
 }
 
 function handleInviteDecline() {
@@ -3271,20 +3456,90 @@ async function handleInviteAccept() {
   setNetwork("testnet");
   betInput.value = pendingInvite.bet.toString();
 
-  if (!isSessionStarted) {
-    await startDemoSession();
+  const isOnChainInvite = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
+  mpOnChainMode = isOnChainInvite;
+
+  // On-chain: подключить кошелёк если не подключён
+  if (isOnChainInvite && !walletAddress) {
+    showMessage(
+      currentLocale === "ru"
+        ? "Подключение кошелька..."
+        : "Connecting wallet...",
+      "info"
+    );
+    pendingInviteAutoAccept = true;
+    await connectWalletFlow(false);
+    // connectWalletFlow вызовет onWalletConnectSuccess
+    // после подключения pendingInviteAutoAccept сработает через onWalletConnectSuccess
+    if (!walletAddress) {
+      pendingInviteAutoAccept = false;
+      showMessage(
+        currentLocale === "ru"
+          ? "Подключите кошелёк чтобы принять приглашение."
+          : "Connect wallet to accept the invite.",
+        "error"
+      );
+      return;
+    }
+    // Кошелёк подключился — продолжаем
   }
 
-  if (!isDemoActive()) {
+  // Запуск сессии
+  if (!isSessionStarted) {
+    if (isOnChainInvite && walletAddress) {
+      // on-chain: стартуем сессию с кошельком
+      nameSection.style.display = "none";
+      walletSection.style.display = "block";
+      gameArea.style.display = "block";
+      isSessionStarted = true;
+      setDarkVeilVisible(false);
+      setShadowBarsVisible(true);
+      if (playerDisplayName) playerDisplayName.textContent = playerName;
+      if (playerHandNameEl) playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
+      await game.connectWallet();
+      await updateBalance();
+      await updateInGameBalance();
+      await updateBank();
+    } else {
+      await startDemoSession();
+    }
+  }
+
+  // On-chain: проверка баланса
+  if (isOnChainInvite && walletAddress) {
+    await updateInGameBalance();
+    const betOctas = parseEDS(pendingInvite.bet.toString());
+    if (inGameBalance < betOctas) {
+      const neededEDS = ((betOctas - inGameBalance) / 100000000) + 0.01;
+      showMessage(
+        currentLocale === "ru"
+          ? `Недостаточно баланса. Нужно ещё ${neededEDS.toFixed(2)} EDS. Пополните и нажмите ACCEPT снова.`
+          : `Insufficient balance. Need ${neededEDS.toFixed(2)} more EDS. Deposit and press ACCEPT again.`,
+        "error"
+      );
+      if (depositModal && depositAmountInput) {
+        depositAmountInput.value = Math.ceil(neededEDS).toString();
+        depositModal.style.display = "flex";
+      }
+      return;
+    }
+  }
+
+  if (!isOnChainInvite && !isDemoActive()) {
     showMessage(I18N[currentLocale].msg_release_lock, "error");
     return;
   }
+
+  // Подключаемся к комнате
   if (multiplayerRoom && LS_PUBLIC_KEY) {
     const host = multiplayerHost || pendingInvite?.name || playerName;
     if (!mpNameFrozen) mpNameFrozen = getMpName();
     multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
     isRoomHost = false;
     multiplayer.acceptBet();
+    if (walletAddress) {
+      multiplayer.sendWalletInfo(walletAddress);
+    }
     updateMpDebug("accept");
   }
 
@@ -3335,6 +3590,10 @@ function updateUI() {
   if (rematchBtn) {
     const showRematch = Boolean(multiplayerRoom && multiplayerSnapshot?.phase === "done");
     rematchBtn.style.display = showRematch ? "inline-flex" : "none";
+  }
+  if (leaveGameBtn) {
+    leaveGameBtn.style.display = multiplayerRoom ? "inline-flex" : "none";
+    leaveGameBtn.textContent = currentLocale === "ru" ? "ПОКИНУТЬ ИГРУ" : "LEAVE GAME";
   }
   updateMpDebug("ui");
   const demo = isDemoActive();
@@ -3417,7 +3676,12 @@ function updateUI() {
     startBtn.disabled = true;
   }
   if (multiplayerRoom && multiplayerSnapshot?.phase === "done" && multiplayerSnapshot.agreed) {
-    if (mpPayoutBucket > 0) {
+    if (mpOnChainMode) {
+      // On-chain mode: payouts auto-credited, no CLAIM button
+      claimBtn.style.display = "none";
+      claimBtn.disabled = true;
+      payoutDueEl.style.display = "none";
+    } else if (mpPayoutBucket > 0) {
       claimBtn.style.display = "block";
       claimBtn.disabled = false;
       payoutDueEl.style.display = "block";
@@ -3439,6 +3703,149 @@ function updateUI() {
       payoutDueEl.style.display = "none";
     }
   }
+}
+
+function cleanupMultiplayer() {
+  multiplayerRoom = null;
+  multiplayerState = null;
+  multiplayerSnapshot = null;
+  multiplayerHost = null;
+  isRoomHost = false;
+  mpWalletAddresses = {};
+  mpBetsDeducted = false;
+  mpOnChainMode = false;
+  mpPayoutBucket = 0;
+  localStorage.setItem("mpPayoutBucket", "0");
+  isPlaying = false;
+  if (opponentHandEl) opponentHandEl.style.display = "none";
+  if (winnerBannerEl) winnerBannerEl.style.display = "none";
+  if (betOffer) betOffer.style.display = "none";
+  if (turnIndicator) turnIndicator.style.display = "none";
+  if (dealerHandEl) dealerHandEl.style.display = "flex";
+  if (mascot) mascot.style.display = "flex";
+  playerCardsEl.innerHTML = "";
+  opponentCardsEl.innerHTML = "";
+  dealerCardsEl.innerHTML = "";
+  playerScoreEl.textContent = "-";
+  dealerScoreEl.textContent = "-";
+  betMinus.disabled = false;
+  betPlus.disabled = false;
+  betInput.disabled = false;
+  startIdleMusic();
+}
+
+async function handleLeaveGame() {
+  if (!multiplayerRoom) return;
+
+  const isInGame = multiplayerSnapshot &&
+    multiplayerSnapshot.phase === "player" &&
+    multiplayerSnapshot.hands.length >= 2;
+
+  if (isInGame && mpBetsDeducted && mpOnChainMode && walletAddress) {
+    // Mid-game forfeit with on-chain bets: pay opponent
+    const players = multiplayerSnapshot!.players || [];
+    const meIndex = players.findIndex(p => p === getMpName());
+    const oppIndex = meIndex === 0 ? 1 : 0;
+    const oppAddr = mpWalletAddresses[players[oppIndex]] || "";
+    const betOctas = parseEDS(multiplayerSnapshot!.bet.toString());
+
+    if (oppAddr && betOctas > 0) {
+      try {
+        const fee = betOctas * 2 * 0.02;
+        const payoutOctas = Math.floor(betOctas * 2 - fee);
+        debugLogLine(`FORFEIT: paying ${payoutOctas} octas to opponent ${oppAddr}`);
+        await creditPayout(oppAddr, payoutOctas, networkMode);
+        mpBetsDeducted = false;
+      } catch (err) {
+        debugLogLine(`FORFEIT payout error: ${err}`);
+        showMessage(
+          currentLocale === "ru"
+            ? "Ошибка выплаты оппоненту. Свяжитесь с администрацией."
+            : "Error paying opponent. Contact admin.",
+          "error"
+        );
+      }
+    }
+  }
+
+  // Send forfeit event
+  multiplayer.forfeit();
+  multiplayer.disconnect();
+  cleanupMultiplayer();
+  showMessage(
+    currentLocale === "ru"
+      ? "Вы покинули игру."
+      : "You left the game.",
+    "info"
+  );
+  if (walletAddress) {
+    await updateInGameBalance();
+  }
+  updateUI();
+}
+
+async function handleForfeitReceived(byName: string) {
+  if (!multiplayerRoom || !multiplayerSnapshot) return;
+
+  const isInGame = multiplayerSnapshot.phase === "player" &&
+    multiplayerSnapshot.hands.length >= 2;
+
+  if (isInGame && mpBetsDeducted && mpOnChainMode && isRoomHost && walletAddress) {
+    // Opponent forfeited mid-game: credit winnings to us
+    const myAddr = walletAddress;
+    const betOctas = parseEDS(multiplayerSnapshot.bet.toString());
+
+    if (myAddr && betOctas > 0) {
+      try {
+        const fee = betOctas * 2 * 0.02;
+        const payoutOctas = Math.floor(betOctas * 2 - fee);
+        debugLogLine(`FORFEIT received: crediting ${payoutOctas} octas to self ${myAddr}`);
+        await creditPayout(myAddr, payoutOctas, networkMode);
+        mpBetsDeducted = false;
+        setTimeout(() => updateInGameBalance(), 2000);
+      } catch (err) {
+        debugLogLine(`FORFEIT credit error: ${err}`);
+      }
+    }
+  }
+
+  // Mark game as done
+  multiplayerSnapshot.phase = "done";
+  multiplayerSnapshot.turnIndex = null;
+  multiplayerSnapshot.pendingTurn = null;
+  // Set results: forfeiter loses
+  const players = multiplayerSnapshot.players || [];
+  const forfeiterIndex = players.findIndex(p => p === byName);
+  if (forfeiterIndex !== -1 && multiplayerSnapshot.hands.length >= 2) {
+    const results = [0, 0];
+    const payouts = [0, 0];
+    const claimed = [false, false];
+    const winnerIndex = forfeiterIndex === 0 ? 1 : 0;
+    const feeBps = game.getFeeBps();
+    const pot = multiplayerSnapshot.bet * 2;
+    const fee = pot * feeBps / 10000;
+    results[winnerIndex] = 1;
+    results[forfeiterIndex] = -1;
+    payouts[winnerIndex] = Math.round((pot - fee) * 100) / 100;
+    payouts[forfeiterIndex] = 0;
+    multiplayerSnapshot.results = results;
+    multiplayerSnapshot.payouts = payouts;
+    multiplayerSnapshot.claimed = claimed;
+  }
+
+  if (isRoomHost) {
+    multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
+  }
+  renderMultiplayerSnapshot(multiplayerSnapshot);
+
+  showMessage(
+    currentLocale === "ru"
+      ? `${displayName(byName)} покинул игру. Вы победили!`
+      : `${displayName(byName)} left the game. You win!`,
+    "success"
+  );
+  playSound("win");
+  createConfetti();
 }
 
 // handleConnectWallet removed — was unused
@@ -3956,6 +4363,12 @@ async function onWalletConnectSuccess() {
     currentLocale === "ru" ? "Кошелёк подключён." : "Wallet connected.",
     "success"
   );
+  // Авто-accept приглашения после подключения кошелька
+  if (pendingInviteAutoAccept && pendingInvite) {
+    pendingInviteAutoAccept = false;
+    handleInviteAccept();
+    return;
+  }
   window.setTimeout(() => {
     const inviteActive = Boolean(pendingInvite) || (inviteBanner && inviteBanner.style.display !== "none");
     const resumeActive = Boolean(pendingResume);

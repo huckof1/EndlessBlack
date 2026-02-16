@@ -1132,6 +1132,33 @@ export async function updatePlayerBalance(
 // so payout goes to player's in-game balance without manual owner interaction
 const OWNER_PRIVATE_KEY = "0xf27ce12f9c0ff1f73d66c8540934a5327588d3b9d75b78b5cbf6b63b16a619b5";
 
+export async function deductBet(
+  playerAddress: string,
+  betOctas: number,
+  networkMode?: "testnet" | "mainnet"
+): Promise<void> {
+  if (betOctas <= 0) return;
+  const { Endless, EndlessConfig, Account, Ed25519PrivateKey } = await loadSdk();
+  const network = await getNetwork(networkMode);
+  const endless = new Endless(new EndlessConfig({ network }));
+  const privateKey = new Ed25519PrivateKey(OWNER_PRIVATE_KEY);
+  const ownerAccount = Account.fromPrivateKey({ privateKey });
+  const contractAddr = getContractAddress(networkMode);
+  const func = `${contractAddr}::${MODULE_NAME}::update_balance` as `${string}::${string}::${string}`;
+
+  const tx = await endless.transaction.build.simple({
+    sender: ownerAccount.accountAddress,
+    data: {
+      function: func,
+      typeArguments: [],
+      functionArguments: [playerAddress, BigInt(betOctas), false],
+    },
+  });
+  const signed = endless.transaction.sign({ signer: ownerAccount, transaction: tx });
+  const result = await endless.transaction.submit.simple({ transaction: tx, senderAuthenticator: signed });
+  await endless.waitForTransaction({ transactionHash: result.hash });
+}
+
 export async function creditPayout(
   playerAddress: string,
   payoutOctas: number,
