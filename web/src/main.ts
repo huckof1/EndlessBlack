@@ -3429,16 +3429,80 @@ function showInviteBanner() {
   document.body.classList.add("invite-mode");
   if (mascot) mascot.style.display = "none";
   const isOnChain = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
-  showMessage(
-    currentLocale === "ru"
-      ? isOnChain
-        ? "ON-CHAIN ИГРА. НАЖМИ ACCEPT — КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ"
-        : "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ"
-      : isOnChain
-        ? "ON-CHAIN GAME. PRESS ACCEPT — WALLET CONNECTS AUTOMATICALLY"
-        : "ACCEPT OR DECLINE THE INVITE",
-    "info"
-  );
+  const notInLuffa = isOnChain && !isLuffaInApp();
+
+  // Если on-chain и НЕ в Luffa — показать QR для сканирования в Luffa
+  const inviteQrSection = document.getElementById("invite-qr-section") as HTMLDivElement;
+  const inviteQrEl = document.getElementById("invite-qr") as HTMLDivElement;
+  const inviteQrHint = document.getElementById("invite-qr-hint") as HTMLDivElement;
+  const inviteAcceptBtn = document.getElementById("invite-accept") as HTMLButtonElement;
+
+  if (notInLuffa && inviteQrSection && inviteQrEl) {
+    // Сгенерировать QR с полной инвайт-ссылкой + wallet=luffa
+    const qrUrl = buildInviteQrUrl();
+    inviteQrSection.style.display = "flex";
+    inviteQrEl.innerHTML = "";
+    QRCode.toCanvas(qrUrl, {
+      width: 180,
+      margin: 2,
+      color: { dark: "#000000", light: "#ffffff" },
+    }).then((canvas: HTMLCanvasElement) => {
+      inviteQrEl.appendChild(canvas);
+    }).catch(() => {
+      inviteQrEl.textContent = qrUrl;
+    });
+    if (inviteQrHint) {
+      inviteQrHint.textContent = currentLocale === "ru"
+        ? "ОТСКАНИРУЙТЕ QR В ПРИЛОЖЕНИИ LUFFA — СТРАНИЦА ОТКРОЕТСЯ В БРАУЗЕРЕ LUFFA И КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ"
+        : "SCAN QR IN LUFFA APP — PAGE WILL OPEN IN LUFFA BROWSER AND WALLET CONNECTS AUTOMATICALLY";
+    }
+    // Скрыть кнопку ACCEPT — нет смысла если не в Luffa
+    if (inviteAcceptBtn) inviteAcceptBtn.style.display = "none";
+    showMessage(
+      currentLocale === "ru"
+        ? "ОТКРОЙТЕ ЭТУ ССЫЛКУ В LUFFA! ОТСКАНИРУЙТЕ QR НИЖЕ"
+        : "OPEN THIS LINK IN LUFFA! SCAN QR BELOW",
+      "error"
+    );
+  } else {
+    if (inviteQrSection) inviteQrSection.style.display = "none";
+    if (inviteAcceptBtn) inviteAcceptBtn.style.display = "inline-flex";
+    showMessage(
+      currentLocale === "ru"
+        ? isOnChain
+          ? "ON-CHAIN ИГРА. НАЖМИ ACCEPT — КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ"
+          : "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ"
+        : isOnChain
+          ? "ON-CHAIN GAME. PRESS ACCEPT — WALLET CONNECTS AUTOMATICALLY"
+          : "ACCEPT OR DECLINE THE INVITE",
+      "info"
+    );
+  }
+}
+
+function buildInviteQrUrl(): string {
+  // Полный URL текущей страницы + invite params + wallet=luffa
+  let base: string;
+  const loc = window.location;
+  if (loc.hostname === "localhost" || loc.hostname === "127.0.0.1") {
+    base = (window as any).__LUFFA_QR_URL || "https://huckof1.github.io/EndlessBlack/";
+  } else {
+    base = loc.origin + loc.pathname;
+  }
+  const params = new URLSearchParams();
+  if (pendingInvite) {
+    params.set("invite", pendingInvite.name);
+    params.set("bet", pendingInvite.bet.toString());
+    params.set("mode", pendingInvite.mode);
+  }
+  if (multiplayerRoom) params.set("room", multiplayerRoom);
+  if (multiplayerHost) params.set("host_id", multiplayerHost);
+  // Адрес хоста из сохранённых
+  const hostAddr = multiplayerHost ? mpWalletAddresses[multiplayerHost] : null;
+  if (hostAddr) params.set("wallet_addr", hostAddr);
+  params.set("wallet", "luffa");
+  if (playerName) params.set("name", playerName);
+  return base + "?" + params.toString();
 }
 
 function handleInviteDecline() {
