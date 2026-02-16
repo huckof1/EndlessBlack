@@ -71,7 +71,6 @@ export class MultiplayerClient {
     this.hostName = hostName;
     this.isHost = hostName === name;
     this.subscribed = false;
-    this.onLog(`WS connecting to ${wsUrl} ch=${this.channel()}`);
 
     if (!this.bc) {
       this.bc = new BroadcastChannel(this.channel());
@@ -86,10 +85,44 @@ export class MultiplayerClient {
       this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
     }
 
+    // Public keys (lspk_) require discovery service first
+    if (apiKey.startsWith("lspk_")) {
+      this.onLog("Discovery for lspk_ key...");
+      const cluster = new URL(wsUrl).hostname.replace("ws-", "").replace(".lattestream.com", "");
+      const discoverUrl = `https://${cluster}.lattestream.com/discover?api_key=${encodeURIComponent(apiKey)}`;
+      fetch(discoverUrl)
+        .then(r => {
+          if (!r.ok) throw new Error(`Discovery ${r.status}`);
+          return r.json();
+        })
+        .then(info => {
+          const host = info.host || info.node_host;
+          const token = info.discovery_token || info.token;
+          if (!host || !token) {
+            this.onLog(`Discovery bad response: ${JSON.stringify(info).slice(0, 200)}`);
+            return;
+          }
+          this.onLog(`Discovery OK: host=${host}`);
+          this.connectWs(`wss://${host}`, token);
+        })
+        .catch(err => {
+          this.onLog(`Discovery error: ${err.message}`);
+          // Fallback: try direct connection anyway
+          this.onLog("Fallback: direct connect...");
+          this.connectWs(wsUrl, apiKey);
+        });
+    } else {
+      // Private keys (lsk_) or JWT — connect directly
+      this.connectWs(wsUrl, apiKey);
+    }
+  }
+
+  private connectWs(wsUrl: string, authToken: string) {
+    this.onLog(`WS connecting to ${wsUrl}`);
     this.ws = new WebSocket(wsUrl);
     this.ws.onopen = () => {
-      this.onLog("WS open, sending api_key");
-      this.sendRaw({ api_key: apiKey });
+      this.onLog("WS open, authenticating...");
+      this.sendRaw({ api_key: authToken });
     };
     this.ws.onmessage = (event) => {
       this.handleMessage(event.data as string);
