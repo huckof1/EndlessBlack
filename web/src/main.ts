@@ -3385,6 +3385,76 @@ function handleResetDemo() {
   setMascotState("happy", "🙂", I18N[currentLocale].msg_demo_reset_mascot);
 }
 
+function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: number): HTMLCanvasElement {
+  const qrSize = qrCanvas.width;
+  const pad = 20;
+  const width = qrSize + pad * 2;
+
+  // Текст
+  const title = "ENDLESS BLACKJACK";
+  const info = currentLocale === "ru"
+    ? `${hostName} приглашает в игру`
+    : `${hostName} invites you to play`;
+  const betLine = currentLocale === "ru"
+    ? `Ставка: ${bet} EDS`
+    : `Bet: ${bet} EDS`;
+  const hint = currentLocale === "ru"
+    ? "Отсканируйте QR в приложении Luffa"
+    : "Scan QR in Luffa app";
+
+  // Измерить высоту текста
+  const titleFont = "bold 18px Arial, sans-serif";
+  const infoFont = "14px Arial, sans-serif";
+  const betFont = "bold 16px Arial, sans-serif";
+  const hintFont = "12px Arial, sans-serif";
+  const lineGap = 6;
+  const topTextH = 18 + lineGap + 14 + lineGap + 16 + lineGap + 8;
+  const bottomTextH = 12 + 10;
+  const height = pad + topTextH + qrSize + lineGap + bottomTextH + pad;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+
+  // Фон
+  ctx.fillStyle = "#0a0a1a";
+  ctx.fillRect(0, 0, width, height);
+
+  let y = pad;
+
+  // Заголовок
+  ctx.fillStyle = "#ffd700";
+  ctx.font = titleFont;
+  ctx.textAlign = "center";
+  ctx.fillText(title, width / 2, y + 16);
+  y += 18 + lineGap;
+
+  // Инфо
+  ctx.fillStyle = "#ffffff";
+  ctx.font = infoFont;
+  ctx.fillText(info, width / 2, y + 12);
+  y += 14 + lineGap;
+
+  // Ставка
+  ctx.fillStyle = "#4ade80";
+  ctx.font = betFont;
+  ctx.fillText(betLine, width / 2, y + 14);
+  y += 16 + lineGap + 8;
+
+  // QR
+  const qrX = (width - qrSize) / 2;
+  ctx.drawImage(qrCanvas, qrX, y);
+  y += qrSize + lineGap;
+
+  // Подсказка
+  ctx.fillStyle = "#aaaaaa";
+  ctx.font = hintFont;
+  ctx.fillText(hint, width / 2, y + 10);
+
+  return canvas;
+}
+
 function handleInvite() {
   const name = playerName || I18N[currentLocale].player_placeholder;
   if (!isSessionStarted) {
@@ -3436,12 +3506,14 @@ function handleInvite() {
 
     inviteShareQr.innerHTML = "";
 
+    // Составной canvas: текст + QR + подсказка
     QRCode.toCanvas(qrUrlStr, {
       width: 200,
       margin: 2,
       color: { dark: "#000000", light: "#ffffff" },
-    }).then((canvas: HTMLCanvasElement) => {
-      inviteShareQr.appendChild(canvas);
+    }).then((qrCanvas: HTMLCanvasElement) => {
+      const composite = buildInviteQrImage(qrCanvas, name, betValue);
+      inviteShareQr.appendChild(composite);
     }).catch(() => {
       inviteShareQr.textContent = qrUrlStr;
     });
