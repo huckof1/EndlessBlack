@@ -1837,6 +1837,22 @@ function applyI18n() {
   setWalletStatus(Boolean(walletAddress));
   showInviteBanner();
   refreshHintsLocale();
+  // Обновить тексты секции invite-share (хост)
+  const isBtn = document.getElementById("invite-share-copy");
+  if (isBtn && isBtn.style.display !== "none") {
+    isBtn.textContent = currentLocale === "ru" ? "ОТПРАВИТЬ QR" : "SHARE QR";
+  }
+  const isHint = document.getElementById("invite-share-hint");
+  if (isHint && isHint.textContent) {
+    isHint.textContent = currentLocale === "ru"
+      ? "Отправьте QR или покажите для сканирования в Luffa"
+      : "Share QR or show to scan in Luffa";
+  }
+  // Обновить кнопку LEAVE GAME
+  const lgBtn = document.getElementById("leave-game-btn");
+  if (lgBtn && lgBtn.style.display !== "none") {
+    lgBtn.textContent = currentLocale === "ru" ? "ПОКИНУТЬ ИГРУ" : "LEAVE GAME";
+  }
   updateUI();
 }
 
