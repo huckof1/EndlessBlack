@@ -148,7 +148,7 @@ const walletInstallLink = document.getElementById("wallet-install-link") as HTML
 const walletPickerTitle = document.getElementById("wallet-picker-title") as HTMLDivElement;
 const walletPickerOptions = document.getElementById("wallet-picker-options") as HTMLDivElement;
 const walletOptEndless = document.getElementById("wallet-opt-endless") as HTMLButtonElement;
-const walletOptLuffa = document.getElementById("wallet-opt-luffa") as HTMLButtonElement;
+// walletOptLuffa removed — QR is shown inline, no separate button needed
 const walletConnectStatus = document.getElementById("wallet-connect-status") as HTMLDivElement;
 const walletStatusText = document.getElementById("wallet-status-text") as HTMLDivElement;
 const walletQrContainer = document.getElementById("wallet-qr-container") as HTMLDivElement;
@@ -1378,9 +1378,6 @@ function init() {
   });
   if (walletOptEndless) {
     walletOptEndless.addEventListener("click", handleEndlessWalletConnect);
-  }
-  if (walletOptLuffa) {
-    walletOptLuffa.addEventListener("click", handleLuffaWalletConnect);
   }
   if (walletPickerBack) {
     walletPickerBack.addEventListener("click", showWalletPicker);
@@ -3840,34 +3837,7 @@ async function handleEndlessWalletConnect() {
   }
 }
 
-async function handleLuffaWalletConnect() {
-  if (!walletModal) return;
-  setPreferredWalletType("luffa");
-  if (walletAddress) {
-    await handleDisconnectWallet();
-  }
-  // Switch to Luffa connecting view — QR already visible in picker section
-  if (walletPickerOptions) walletPickerOptions.style.display = "none";
-  if (walletConnectStatus) walletConnectStatus.style.display = "flex";
-  if (walletPickerBack) walletPickerBack.style.display = "inline-flex";
-  if (walletInstallLink) walletInstallLink.style.display = "none";
-  if (walletPickerTitle) {
-    walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa;
-  }
-  if (walletStatusText) {
-    walletStatusText.textContent = I18N[currentLocale].wallet_luffa_connecting;
-  }
-
-  // Try SDK connect (works if inside Luffa app)
-  try {
-    walletAddress = await connectLuffa(networkMode);
-    await onWalletConnectSuccess();
-  } catch {
-    if (walletStatusText) {
-      walletStatusText.textContent = I18N[currentLocale].wallet_luffa_qr_hint;
-    }
-  }
-}
+// handleLuffaWalletConnect removed — QR auto-connects, no separate button
 
 async function onWalletConnectSuccess() {
   await updateBalance();
