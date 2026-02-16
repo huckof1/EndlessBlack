@@ -3429,31 +3429,29 @@ function handleInvite() {
     // Кнопка копирования QR — тап = user gesture → clipboard.write работает
     if (inviteShareCopy) {
       inviteShareCopy.textContent = currentLocale === "ru"
-        ? "СКОПИРОВАТЬ QR"
-        : "COPY QR";
+        ? "ОТПРАВИТЬ QR"
+        : "SHARE QR";
       inviteShareCopy.onclick = () => {
         const canvas = inviteShareQr.querySelector("canvas");
         if (!canvas) return;
         canvas.toBlob((blob) => {
           if (!blob) return;
-          // Попробовать скопировать картинку
-          if (typeof ClipboardItem !== "undefined") {
-            navigator.clipboard.write([
-              new ClipboardItem({ "image/png": blob })
-            ]).then(() => {
-              showMessage(
-                currentLocale === "ru"
-                  ? "QR СКОПИРОВАН В БУФЕР!"
-                  : "QR COPIED!",
-                "success"
-              );
-            }).catch(() => {
-              // Clipboard write не сработал — попробовать share
-              shareQrBlob(blob, qrUrlStr);
-            });
+          const file = new File([blob], "invite-qr.png", { type: "image/png" });
+          if (navigator.share && navigator.canShare?.({ files: [file] })) {
+            navigator.share({ files: [file] }).catch(() => {});
           } else {
-            // ClipboardItem недоступен — share
-            shareQrBlob(blob, qrUrlStr);
+            // Fallback — скачать картинку
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "invite-qr.png";
+            a.click();
+            URL.revokeObjectURL(a.href);
+            showMessage(
+              currentLocale === "ru"
+                ? "QR СОХРАНЁН — ОТПРАВЬТЕ ФАЙЛ"
+                : "QR SAVED — SEND THE FILE",
+              "success"
+            );
           }
         }, "image/png");
       };
@@ -3461,8 +3459,8 @@ function handleInvite() {
 
     if (inviteShareHint) {
       inviteShareHint.textContent = currentLocale === "ru"
-        ? "Скопируйте QR и отправьте, или покажите для сканирования в Luffa"
-        : "Copy QR and send it, or show to scan in Luffa";
+        ? "Отправьте QR или покажите для сканирования в Luffa"
+        : "Share QR or show to scan in Luffa";
     }
   }
 
@@ -3475,25 +3473,6 @@ function handleInvite() {
   updateUI();
 }
 
-function shareQrBlob(blob: Blob, _fallbackUrl: string) {
-  if (navigator.share) {
-    const file = new File([blob], "invite-qr.png", { type: "image/png" });
-    navigator.share({ files: [file] }).catch(() => {});
-  } else {
-    // Последний fallback — скачать картинку
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "invite-qr.png";
-    a.click();
-    URL.revokeObjectURL(a.href);
-    showMessage(
-      currentLocale === "ru"
-        ? "QR СОХРАНЁН"
-        : "QR SAVED",
-      "success"
-    );
-  }
-}
 
 function showInviteBanner() {
   if (!pendingInvite || !inviteBanner || !inviteText) return;
