@@ -3848,10 +3848,9 @@ async function handleInviteAccept() {
     if (!mpNameFrozen) mpNameFrozen = getMpName();
     multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
     isRoomHost = false;
-    // Небольшая задержка чтобы WS успел подключиться
-    await new Promise(r => setTimeout(r, 500));
+    // acceptBet и walletInfo будут в очереди и отправятся после подписки на канал
     multiplayer.acceptBet();
-    mpLog("handleInviteAccept: acceptBet sent");
+    mpLog("handleInviteAccept: acceptBet queued");
     if (walletAddress) {
       multiplayer.sendWalletInfo(walletAddress);
     }

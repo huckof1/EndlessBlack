@@ -43,6 +43,7 @@ export class MultiplayerClient {
   private onSnapshot: OnSnapshot;
   private onEvent: OnEvent;
   private pending: any[] = [];
+  private subscribed: boolean = false;
   private bc: BroadcastChannel | null = null;
   private clientId: string = Math.random().toString(36).slice(2, 8);
   private room: string = "";
@@ -64,6 +65,7 @@ export class MultiplayerClient {
     this.name = name;
     this.hostName = hostName;
     this.isHost = hostName === name;
+    this.subscribed = false;
 
     if (!this.bc) {
       this.bc = new BroadcastChannel(this.channel());
@@ -80,7 +82,7 @@ export class MultiplayerClient {
 
     this.ws = new WebSocket(wsUrl);
     this.ws.onopen = () => {
-      this.send({ api_key: apiKey });
+      this.sendRaw({ api_key: apiKey });
     };
     this.ws.onmessage = (event) => {
       this.handleMessage(event.data as string);
@@ -136,6 +138,7 @@ export class MultiplayerClient {
       this.bc.close();
       this.bc = null;
     }
+    this.subscribed = false;
     this.players = [];
     this.turnIndex = null;
     this.pending = [];
@@ -150,13 +153,15 @@ export class MultiplayerClient {
     }
 
     if (msg.event === "lattestream:connection_established") {
-      this.send({ event: "lattestream:subscribe", data: { channel: this.channel() } });
+      this.sendRaw({ event: "lattestream:subscribe", data: { channel: this.channel() } });
       return;
     }
 
     if (msg.event === "lattestream:subscription_succeeded") {
-      this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
+      this.subscribed = true;
       this.flushPending();
+      // Send join after subscription is confirmed so it's delivered
+      this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
       return;
     }
 
@@ -225,8 +230,18 @@ export class MultiplayerClient {
     return `room-${this.room}`;
   }
 
-  private send(payload: any) {
+  /** Send a raw protocol message (api_key, subscribe) — bypasses subscription check */
+  private sendRaw(payload: any) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.pending.push(payload);
+    } else {
+      this.ws.send(JSON.stringify(payload));
+    }
+  }
+
+  /** Send a game event — queues until WS is open AND subscribed */
+  private send(payload: any) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.subscribed) {
       this.pending.push(payload);
     } else {
       this.ws.send(JSON.stringify(payload));
@@ -262,9 +277,9 @@ export class MultiplayerClient {
   }
 
   private flushPending() {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.subscribed) return;
     const queue = [...this.pending];
     this.pending = [];
-    queue.forEach(p => this.send(p));
+    queue.forEach(p => this.ws!.send(JSON.stringify(p)));
   }
 }
