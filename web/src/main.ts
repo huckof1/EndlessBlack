@@ -430,6 +430,7 @@ const multiplayer = new MultiplayerClient((state) => {
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
     showDebugState("bet_accept");
     // Скрыть секцию приглашения
+    mpWaitingForGuest = false;
     const shareEl = document.getElementById("invite-share");
     if (shareEl) shareEl.style.display = "none";
     showMessage(
@@ -448,6 +449,7 @@ const multiplayer = new MultiplayerClient((state) => {
     multiplayerSnapshot.pendingBy = null;
     multiplayerSnapshot.agreed = false;
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
+    mpWaitingForGuest = false;
     // Скрыть секцию приглашения
     const shareDecl = document.getElementById("invite-share");
     if (shareDecl) shareDecl.style.display = "none";
@@ -472,6 +474,7 @@ let pendingInviteAutoAccept = false;
 let mpWalletAddresses: Record<string, string> = {};
 let mpBetsDeducted = false;
 let mpOnChainMode = false;
+let mpWaitingForGuest = false;
 
 // Normalize address: convert base58 to hex if needed, lowercase
 function normalizeAddress(addr: string): string {
@@ -3455,10 +3458,10 @@ function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: 
   return canvas;
 }
 
-function handleInvite() {
+async function handleInvite() {
   const name = playerName || I18N[currentLocale].player_placeholder;
   if (!isSessionStarted) {
-    startDemoSession();
+    await startDemoSession();
   }
   const url = new URL(window.location.href);
   url.searchParams.set("invite", name);
@@ -3556,6 +3559,7 @@ function handleInvite() {
     }
   }
 
+  mpWaitingForGuest = true;
   showMessage(
     currentLocale === "ru"
       ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
@@ -3972,6 +3976,16 @@ function updateUI() {
       payoutDueEl.style.display = "none";
     }
   }
+
+  // Гарантировать что "ОЖИДАЕМ" не затрётся
+  if (mpWaitingForGuest) {
+    showMessage(
+      currentLocale === "ru"
+        ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
+        : "WAITING FOR INVITED PLAYER TO CONFIRM...",
+      "info"
+    );
+  }
 }
 
 function cleanupMultiplayer() {
@@ -3983,6 +3997,7 @@ function cleanupMultiplayer() {
   mpWalletAddresses = {};
   mpBetsDeducted = false;
   mpOnChainMode = false;
+  mpWaitingForGuest = false;
   mpPayoutBucket = 0;
   localStorage.setItem("mpPayoutBucket", "0");
   isPlaying = false;
@@ -4645,7 +4660,7 @@ async function onWalletConnectSuccess() {
   window.setTimeout(() => {
     const inviteActive = Boolean(pendingInvite) || (inviteBanner && inviteBanner.style.display !== "none");
     const resumeActive = Boolean(pendingResume);
-    if (!isPlaying && !inviteActive && !resumeActive && !multiplayerRoom) {
+    if (!isPlaying && !inviteActive && !resumeActive && !multiplayerRoom && !mpWaitingForGuest) {
       showMessage(I18N[currentLocale].msg_place_bet, "info");
     }
   }, 2000);
