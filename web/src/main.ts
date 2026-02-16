@@ -3416,12 +3416,7 @@ function handleInvite() {
   if (inviteShare && inviteShareQr) {
     inviteShare.style.display = "flex";
 
-    // Информация о приглашении
-    if (inviteShareInfo) {
-      inviteShareInfo.textContent = currentLocale === "ru"
-        ? `${name} приглашает в Blackjack · Ставка: ${betValue} EDS`
-        : `${name} invites to Blackjack · Bet: ${betValue} EDS`;
-    }
+    if (inviteShareInfo) inviteShareInfo.textContent = "";
 
     inviteShareQr.innerHTML = "";
 
@@ -3523,8 +3518,10 @@ function showInviteBanner() {
     if (luffaQrInfo) {
       const hostName = pendingInvite.name || "???";
       luffaQrInfo.textContent = currentLocale === "ru"
-        ? `${hostName} приглашает вас в игру · Ставка: ${pendingInvite.bet} EDS · ${modeLabel}`
-        : `${hostName} invites you to play · Bet: ${pendingInvite.bet} EDS · ${modeLabel}`;
+        ? `${hostName} приглашает в Blackjack · Ставка: ${pendingInvite.bet} EDS`
+        : `${hostName} invites to Blackjack · Bet: ${pendingInvite.bet} EDS`;
+      luffaQrInfo.style.color = "#ffd700";
+      luffaQrInfo.style.fontWeight = "bold";
     }
 
     // QR-код
@@ -3552,16 +3549,22 @@ function showInviteBanner() {
   } else {
     // Обычный режим — скрыть QR-оверлей, показать баннер
     if (luffaQrScreen) luffaQrScreen.style.display = "none";
-    showMessage(
-      currentLocale === "ru"
-        ? isOnChain
-          ? "ON-CHAIN ИГРА. НАЖМИ ACCEPT — КОШЕЛЁК ПОДКЛЮЧИТСЯ АВТОМАТИЧЕСКИ"
-          : "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ"
-        : isOnChain
-          ? "ON-CHAIN GAME. PRESS ACCEPT — WALLET CONNECTS AUTOMATICALLY"
+    const hostName = pendingInvite.name || "???";
+    if (isOnChain) {
+      showMessage(
+        currentLocale === "ru"
+          ? `${hostName} ПРИГЛАШАЕТ В BLACKJACK · СТАВКА: ${pendingInvite.bet} EDS`
+          : `${hostName} INVITES TO BLACKJACK · BET: ${pendingInvite.bet} EDS`,
+        "info"
+      );
+    } else {
+      showMessage(
+        currentLocale === "ru"
+          ? "ПРИМИ ИЛИ ОТКЛОНИ ПРИГЛАШЕНИЕ"
           : "ACCEPT OR DECLINE THE INVITE",
-      "info"
-    );
+        "info"
+      );
+    }
   }
 }
 
