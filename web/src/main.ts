@@ -3409,11 +3409,20 @@ function handleInvite() {
 
   // Показать секцию с QR для хоста
   const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
+  const inviteShareInfo = document.getElementById("invite-share-info") as HTMLDivElement;
   const inviteShareQr = document.getElementById("invite-share-qr") as HTMLDivElement;
   const inviteShareCopy = document.getElementById("invite-share-copy") as HTMLButtonElement;
   const inviteShareHint = document.getElementById("invite-share-hint") as HTMLDivElement;
   if (inviteShare && inviteShareQr) {
     inviteShare.style.display = "flex";
+
+    // Информация о приглашении
+    if (inviteShareInfo) {
+      inviteShareInfo.textContent = currentLocale === "ru"
+        ? `${name} приглашает в Blackjack · Ставка: ${betValue} EDS`
+        : `${name} invites to Blackjack · Bet: ${betValue} EDS`;
+    }
+
     inviteShareQr.innerHTML = "";
 
     QRCode.toCanvas(qrUrlStr, {
