@@ -1620,10 +1620,6 @@ function init() {
     };
       if (inviteRoom) multiplayerRoom = inviteRoom;
       if (inviteHost) multiplayerHost = inviteHost;
-      // On-chain инвайт в Luffa — авто-accept после подключения кошелька
-      if (mode !== "demo") {
-        pendingInviteAutoAccept = true;
-      }
       showInviteBanner();
       if (gameArea) gameArea.style.display = "block";
       sessionStorage.setItem(inviteKey, "1");
@@ -4701,11 +4697,15 @@ async function onWalletConnectSuccess() {
     currentLocale === "ru" ? "Кошелёк подключён." : "Wallet connected.",
     "success"
   );
-  // Авто-accept приглашения после подключения кошелька
+  // Авто-accept только если запрошен (ввод ника)
   if (pendingInviteAutoAccept && pendingInvite) {
     pendingInviteAutoAccept = false;
     handleInviteAccept();
     return;
+  }
+  // Если есть ожидающий инвайт — обновить баннер (кошелёк подключён, можно жать ACCEPT)
+  if (pendingInvite) {
+    showInviteBanner();
   }
   window.setTimeout(() => {
     const inviteActive = Boolean(pendingInvite) || (inviteBanner && inviteBanner.style.display !== "none");
