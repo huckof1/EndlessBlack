@@ -85,7 +85,7 @@ export class MultiplayerClient {
       this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
     }
 
-    // Public keys (lspk_) require discovery service first
+    // Public keys (lspk_) require discovery service to get a token
     if (apiKey.startsWith("lspk_")) {
       this.onLog("Discovery for lspk_ key...");
       const cluster = new URL(wsUrl).hostname.replace("ws-", "").replace(".lattestream.com", "");
@@ -96,19 +96,19 @@ export class MultiplayerClient {
           return r.json();
         })
         .then(info => {
-          const host = info.host || info.node_host;
           const token = info.discovery_token || info.token;
-          if (!host || !token) {
-            this.onLog(`Discovery bad response: ${JSON.stringify(info).slice(0, 200)}`);
+          if (!token) {
+            this.onLog(`Discovery no token: ${JSON.stringify(info).slice(0, 200)}`);
             return;
           }
-          this.onLog(`Discovery OK: host=${host}`);
-          this.connectWs(`wss://${host}`, token);
+          // Use discovered host if valid, otherwise fall back to default WS URL
+          const host = info.host;
+          const targetUrl = (host && host !== "0.0.0.0") ? `wss://${host}` : wsUrl;
+          this.onLog(`Discovery OK, token=${token.slice(0, 20)}...`);
+          this.connectWs(targetUrl, token);
         })
         .catch(err => {
           this.onLog(`Discovery error: ${err.message}`);
-          // Fallback: try direct connection anyway
-          this.onLog("Fallback: direct connect...");
           this.connectWs(wsUrl, apiKey);
         });
     } else {
