@@ -29,7 +29,7 @@ export const MIN_BET = 10000000;
 export const MAX_BET = 1000000000000;
 
 // Multiplayer (LatteStream)
-export const LS_PUBLIC_KEY = import.meta.env.VITE_LS_PUBLIC_KEY || "";
+export const LS_PUBLIC_KEY = import.meta.env.VITE_LS_PUBLIC_KEY || "lspk_Z2w6NjI5YzQzODYtZDU5MC00NGJkLTk2YzEtOWU4YmI3NWNhODQ2OjQ1NjY1M2U0LWU4NjUtNGRhMC1iNGFjLTMzYjk0MjBlYjVmYQ";
 export const LS_CLUSTER = import.meta.env.VITE_LS_CLUSTER || "eu1";
 export const LS_WS_URL = `wss://ws-${LS_CLUSTER}.lattestream.com`;
 

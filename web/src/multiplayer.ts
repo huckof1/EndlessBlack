@@ -42,6 +42,7 @@ export class MultiplayerClient {
   private onState: OnState;
   private onSnapshot: OnSnapshot;
   private onEvent: OnEvent;
+  private onLog: (msg: string) => void;
   private pending: any[] = [];
   private subscribed: boolean = false;
   private bc: BroadcastChannel | null = null;
@@ -53,19 +54,24 @@ export class MultiplayerClient {
   private players: string[] = [];
   private turnIndex: number | null = null;
 
-  constructor(onState: OnState, onSnapshot: OnSnapshot, onEvent: OnEvent) {
+  constructor(onState: OnState, onSnapshot: OnSnapshot, onEvent: OnEvent, onLog?: (msg: string) => void) {
     this.onState = onState;
     this.onSnapshot = onSnapshot;
     this.onEvent = onEvent;
+    this.onLog = onLog || (() => {});
   }
 
   connect(wsUrl: string, apiKey: string, room: string, name: string, hostName: string) {
-    if (!wsUrl || !apiKey || !room) return;
+    if (!wsUrl || !apiKey || !room) {
+      this.onLog(`WS skip: url=${!!wsUrl} key=${!!apiKey} room=${!!room}`);
+      return;
+    }
     this.room = room;
     this.name = name;
     this.hostName = hostName;
     this.isHost = hostName === name;
     this.subscribed = false;
+    this.onLog(`WS connecting to ${wsUrl} ch=${this.channel()}`);
 
     if (!this.bc) {
       this.bc = new BroadcastChannel(this.channel());
@@ -82,10 +88,18 @@ export class MultiplayerClient {
 
     this.ws = new WebSocket(wsUrl);
     this.ws.onopen = () => {
+      this.onLog("WS open, sending api_key");
       this.sendRaw({ api_key: apiKey });
     };
     this.ws.onmessage = (event) => {
       this.handleMessage(event.data as string);
+    };
+    this.ws.onerror = (e) => {
+      this.onLog(`WS error: ${e}`);
+    };
+    this.ws.onclose = (e) => {
+      this.onLog(`WS closed: code=${e.code} reason=${e.reason}`);
+      this.subscribed = false;
     };
   }
 
@@ -153,12 +167,14 @@ export class MultiplayerClient {
     }
 
     if (msg.event === "lattestream:connection_established") {
+      this.onLog("WS connection_established, subscribing...");
       this.sendRaw({ event: "lattestream:subscribe", data: { channel: this.channel() } });
       return;
     }
 
     if (msg.event === "lattestream:subscription_succeeded") {
       this.subscribed = true;
+      this.onLog(`WS subscribed! pending=${this.pending.length}`);
       this.flushPending();
       // Send join after subscription is confirmed so it's delivered
       this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
@@ -176,6 +192,7 @@ export class MultiplayerClient {
     }
 
     if (!data || !data.type) return;
+    this.onLog(`WS recv: ${data.type}${data.type === "game:state" ? ` p=${(data as any).players?.length}` : ""}`);
 
     if (data.type === "game:state") {
       const payload = data as StateEvent;

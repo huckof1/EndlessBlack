@@ -467,7 +467,7 @@ const multiplayer = new MultiplayerClient((state) => {
   if (event.type === "game:stand") {
     applyMultiplayerStand();
   }
-});
+}, (msg) => mpLog(msg));
 let multiplayerHost: string | null = null;
 let isRoomHost = false;
 let pendingInviteAutoAccept = false;
