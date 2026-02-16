@@ -460,17 +460,21 @@ function isLuffaInApp(): boolean {
 }
 
 function requestAutoConnectInLuffa() {
-  if (autoConnectAttempted || walletAddress || !isLuffaInApp()) return;
+  if (autoConnectAttempted || walletAddress) return;
   autoConnectAttempted = true;
-  setTimeout(async () => {
-    if (!walletAddress) {
-      try {
-        await handleConnectWallet();
-      } catch {
-        // handled inside handleConnectWallet
-      }
+  // Luffa bridge (_endlessWallet) may take time to inject — retry several times
+  let attempt = 0;
+  const maxAttempts = 8;
+  const check = () => {
+    if (walletAddress || attempt >= maxAttempts) return;
+    attempt++;
+    if (isLuffaInApp()) {
+      handleConnectWallet().catch(() => {});
+    } else {
+      setTimeout(check, 400);
     }
-  }, 900);
+  };
+  setTimeout(check, 300);
 }
 
 function focusBetArea() {
@@ -3752,13 +3756,24 @@ async function generateLuffaQr() {
 
 async function tryLuffaAutoConnect() {
   if (walletAddress) return;
-  if (!isLuffaInApp()) return;
-  try {
-    walletAddress = await connectLuffa(networkMode);
-    await onWalletConnectSuccess();
-  } catch {
-    // Not in Luffa or failed — QR is visible for manual scan
-  }
+  // Luffa bridge may take time to inject — retry several times
+  let attempt = 0;
+  const maxAttempts = 8;
+  const check = async () => {
+    if (walletAddress || attempt >= maxAttempts) return;
+    attempt++;
+    if (isLuffaInApp()) {
+      try {
+        walletAddress = await connectLuffa(networkMode);
+        await onWalletConnectSuccess();
+      } catch {
+        // failed — QR is visible for manual scan
+      }
+    } else {
+      setTimeout(check, 400);
+    }
+  };
+  setTimeout(check, 300);
 }
 
 async function handleEndlessWalletConnect() {
