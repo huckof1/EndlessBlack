@@ -3506,33 +3506,33 @@ function handleInvite() {
 
     inviteShareQr.innerHTML = "";
 
-    // Составной canvas: текст + QR + подсказка
+    // На экране — простой QR без текста
     QRCode.toCanvas(qrUrlStr, {
       width: 200,
       margin: 2,
       color: { dark: "#000000", light: "#ffffff" },
     }).then((qrCanvas: HTMLCanvasElement) => {
-      const composite = buildInviteQrImage(qrCanvas, name, betValue);
-      inviteShareQr.appendChild(composite);
+      inviteShareQr.appendChild(qrCanvas);
     }).catch(() => {
       inviteShareQr.textContent = qrUrlStr;
     });
 
-    // Кнопка копирования QR — тап = user gesture → clipboard.write работает
+    // Кнопка ОТПРАВИТЬ — при отправке создаём составную картинку с текстом
     if (inviteShareCopy) {
       inviteShareCopy.textContent = currentLocale === "ru"
         ? "ОТПРАВИТЬ QR"
         : "SHARE QR";
       inviteShareCopy.onclick = () => {
-        const canvas = inviteShareQr.querySelector("canvas");
-        if (!canvas) return;
-        canvas.toBlob((blob) => {
+        const plainQr = inviteShareQr.querySelector("canvas");
+        if (!plainQr) return;
+        // Составная картинка с текстом для отправки
+        const composite = buildInviteQrImage(plainQr, name, betValue);
+        composite.toBlob((blob) => {
           if (!blob) return;
           const file = new File([blob], "invite-qr.png", { type: "image/png" });
           if (navigator.share && navigator.canShare?.({ files: [file] })) {
             navigator.share({ files: [file] }).catch(() => {});
           } else {
-            // Fallback — скачать картинку
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
             a.download = "invite-qr.png";
