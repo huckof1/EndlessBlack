@@ -2388,12 +2388,21 @@ function updateFeeFromBet() {
 }
 
 function getBetLimits(): { minOctas: number; maxOctas: number } {
-  if (currentBankrollOctas <= 0) {
-    return { minOctas: 0, maxOctas: 0 };
-  }
   const playerFunds = isDemoActive()
     ? currentPlayerBalanceOctas
     : (walletAddress ? inGameBalance : 0);
+
+  // For wallet-connected local play: limit by player's in-game balance only
+  // (no bankroll needed since game runs locally)
+  if (!isDemoActive() && walletAddress && inGameBalance > 0) {
+    const maxOctas = Math.min(MAX_BET, inGameBalance);
+    const minOctas = Math.min(MIN_BET, maxOctas);
+    return { minOctas, maxOctas };
+  }
+
+  if (currentBankrollOctas <= 0) {
+    return { minOctas: 0, maxOctas: 0 };
+  }
   const feeRate = currentFeeBps / 10000;
   const maxPayoutMultiplier = 2.5; // blackjack pays 2.5x
   const safetyMultiplier = 1.2; // 20% reserve buffer
