@@ -152,7 +152,7 @@ const walletInstallLink = document.getElementById("wallet-install-link") as HTML
 const walletPickerTitle = document.getElementById("wallet-picker-title") as HTMLDivElement;
 const walletPickerOptions = document.getElementById("wallet-picker-options") as HTMLDivElement;
 const walletOptEndless = document.getElementById("wallet-opt-endless") as HTMLButtonElement;
-// walletOptLuffa removed — QR is shown inline, no separate button needed
+const walletOptLuffa = document.getElementById("wallet-opt-luffa") as HTMLButtonElement;
 const walletConnectStatus = document.getElementById("wallet-connect-status") as HTMLDivElement;
 const walletStatusText = document.getElementById("wallet-status-text") as HTMLDivElement;
 const walletQrContainer = document.getElementById("wallet-qr-container") as HTMLDivElement;
@@ -1382,6 +1382,9 @@ function init() {
   });
   if (walletOptEndless) {
     walletOptEndless.addEventListener("click", handleEndlessWalletConnect);
+  }
+  if (walletOptLuffa) {
+    walletOptLuffa.addEventListener("click", handleLuffaWalletConnect);
   }
   if (walletPickerBack) {
     walletPickerBack.addEventListener("click", showWalletPicker);
@@ -3797,11 +3800,9 @@ function showWalletPicker() {
   if (walletPickerTitle) {
     walletPickerTitle.textContent = I18N[currentLocale].wallet_picker_title;
   }
-  // Show Luffa QR immediately in the picker
-  generateLuffaQr();
+  // Hide Luffa QR section — it only shows when user clicks the Luffa button
+  if (walletLuffaQrSection) walletLuffaQrSection.style.display = "none";
   walletModal.style.display = "flex";
-  // Try Luffa auto-connect in background (works if already inside Luffa app)
-  tryLuffaAutoConnect();
 }
 
 function getLuffaQrUrl(): string {
@@ -3906,7 +3907,25 @@ async function handleEndlessWalletConnect() {
   }
 }
 
-// handleLuffaWalletConnect removed — QR auto-connects, no separate button
+async function handleLuffaWalletConnect() {
+  if (!walletModal) return;
+  setPreferredWalletType("luffa");
+  if (walletAddress) {
+    await handleDisconnectWallet();
+  }
+  // Hide picker options, show QR + status
+  if (walletPickerOptions) walletPickerOptions.style.display = "none";
+  if (walletPickerBack) walletPickerBack.style.display = "inline-flex";
+  if (walletConnectStatus) walletConnectStatus.style.display = "none";
+  if (walletInstallLink) walletInstallLink.style.display = "none";
+  if (walletPickerTitle) {
+    walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa || "LUFFA WALLET";
+  }
+  // Show QR code for scanning
+  generateLuffaQr();
+  // Try auto-connect if already inside Luffa app
+  tryLuffaAutoConnect();
+}
 
 async function onWalletConnectSuccess() {
   await updateBalance();

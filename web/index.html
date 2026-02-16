@@ -240,8 +240,8 @@
       <div class="modal-content wallet-picker-content">
         <div class="modal-title" id="wallet-picker-title" data-i18n="wallet_picker_title">CHOOSE WALLET</div>
 
-        <!-- Luffa QR code (shown immediately) -->
-        <div id="wallet-luffa-qr-section" class="wallet-luffa-qr-section">
+        <!-- Luffa QR code (hidden until Luffa selected) -->
+        <div id="wallet-luffa-qr-section" class="wallet-luffa-qr-section" style="display: none;">
           <div id="wallet-luffa-qr" class="wallet-qr-container" style="display: flex;"></div>
           <div id="wallet-luffa-qr-hint" class="modal-text" style="font-size: 10px; margin-top: 4px;" data-i18n="wallet_luffa_qr_hint">SCAN QR IN LUFFA APP</div>
         </div>
@@ -252,6 +252,11 @@
             <span class="wallet-option-icon">🔗</span>
             <span class="wallet-option-name" data-i18n="wallet_endless">ENDLESS WALLET</span>
             <span class="wallet-option-desc" data-i18n="wallet_endless_desc">Web wallet</span>
+          </button>
+          <button id="wallet-opt-luffa" class="wallet-option">
+            <span class="wallet-option-icon">📱</span>
+            <span class="wallet-option-name" data-i18n="wallet_luffa">LUFFA WALLET</span>
+            <span class="wallet-option-desc" data-i18n="wallet_luffa_desc">Scan QR code</span>
           </button>
         </div>
 
