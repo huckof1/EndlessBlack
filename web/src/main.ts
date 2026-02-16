@@ -3402,65 +3402,74 @@ function handleInvite() {
     }
     updateMpDebug("invite");
   }
-  const inviteUrl = url.toString();
-  navigator.clipboard.writeText(inviteUrl).then(() => {
-    showMessage(
-      currentLocale === "ru"
-        ? "ССЫЛКА СКОПИРОВАНА В БУФЕР ОБМЕНА!"
-        : "LINK COPIED TO CLIPBOARD!",
-      "success"
-    );
-    setTimeout(() => {
-      showMessage(
-        currentLocale === "ru"
-          ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
-          : "WAITING FOR INVITED PLAYER TO CONFIRM...",
-        "info"
-      );
-    }, 3000);
-  });
+  // QR URL без wallet=luffa — чистый HTTPS для сканера Luffa
+  const qrUrl = new URL(url.toString());
+  qrUrl.searchParams.delete("wallet");
+  const qrUrlStr = qrUrl.toString();
 
-  // Показать секцию с ссылкой + QR для хоста
+  // Показать секцию с QR для хоста
   const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
-  const inviteShareLink = document.getElementById("invite-share-link") as HTMLDivElement;
   const inviteShareQr = document.getElementById("invite-share-qr") as HTMLDivElement;
   const inviteShareHint = document.getElementById("invite-share-hint") as HTMLDivElement;
-  if (inviteShare) {
+  if (inviteShare && inviteShareQr) {
     inviteShare.style.display = "flex";
+    inviteShareQr.innerHTML = "";
 
-    // Показать ссылку (по тапу — копировать)
-    if (inviteShareLink) {
-      inviteShareLink.textContent = inviteUrl;
-      inviteShareLink.onclick = () => {
-        navigator.clipboard.writeText(inviteUrl).then(() => {
-          showMessage(
-            currentLocale === "ru" ? "ССЫЛКА СКОПИРОВАНА!" : "LINK COPIED!",
-            "success"
-          );
-        });
-      };
-    }
+    QRCode.toCanvas(qrUrlStr, {
+      width: 200,
+      margin: 2,
+      color: { dark: "#000000", light: "#ffffff" },
+    }).then((canvas: HTMLCanvasElement) => {
+      inviteShareQr.appendChild(canvas);
 
-    // QR без wallet=luffa — чистый HTTPS URL для сканера Luffa
-    if (inviteShareQr) {
-      const qrUrl = new URL(inviteUrl);
-      qrUrl.searchParams.delete("wallet");
-      inviteShareQr.innerHTML = "";
-      QRCode.toCanvas(qrUrl.toString(), {
-        width: 180,
-        margin: 2,
-        color: { dark: "#000000", light: "#ffffff" },
-      }).then((canvas: HTMLCanvasElement) => {
-        inviteShareQr.appendChild(canvas);
-      }).catch(() => {
-        inviteShareQr.textContent = qrUrl.toString();
-      });
-    }
+      // Копируем QR-картинку в буфер обмена
+      canvas.toBlob((blob) => {
+        if (blob) {
+          navigator.clipboard.write([
+            new ClipboardItem({ "image/png": blob })
+          ]).then(() => {
+            showMessage(
+              currentLocale === "ru"
+                ? "QR СКОПИРОВАН В БУФЕР ОБМЕНА!"
+                : "QR COPIED TO CLIPBOARD!",
+              "success"
+            );
+            setTimeout(() => {
+              showMessage(
+                currentLocale === "ru"
+                  ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
+                  : "WAITING FOR INVITED PLAYER TO CONFIRM...",
+                "info"
+              );
+            }, 3000);
+          }).catch(() => {
+            // Fallback: копируем ссылку текстом
+            navigator.clipboard.writeText(qrUrlStr).catch(() => {});
+            showMessage(
+              currentLocale === "ru"
+                ? "QR ГОТОВ. ОТПРАВЬТЕ ИЛИ ПОКАЖИТЕ ДЛЯ СКАНИРОВАНИЯ"
+                : "QR READY. SHARE OR SHOW TO SCAN",
+              "info"
+            );
+            setTimeout(() => {
+              showMessage(
+                currentLocale === "ru"
+                  ? "ОЖИДАЕМ ПОДТВЕРЖДЕНИЯ ОТ ПРИГЛАШЁННОГО ИГРОКА..."
+                  : "WAITING FOR INVITED PLAYER TO CONFIRM...",
+                "info"
+              );
+            }, 3000);
+          });
+        }
+      }, "image/png");
+    }).catch(() => {
+      inviteShareQr.textContent = qrUrlStr;
+    });
 
     if (inviteShareHint) {
       inviteShareHint.textContent = currentLocale === "ru"
-        ? "Отправьте ссылку или покажите QR для сканирования в Luffa"
-        : "Share the link or show QR to scan in Luffa";
+        ? "Отправьте QR или покажите для сканирования в Luffa"
+        : "Share QR or show it to scan in Luffa";
     }
   }
 
