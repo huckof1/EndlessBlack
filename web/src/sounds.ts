@@ -18,8 +18,8 @@ const SOUND_URLS = {
   click: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3", // click
 
   // Фоновая музыка (локальный файл)
-  bgMusic: "/1.mp3",
-  gameMusic: "/2.mp3",
+  bgMusic: "./1.mp3",
+  gameMusic: "./2.mp3",
 };
 
 // Типы звуков
