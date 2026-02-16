@@ -1594,6 +1594,10 @@ function init() {
     };
       if (inviteRoom) multiplayerRoom = inviteRoom;
       if (inviteHost) multiplayerHost = inviteHost;
+      // On-chain инвайт в Luffa — авто-accept после подключения кошелька
+      if (mode !== "demo") {
+        pendingInviteAutoAccept = true;
+      }
       showInviteBanner();
       if (gameArea) gameArea.style.display = "block";
       sessionStorage.setItem(inviteKey, "1");
@@ -3628,6 +3632,12 @@ async function handleInviteAccept() {
 
   // Подключаемся к комнате
   if (multiplayerRoom && LS_PUBLIC_KEY) {
+    showMessage(
+      currentLocale === "ru"
+        ? "ПОДКЛЮЧЕНИЕ К ИГРЕ..."
+        : "CONNECTING TO GAME...",
+      "info"
+    );
     const host = multiplayerHost || pendingInvite?.name || playerName;
     if (!mpNameFrozen) mpNameFrozen = getMpName();
     multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
@@ -3640,6 +3650,9 @@ async function handleInviteAccept() {
   }
 
   if (inviteBanner) inviteBanner.style.display = "none";
+  // Скрыть QR-оверлей если был показан
+  const luffaQrOverlay = document.getElementById("luffa-qr-screen");
+  if (luffaQrOverlay) luffaQrOverlay.style.display = "none";
   pendingInvite = null;
   invitedByLink = false;
   betMinus.disabled = false;
