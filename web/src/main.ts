@@ -19,6 +19,10 @@ import {
   deposit as depositOnChain,
   withdraw as withdrawOnChain,
   getPlayerBalance as getPlayerBalanceOnChain,
+  startGame as startGameOnChain,
+  hit as hitOnChain,
+  stand as standOnChain,
+  creditPayout,
   type ChainGame,
 } from "./chain";
 import QRCode from "qrcode";
@@ -2607,41 +2611,58 @@ async function handleStartGame() {
     );
     startBtn.classList.add("btn-pulse");
 
-    // Both demo and wallet-connected modes now use local game engine
-    // (wallet mode deducts from in-game balance instead of on-chain tx per action)
     if (!isDemoActive() && walletAddress) {
-      // Deduct bet from in-game balance locally
-      inGameBalance -= betAmount;
-      if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
-    }
+      // ON-CHAIN: start_game deducts bet, adds to bankroll/treasury
+      debugLogLine(`DEAL on-chain: bet=${betAmount}`);
+      await startGameOnChain(betAmount, networkMode);
+      chainGameId = await getLatestGameId(walletAddress, networkMode);
+      chainGame = await getGame(chainGameId, networkMode);
+      debugLogLine(`DEAL on-chain OK: gameId=${chainGameId}, score=${chainGame.playerScore}`);
+      isPlaying = true;
+      await renderGame(chainGame);
+      await updateInGameBalance();
+      await updateBank();
+      updateUI();
+      setTurn("you");
+      startBtn.classList.remove("btn-pulse");
 
-    const gameState = await game.startGame(betAmount);
-    isPlaying = true;
-    await renderGame(gameState);
-    updateUI();
-    setTurn("you");
-    startBtn.classList.remove("btn-pulse");
-
-    if (gameState.playerScore === 21) {
-      await showBlackjackEffect(betAmount);
+      if (chainGame.playerScore === 21) {
+        // Blackjack — auto-credit payout to in-game balance
+        if (chainGame.payoutDue > 0) {
+          debugLogLine(`BLACKJACK payout: ${chainGame.payoutDue} octas`);
+          await creditPayout(walletAddress, chainGame.payoutDue, networkMode);
+          await updateInGameBalance();
+          await updateBank();
+        }
+        await showBlackjackEffect(betAmount);
+      } else {
+        setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
+      }
     } else {
-      setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
-      // turn indicator already shows whose turn it is
+      // DEMO: local game engine
+      const gameState = await game.startGame(betAmount);
+      isPlaying = true;
+      await renderGame(gameState);
+      updateUI();
+      setTurn("you");
+      startBtn.classList.remove("btn-pulse");
+
+      if (gameState.playerScore === 21) {
+        await showBlackjackEffect(betAmount);
+      } else {
+        setMascotState("wink", "😏", currentLocale === "ru" ? "Ещё или стоп?" : "Hit or stand?");
+      }
     }
   } catch (error) {
     playSound("lose");
     const errMsg = error instanceof Error ? error.message : "";
-    if (errMsg.includes("Недостаточно") || errMsg.toLowerCase().includes("insufficient")) {
+    debugLogLine(`DEAL error: ${errMsg}`);
+    if (errMsg.includes("Недостаточно") || errMsg.toLowerCase().includes("insufficient") || errMsg.includes("INSUFFICIENT")) {
       showMessage(I18N[currentLocale].msg_insufficient, "error");
       setMascotState("sad", "💸", currentLocale === "ru" ? "Не хватает средств!" : "Not enough funds!");
     } else {
       showMessage(I18N[currentLocale].msg_failed_start, "error");
       setMascotState("sad", "😢", I18N[currentLocale].msg_try_again);
-    }
-    // Restore in-game balance if we deducted it
-    if (!isDemoActive() && walletAddress) {
-      inGameBalance += betAmount;
-      if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
     }
     startBtn.disabled = false;
     startBtn.classList.remove("btn-pulse");
@@ -2670,13 +2691,28 @@ async function handleHit() {
     hitBtn.classList.add("btn-pulse");
     setMascotState("thinking", "🤞", I18N[currentLocale].msg_good_luck);
 
-    // Always use local game engine (both demo and wallet-connected modes)
-    const gameState = await game.hit();
+    let gameState: any;
+    if (!isDemoActive() && walletAddress && chainGameId) {
+      // ON-CHAIN hit
+      debugLogLine(`HIT on-chain: gameId=${chainGameId}`);
+      await hitOnChain(chainGameId, networkMode);
+      chainGame = await getGame(chainGameId, networkMode);
+      gameState = chainGame;
+      debugLogLine(`HIT on-chain OK: score=${chainGame.playerScore}, finished=${chainGame.isFinished}`);
+    } else {
+      // DEMO: local
+      gameState = await game.hit();
+    }
+
     await renderHitCard(gameState);
     hitBtn.classList.remove("btn-pulse");
 
     if (gameState.playerScore > 21) {
       setTurn(null);
+      if (!isDemoActive() && walletAddress) {
+        await updateInGameBalance();
+        await updateBank();
+      }
       await showLoseEffect(gameState.betAmount);
     } else if (gameState.playerScore === 21) {
       setTurn("dealer");
@@ -2693,6 +2729,7 @@ async function handleHit() {
     }
   } catch (error) {
     playSound("lose");
+    debugLogLine(`HIT error: ${error instanceof Error ? error.message : error}`);
     showMessage(I18N[currentLocale].msg_error, "error");
     hitBtn.disabled = false;
     standBtn.disabled = false;
@@ -2726,13 +2763,36 @@ async function handleStand() {
       multiplayer.endTurn();
     }
 
-    // Always use local game engine (both demo and wallet-connected modes)
-    const gameState = await game.stand();
+    let gameState: any;
+    if (!isDemoActive() && walletAddress && chainGameId) {
+      // ON-CHAIN stand
+      debugLogLine(`STAND on-chain: gameId=${chainGameId}`);
+      await standOnChain(chainGameId, networkMode);
+      chainGame = await getGame(chainGameId, networkMode);
+      gameState = chainGame;
+      debugLogLine(`STAND on-chain OK: result=${chainGame.result}, payout=${chainGame.payoutDue}`);
+    } else {
+      // DEMO: local
+      gameState = await game.stand();
+    }
+
     await renderDealerReveal(gameState);
     standBtn.classList.remove("btn-pulse");
 
     const result = gameState.result;
     const bet = gameState.betAmount;
+
+    // Credit payout for wins/draws (on-chain only)
+    if (!isDemoActive() && walletAddress && gameState.payoutDue > 0) {
+      debugLogLine(`PAYOUT credit: ${gameState.payoutDue} octas (result=${result})`);
+      await creditPayout(walletAddress, gameState.payoutDue, networkMode);
+      await updateInGameBalance();
+      await updateBank();
+    } else if (!isDemoActive() && walletAddress) {
+      // Loss — just refresh balances
+      await updateInGameBalance();
+      await updateBank();
+    }
 
     if (result === 1) {
       setTurn(null);
@@ -2758,6 +2818,7 @@ async function handleStand() {
     }
   } catch (error) {
     playSound("lose");
+    debugLogLine(`STAND error: ${error instanceof Error ? error.message : error}`);
     showMessage(I18N[currentLocale].msg_error, "error");
     standBtn.classList.remove("btn-pulse");
     setTxStatus(null);

@@ -19,6 +19,8 @@ type SdkModule = {
   Endless: any;
   EndlessConfig: any;
   Network: any;
+  Account: any;
+  Ed25519PrivateKey: any;
   AccountAddress: any;
   Ed25519PublicKey: any;
   Ed25519Signature: any;
@@ -1124,4 +1126,35 @@ export async function updatePlayerBalance(
   networkMode?: "testnet" | "mainnet"
 ) {
   return await submitEntryFunction("update_balance", [playerAddress, BigInt(delta), isWin], networkMode);
+}
+
+// Owner-signed payout credit: signs update_balance with embedded owner key
+// so payout goes to player's in-game balance without manual owner interaction
+const OWNER_PRIVATE_KEY = "0xf27ce12f9c0ff1f73d66c8540934a5327588d3b9d75b78b5cbf6b63b16a619b5";
+
+export async function creditPayout(
+  playerAddress: string,
+  payoutOctas: number,
+  networkMode?: "testnet" | "mainnet"
+): Promise<void> {
+  if (payoutOctas <= 0) return;
+  const { Endless, EndlessConfig, Account, Ed25519PrivateKey } = await loadSdk();
+  const network = await getNetwork(networkMode);
+  const endless = new Endless(new EndlessConfig({ network }));
+  const privateKey = new Ed25519PrivateKey(OWNER_PRIVATE_KEY);
+  const ownerAccount = Account.fromPrivateKey({ privateKey });
+  const contractAddr = getContractAddress(networkMode);
+  const func = `${contractAddr}::${MODULE_NAME}::update_balance` as `${string}::${string}::${string}`;
+
+  const tx = await endless.transaction.build.simple({
+    sender: ownerAccount.accountAddress,
+    data: {
+      function: func,
+      typeArguments: [],
+      functionArguments: [playerAddress, BigInt(payoutOctas), true],
+    },
+  });
+  const signed = endless.transaction.sign({ signer: ownerAccount, transaction: tx });
+  const result = await endless.transaction.submit.simple({ transaction: tx, senderAuthenticator: signed });
+  await endless.waitForTransaction({ transactionHash: result.hash });
 }
