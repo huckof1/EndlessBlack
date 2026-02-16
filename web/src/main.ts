@@ -462,19 +462,32 @@ function isLuffaInApp(): boolean {
 function requestAutoConnectInLuffa() {
   if (autoConnectAttempted || walletAddress) return;
   autoConnectAttempted = true;
+
+  // If opened from QR with ?wallet=luffa — auto-start session and connect
+  const wp = new URLSearchParams(window.location.search).get("wallet");
+  const fromQr = wp === "luffa";
+
   // Luffa bridge (_endlessWallet) may take time to inject — retry several times
   let attempt = 0;
-  const maxAttempts = 8;
+  const maxAttempts = 10;
   const check = () => {
     if (walletAddress || attempt >= maxAttempts) return;
     attempt++;
-    if (isLuffaInApp()) {
-      handleConnectWallet().catch(() => {});
+    if (isLuffaInApp() || fromQr) {
+      // Auto-start session so the user doesn't have to press START
+      if (!isSessionStarted && playerName) {
+        startSession();
+      }
+      setPreferredWalletType("luffa");
+      connectLuffa(networkMode).then(async (addr) => {
+        walletAddress = addr;
+        await onWalletConnectSuccess();
+      }).catch(() => {});
     } else {
       setTimeout(check, 400);
     }
   };
-  setTimeout(check, 300);
+  setTimeout(check, 500);
 }
 
 function focusBetArea() {
@@ -1466,12 +1479,15 @@ function init() {
   document.addEventListener("click", initAudio, { once: true });
   document.addEventListener("touchstart", initAudio, { once: true });
 
-  // Load saved name
-  const savedName = localStorage.getItem("playerName");
+  // Load name from URL param (QR link) or localStorage
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlName = urlParams.get("name");
+  const savedName = urlName || localStorage.getItem("playerName");
   if (savedName) {
     playerName = savedName.slice(0, 12);
-    playerNameInput.value = savedName;
-    if (nicknameInput) nicknameInput.value = savedName;
+    playerNameInput.value = playerName;
+    if (nicknameInput) nicknameInput.value = playerName;
+    localStorage.setItem("playerName", playerName);
   } else if (nicknameModal) {
     nicknameModal.style.display = "flex";
   }
@@ -3354,10 +3370,7 @@ function updateUI() {
   }
 }
 
-async function handleConnectWallet() {
-  await connectWalletFlow(false);
-  focusBetArea();
-}
+// handleConnectWallet removed — was unused
 
 async function handleDisconnectWallet() {
   try {
@@ -3726,12 +3739,19 @@ function showWalletPicker() {
 }
 
 function getLuffaQrUrl(): string {
-  // On localhost use the deployed production URL so phone can reach it
+  // Base URL: on localhost use production URL so phone can reach it
+  let base: string;
   const loc = window.location;
   if (loc.hostname === "localhost" || loc.hostname === "127.0.0.1") {
-    return (window as any).__LUFFA_QR_URL || "https://huckof1.github.io/EndlessBlack/";
+    base = (window as any).__LUFFA_QR_URL || "https://huckof1.github.io/EndlessBlack/";
+  } else {
+    base = loc.origin + loc.pathname;
   }
-  return loc.href;
+  // Add player name and wallet=luffa so the page auto-connects
+  const params = new URLSearchParams();
+  if (playerName) params.set("name", playerName);
+  params.set("wallet", "luffa");
+  return base + "?" + params.toString();
 }
 
 async function generateLuffaQr() {
