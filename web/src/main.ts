@@ -3721,6 +3721,15 @@ function showWalletPicker() {
   tryLuffaAutoConnect();
 }
 
+function getLuffaQrUrl(): string {
+  // On localhost use the deployed production URL so phone can reach it
+  const loc = window.location;
+  if (loc.hostname === "localhost" || loc.hostname === "127.0.0.1") {
+    return (window as any).__LUFFA_QR_URL || "https://huckof1.github.io/EndlessBlack/";
+  }
+  return loc.href;
+}
+
 async function generateLuffaQr() {
   if (!walletLuffaQr) return;
   walletLuffaQr.innerHTML = "";
@@ -3728,15 +3737,16 @@ async function generateLuffaQr() {
   if (walletLuffaQrHint) {
     walletLuffaQrHint.textContent = I18N[currentLocale].wallet_luffa_qr_hint;
   }
+  const qrUrl = getLuffaQrUrl();
   try {
-    const canvas = await QRCode.toCanvas(window.location.href, {
+    const canvas = await QRCode.toCanvas(qrUrl, {
       width: 180,
       margin: 2,
       color: { dark: "#000000", light: "#ffffff" },
     });
     walletLuffaQr.appendChild(canvas);
   } catch {
-    walletLuffaQr.textContent = window.location.href;
+    walletLuffaQr.textContent = qrUrl;
   }
 }
 
