@@ -2392,14 +2392,6 @@ function getBetLimits(): { minOctas: number; maxOctas: number } {
     ? currentPlayerBalanceOctas
     : (walletAddress ? inGameBalance : 0);
 
-  // For wallet-connected local play: limit by player's in-game balance only
-  // (no bankroll needed since game runs locally)
-  if (!isDemoActive() && walletAddress && inGameBalance > 0) {
-    const maxOctas = Math.min(MAX_BET, inGameBalance);
-    const minOctas = Math.min(MIN_BET, maxOctas);
-    return { minOctas, maxOctas };
-  }
-
   if (currentBankrollOctas <= 0) {
     return { minOctas: 0, maxOctas: 0 };
   }
