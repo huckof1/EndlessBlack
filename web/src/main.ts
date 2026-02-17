@@ -3238,7 +3238,8 @@ function scrollToGameArea(offset = 8) {
   window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "smooth" });
 }
 async function handleStartGame() {
-  focusBetArea();
+  scrollToGameArea(window.innerWidth <= 520 ? 150 : 110);
+  pulseBetDisplay();
   document.body.classList.add("game-active");
   hasGameResult = false;
   hideGameResult();
@@ -5049,7 +5050,8 @@ async function startDemoSession() {
     currentLocale === "ru" ? "Тестовый режим. Сделай ставку!" : "Test mode. Place your bet!",
     "info"
   );
-  focusBetArea();
+  scrollToGameArea(window.innerWidth <= 520 ? 150 : 110);
+  pulseBetDisplay();
   updateUI();
   initFeed();
   renderLeaderboard();
