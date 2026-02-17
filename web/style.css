@@ -428,6 +428,21 @@ body[data-theme="light"] {
 .sound-btn:hover { border-color: var(--secondary); transform: translateY(-1px); }
 .sound-btn.muted { opacity: 0.5; }
 
+.sound-btn.wallet-cta-pulse {
+  animation: walletCtaPulse 0.9s steps(2, end) 4;
+}
+
+@keyframes walletCtaPulse {
+  0%, 100% {
+    border-color: rgba(255, 255, 255, 0.18);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    border-color: #00ffd5;
+    box-shadow: 0 0 14px rgba(0, 255, 213, 0.75), 0 0 28px rgba(0, 255, 213, 0.35);
+  }
+}
+
 .header-status {
   display: flex;
   justify-content: center;

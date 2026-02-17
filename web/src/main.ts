@@ -1019,6 +1019,15 @@ function pulseBetDisplay() {
   }
 }
 
+function pulseDepositButton() {
+  if (!depositBtnHeader || depositBtnHeader.style.display === "none") return;
+  depositBtnHeader.classList.remove("wallet-cta-pulse");
+  // Force reflow to restart animation
+  void depositBtnHeader.offsetWidth;
+  depositBtnHeader.classList.add("wallet-cta-pulse");
+  window.setTimeout(() => depositBtnHeader.classList.remove("wallet-cta-pulse"), 3600);
+}
+
 function focusBetArea() {
   scrollToGameArea();
   pulseBetDisplay();
@@ -3244,11 +3253,8 @@ function scrollToGameArea(offset = 8) {
 
 function backToWalletStep() {
   document.body.classList.remove("game-active");
-  if (walletSection && walletSection.style.display !== "none") {
-    walletSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-  }
+  scrollToGameArea(window.innerWidth <= 520 ? 150 : 110);
+  pulseDepositButton();
   showMessage(
     currentLocale === "ru" ? "Вернулись к кошельку. Пополните баланс и начните раздачу." : "Back to wallet. Deposit and start dealing.",
     "info"
