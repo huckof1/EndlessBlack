@@ -4554,6 +4554,7 @@ async function handleInvite() {
   const inviteShareInfo = document.getElementById("invite-share-info") as HTMLDivElement;
   const inviteShareQr = document.getElementById("invite-share-qr") as HTMLDivElement;
   const inviteShareCopy = document.getElementById("invite-share-copy") as HTMLButtonElement;
+  const inviteShareDownload = document.getElementById("invite-share-download") as HTMLButtonElement;
   const inviteShareHint = document.getElementById("invite-share-hint") as HTMLDivElement;
   if (inviteShare && inviteShareQr) {
     inviteShare.style.display = "flex";
@@ -4573,6 +4574,34 @@ async function handleInvite() {
       inviteShareQr.textContent = qrUrlStr;
     });
 
+    let latestInviteBlob: Blob | null = null;
+    const resetInviteShareHint = () => {
+      latestInviteBlob = null;
+      if (inviteShareHint) {
+        inviteShareHint.textContent = inviteShareHint.dataset.defaultText || "";
+      }
+      if (inviteShareDownload) {
+        inviteShareDownload.style.display = "none";
+      }
+    };
+    const showFallbackQrHint = (text: string) => {
+      if (inviteShareHint) {
+        inviteShareHint.textContent = text;
+      }
+      if (inviteShareDownload) {
+        inviteShareDownload.style.display = "inline-flex";
+      }
+    };
+    inviteShareDownload?.addEventListener("click", () => {
+      if (!latestInviteBlob) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(latestInviteBlob);
+      a.download = "invite-qr.png";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+    inviteShareDownload?.style?.setProperty("display", "none");
+
     // Кнопка ОТПРАВИТЬ — при отправке создаём составную картинку с текстом
     if (inviteShareCopy) {
       inviteShareCopy.textContent = currentLocale === "ru"
@@ -4584,39 +4613,43 @@ async function handleInvite() {
         const composite = buildInviteQrImage(plainQr, name, betValue);
         composite.toBlob(async (blob) => {
           if (!blob) return;
-          const file = new File([blob], "invite-qr.png", { type: "image/png" });
-          const isAndroid = /android/i.test(navigator.userAgent);
-          if (isAndroid && navigator.clipboard?.write) {
-            try {
-              await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-              return;
-            } catch (_) {
-              // fall through to share/download fallback
-            }
-          }
-          if (navigator.share && navigator.canShare?.({ files: [file] })) {
-            navigator.share({ files: [file] }).catch(() => {});
+        const file = new File([blob], "invite-qr.png", { type: "image/png" });
+        const isAndroid = /android/i.test(navigator.userAgent);
+        const canClipboard = typeof ClipboardItem !== "undefined" && navigator.clipboard?.write;
+        if (isAndroid && canClipboard) {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+            resetInviteShareHint();
             return;
+          } catch (_) {
+            // fall through to share/download fallback
           }
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = "invite-qr.png";
-          a.click();
-          URL.revokeObjectURL(a.href);
-          showMessage(
-            currentLocale === "ru"
-              ? "QR СОХРАНЁН — ОТПРАВЬТЕ ФАЙЛ"
-              : "QR SAVED — SEND THE FILE",
-            "success"
-          );
+        }
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file] });
+            resetInviteShareHint();
+            return;
+          } catch (_) {
+            // fall through to fallback
+          }
+        }
+        latestInviteBlob = blob;
+        showFallbackQrHint(
+          currentLocale === "ru"
+            ? "QR СОХРАНЁН — отправьте файл вручную"
+            : "QR SAVED — send the file manually"
+        );
         }, "image/png");
       };
     }
 
     if (inviteShareHint) {
-      inviteShareHint.textContent = currentLocale === "ru"
+      const hintText = currentLocale === "ru"
         ? "Отправьте QR или покажите для сканирования в Luffa"
         : "Share QR or show to scan in Luffa";
+      inviteShareHint.textContent = hintText;
+      inviteShareHint.dataset.defaultText = hintText;
     }
   }
 
