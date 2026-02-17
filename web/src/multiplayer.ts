@@ -37,15 +37,30 @@ type StandEvent = { type: "game:stand"; by: string };
 type WalletInfoEvent = { type: "game:wallet_info"; by: string; address: string };
 type ForfeitEvent = { type: "game:forfeit"; by: string };
 
+type GameEvent =
+  | JoinEvent
+  | EndTurnEvent
+  | ResetEvent
+  | StateEvent
+  | SnapshotEvent
+  | BetProposeEvent
+  | BetAcceptEvent
+  | BetDeclineEvent
+  | HitEvent
+  | StandEvent
+  | WalletInfoEvent
+  | ForfeitEvent;
+
+const NTFY_BASE = "https://ntfy.sh";
+const NTFY_WS = "wss://ntfy.sh";
+const TOPIC_PREFIX = "pxbj-";
+
 export class MultiplayerClient {
   private ws: WebSocket | null = null;
   private onState: OnState;
   private onSnapshot: OnSnapshot;
   private onEvent: OnEvent;
   private onLog: (msg: string) => void;
-  private pending: any[] = [];
-  private subscribed: boolean = false;
-  private bc: BroadcastChannel | null = null;
   private clientId: string = Math.random().toString(36).slice(2, 8);
   private room: string = "";
   private name: string = "";
@@ -53,6 +68,7 @@ export class MultiplayerClient {
   private isHost: boolean = false;
   private players: string[] = [];
   private turnIndex: number | null = null;
+  public connected: boolean = false;
 
   constructor(onState: OnState, onSnapshot: OnSnapshot, onEvent: OnEvent, onLog?: (msg: string) => void) {
     this.onState = onState;
@@ -61,78 +77,33 @@ export class MultiplayerClient {
     this.onLog = onLog || (() => {});
   }
 
-  connect(wsUrl: string, apiKey: string, room: string, name: string, hostName: string) {
-    if (!wsUrl || !apiKey || !room) {
-      this.onLog(`WS skip: url=${!!wsUrl} key=${!!apiKey} room=${!!room}`);
+  connect(_wsUrl: string, _apiKey: string, room: string, name: string, hostName: string) {
+    if (!room) {
+      this.onLog("No room specified");
       return;
     }
     this.room = room;
     this.name = name;
     this.hostName = hostName;
     this.isHost = hostName === name;
-    this.subscribed = false;
+    this.connected = false;
 
-    if (!this.bc) {
-      this.bc = new BroadcastChannel(this.channel());
-      this.bc.onmessage = (event) => {
-        const data = event.data;
-        if (!data || data.__from === this.clientId) return;
-        if (typeof data.payload === "string") {
-          this.handleMessage(data.payload);
-        }
-      };
-      // Local join for same-origin fallback
-      this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
-    }
+    const topic = this.topic();
+    this.onLog(`Connecting to ntfy.sh/${topic}`);
 
-    // Public keys (lspk_) require discovery service to get a token
-    if (apiKey.startsWith("lspk_")) {
-      this.onLog("Discovery for lspk_ key...");
-      const cluster = new URL(wsUrl).hostname.replace("ws-", "").replace(".lattestream.com", "");
-      const discoverUrl = `https://${cluster}.lattestream.com/discover?api_key=${encodeURIComponent(apiKey)}`;
-      fetch(discoverUrl)
-        .then(r => {
-          if (!r.ok) throw new Error(`Discovery ${r.status}`);
-          return r.json();
-        })
-        .then(info => {
-          const token = info.discovery_token || info.token;
-          if (!token) {
-            this.onLog(`Discovery no token: ${JSON.stringify(info).slice(0, 200)}`);
-            return;
-          }
-          // Use discovered host if valid, otherwise fall back to default WS URL
-          const host = info.host;
-          const targetUrl = (host && host !== "0.0.0.0") ? `wss://${host}` : wsUrl;
-          this.onLog(`Discovery OK, token=${token.slice(0, 20)}...`);
-          this.connectWs(targetUrl, token);
-        })
-        .catch(err => {
-          this.onLog(`Discovery error: ${err.message}`);
-          this.connectWs(wsUrl, apiKey);
-        });
-    } else {
-      // Private keys (lsk_) or JWT — connect directly
-      this.connectWs(wsUrl, apiKey);
-    }
-  }
-
-  private connectWs(wsUrl: string, authToken: string) {
-    this.onLog(`WS connecting to ${wsUrl}`);
-    this.ws = new WebSocket(wsUrl);
+    this.ws = new WebSocket(`${NTFY_WS}/${topic}/ws`);
     this.ws.onopen = () => {
-      this.onLog("WS open, authenticating...");
-      this.sendRaw({ api_key: authToken });
+      this.onLog("WS open");
     };
     this.ws.onmessage = (event) => {
-      this.handleMessage(event.data as string);
+      this.handleWsMessage(event.data as string);
     };
-    this.ws.onerror = (e) => {
-      this.onLog(`WS error: ${e}`);
+    this.ws.onerror = () => {
+      this.onLog("WS error");
     };
     this.ws.onclose = (e) => {
-      this.onLog(`WS closed: code=${e.code} reason=${e.reason}`);
-      this.subscribed = false;
+      this.onLog(`WS closed: ${e.code}`);
+      this.connected = false;
     };
   }
 
@@ -181,17 +152,16 @@ export class MultiplayerClient {
       this.ws.close();
       this.ws = null;
     }
-    if (this.bc) {
-      this.bc.close();
-      this.bc = null;
-    }
-    this.subscribed = false;
+    this.connected = false;
     this.players = [];
     this.turnIndex = null;
-    this.pending = [];
   }
 
-  private handleMessage(raw: string) {
+  private topic(): string {
+    return `${TOPIC_PREFIX}${this.room}`;
+  }
+
+  private handleWsMessage(raw: string) {
     let msg: any;
     try {
       msg = JSON.parse(raw);
@@ -199,34 +169,35 @@ export class MultiplayerClient {
       return;
     }
 
-    if (msg.event === "lattestream:connection_established") {
-      this.onLog("WS connection_established, subscribing...");
-      this.sendRaw({ event: "lattestream:subscribe", data: { channel: this.channel() } });
-      return;
-    }
-
-    if (msg.event === "lattestream:subscription_succeeded") {
-      this.subscribed = true;
-      this.onLog(`WS subscribed! pending=${this.pending.length}`);
-      this.flushPending();
-      // Send join after subscription is confirmed so it's delivered
+    // ntfy.sh wraps messages: { event: "open"|"message", message: "..." }
+    if (msg.event === "open") {
+      this.connected = true;
+      this.onLog("ntfy connected, sending join...");
       this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
       return;
     }
 
-    if (!msg.event || !msg.data) return;
-    if (msg.channel !== this.channel()) return;
+    if (msg.event !== "message" || !msg.message) return;
 
+    // Parse the game payload from message field
     let data: any;
     try {
-      data = typeof msg.data === "string" ? JSON.parse(msg.data) : msg.data;
+      data = JSON.parse(msg.message);
     } catch {
-      data = msg.data;
+      return;
     }
 
-    if (!data || !data.type) return;
-    this.onLog(`WS recv: ${data.type}${data.type === "game:state" ? ` p=${(data as any).players?.length}` : ""}`);
+    // Skip own messages
+    if (data.__from === this.clientId) return;
 
+    const payload = data.payload;
+    if (!payload || !payload.type) return;
+
+    this.onLog(`recv: ${payload.type}${payload.type === "game:state" ? ` p=${payload.players?.length}` : ""}`);
+    this.handleGameEvent(payload);
+  }
+
+  private handleGameEvent(data: any) {
     if (data.type === "game:state") {
       const payload = data as StateEvent;
       this.players = payload.players || [];
@@ -276,60 +247,18 @@ export class MultiplayerClient {
     } satisfies StateEvent);
   }
 
-  private channel() {
-    return `room-${this.room}`;
-  }
-
-  /** Send a raw protocol message (api_key, subscribe) — bypasses subscription check */
-  private sendRaw(payload: any) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.pending.push(payload);
-    } else {
-      this.ws.send(JSON.stringify(payload));
-    }
-  }
-
-  /** Send a game event — queues until WS is open AND subscribed */
-  private send(payload: any) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.subscribed) {
-      this.pending.push(payload);
-    } else {
-      this.ws.send(JSON.stringify(payload));
-    }
-  }
-
-  private sendEvent(
-    payload:
-      | JoinEvent
-      | EndTurnEvent
-      | ResetEvent
-      | StateEvent
-      | SnapshotEvent
-      | BetProposeEvent
-      | BetAcceptEvent
-      | BetDeclineEvent
-      | HitEvent
-      | StandEvent
-      | WalletInfoEvent
-      | ForfeitEvent
-  ) {
-    this.send({
-      event: "game:event",
-      channel: this.channel(),
-      data: JSON.stringify(payload),
+  private sendEvent(payload: GameEvent) {
+    // Send via HTTP POST to ntfy.sh (this is how ntfy relays to WebSocket subscribers)
+    const body = JSON.stringify({ __from: this.clientId, payload });
+    fetch(`${NTFY_BASE}/${this.topic()}`, {
+      method: "POST",
+      body,
+      headers: { "Content-Type": "text/plain" },
+    }).catch(err => {
+      this.onLog(`POST error: ${err.message}`);
     });
-    if (this.bc) {
-      const msg = JSON.stringify({ event: "game:event", channel: this.channel(), data: JSON.stringify(payload) });
-      this.bc.postMessage({ __from: this.clientId, payload: msg });
-      // Also handle locally so the sender sees its own event
-      this.handleMessage(msg);
-    }
-  }
 
-  private flushPending() {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.subscribed) return;
-    const queue = [...this.pending];
-    this.pending = [];
-    queue.forEach(p => this.ws!.send(JSON.stringify(p)));
+    // Also handle locally so the sender sees its own event immediately
+    this.handleGameEvent(payload);
   }
 }
