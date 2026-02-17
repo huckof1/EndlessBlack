@@ -5659,10 +5659,10 @@ async function onWalletConnectSuccess() {
   if (pendingInvite) {
     showInviteBanner();
   }
-  // After successful wallet connect, focus the main game viewport (BET/DEAL area).
+  // After successful wallet connect, bring the page fully to the top.
   if (!isPlaying && !pendingInvite && !multiplayerRoom && !mpWaitingForGuest) {
     window.setTimeout(() => {
-      focusGameplayArea();
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
     }, 120);
   }
   window.setTimeout(() => {
