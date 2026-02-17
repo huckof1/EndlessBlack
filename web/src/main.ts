@@ -4545,11 +4545,9 @@ async function handleInvite() {
   url.searchParams.set("host_id", hostId);
   multiplayerHost = hostId;
   // QR URL без wallet=luffa — чистый HTTPS для сканера Luffa
-    const inviteUrl = url.toString(); // includes wallet=luffa for auto-connect
-    const qrUrl = new URL(inviteUrl);
-    qrUrl.searchParams.delete("wallet");
-    const qrUrlStr = qrUrl.toString();
-    const deepLink = `luffa://connect?url=${encodeURIComponent(inviteUrl)}`;
+  const qrUrl = new URL(url.toString());
+  qrUrl.searchParams.delete("wallet");
+  const qrUrlStr = qrUrl.toString();
 
   // Показать секцию с QR для хоста
   const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
@@ -4557,7 +4555,6 @@ async function handleInvite() {
   const inviteShareQr = document.getElementById("invite-share-qr") as HTMLDivElement;
   const inviteShareCopy = document.getElementById("invite-share-copy") as HTMLButtonElement;
   const inviteShareDownload = document.getElementById("invite-share-download") as HTMLButtonElement;
-  const inviteShareLink = document.getElementById("invite-share-link") as HTMLButtonElement;
   const inviteShareHint = document.getElementById("invite-share-hint") as HTMLDivElement;
   if (inviteShare && inviteShareQr) {
     inviteShare.style.display = "flex";
@@ -4577,7 +4574,6 @@ async function handleInvite() {
       inviteShareQr.textContent = qrUrlStr;
     });
 
-    const latestUrl = qrUrlStr;
     let latestInviteBlob: Blob | null = null;
     const resetInviteShareHint = () => {
       latestInviteBlob = null;
@@ -4629,12 +4625,12 @@ async function handleInvite() {
             // fall through to share/download fallback
           }
         }
-          if (navigator.share && navigator.canShare?.({ files: [file] })) {
-            try {
-              await navigator.share({ files: [file], text: `${deepLink}\n${latestUrl}` });
-              resetInviteShareHint();
-              return;
-            } catch (_) {
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file] });
+            resetInviteShareHint();
+            return;
+          } catch (_) {
             // fall through to fallback
           }
         }
@@ -4650,30 +4646,10 @@ async function handleInvite() {
 
     if (inviteShareHint) {
       const hintText = currentLocale === "ru"
-        ? "Если Luffa установлен — используйте первый deep-link, иначе откройте обычный QR/HTTPS"
-        : "If Luffa is installed use the first deep-link, otherwise open the standard QR/HTTPS";
+        ? "Отправьте QR или покажите для сканирования в Luffa"
+        : "Share QR or show to scan in Luffa";
       inviteShareHint.textContent = hintText;
       inviteShareHint.dataset.defaultText = hintText;
-    }
-    if (inviteShareLink) {
-      inviteShareLink.style.display = "inline-flex";
-      inviteShareLink.textContent = currentLocale === "ru" ? "КОПИРОВАТЬ ССЫЛКУ" : "COPY LINK";
-      inviteShareLink.onclick = async () => {
-        try {
-          await navigator.clipboard.writeText(`${deepLink}\n${latestUrl}`);
-          showMessage(
-            currentLocale === "ru" ? "Ссылка скопирована!" : "Link copied!",
-            "success"
-          );
-        } catch {
-          showMessage(
-            currentLocale === "ru"
-              ? "Копируйте вручную: удержите ?"
-              : "Copy manually: long-press the URL",
-            "error"
-          );
-        }
-      };
     }
   }
 
@@ -5076,7 +5052,7 @@ function updateUI() {
     resetDemoBtn.style.display = demo && !multiplayerRoom && !inviteActive ? "inline-flex" : "none";
   }
   if (inviteBtnHeader) {
-    inviteBtnHeader.style.display = (isSessionStarted || Boolean(walletAddress)) ? "inline-flex" : "none";
+    inviteBtnHeader.style.display = isSessionStarted ? "inline-flex" : "none";
     inviteBtnHeader.textContent = I18N[currentLocale].invite;
   }
   if (connectWalletHeader) {
