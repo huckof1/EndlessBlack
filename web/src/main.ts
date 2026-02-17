@@ -4578,29 +4578,43 @@ async function handleInvite() {
       inviteShareCopy.textContent = currentLocale === "ru"
         ? "ОТПРАВИТЬ QR"
         : "SHARE QR";
-      inviteShareCopy.onclick = () => {
+      inviteShareCopy.onclick = async () => {
         const plainQr = inviteShareQr.querySelector("canvas");
         if (!plainQr) return;
-        // Составная картинка с текстом для отправки
         const composite = buildInviteQrImage(plainQr, name, betValue);
-        composite.toBlob((blob) => {
+        composite.toBlob(async (blob) => {
           if (!blob) return;
           const file = new File([blob], "invite-qr.png", { type: "image/png" });
+          const isAndroid = /android/i.test(navigator.userAgent);
+          if (isAndroid && navigator.clipboard?.write) {
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+              showMessage(
+                currentLocale === "ru"
+                  ? "QR СКОПИРОВАН! Вставьте в мессенджер"
+                  : "QR COPIED! Paste it in your messenger",
+                "success"
+              );
+              return;
+            } catch (_) {
+              // fall through to share/download fallback
+            }
+          }
           if (navigator.share && navigator.canShare?.({ files: [file] })) {
             navigator.share({ files: [file] }).catch(() => {});
-          } else {
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = "invite-qr.png";
-            a.click();
-            URL.revokeObjectURL(a.href);
-            showMessage(
-              currentLocale === "ru"
-                ? "QR СОХРАНЁН — ОТПРАВЬТЕ ФАЙЛ"
-                : "QR SAVED — SEND THE FILE",
-              "success"
-            );
+            return;
           }
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "invite-qr.png";
+          a.click();
+          URL.revokeObjectURL(a.href);
+          showMessage(
+            currentLocale === "ru"
+              ? "QR СОХРАНЁН — ОТПРАВЬТЕ ФАЙЛ"
+              : "QR SAVED — SEND THE FILE",
+            "success"
+          );
         }, "image/png");
       };
     }
