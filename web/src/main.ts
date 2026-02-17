@@ -487,6 +487,27 @@ let mpBetsDeducted = false;
 let mpOnChainMode = false;
 let mpWaitingForGuest = false;
 let mpLogLines: string[] = [];
+type PersistedUiState = {
+  v: 1;
+  ts: number;
+  sessionStarted: boolean;
+  sessionMode: "demo" | "wallet";
+  gameActive: boolean;
+  isPlaying: boolean;
+  hasGameResult: boolean;
+  multiplayerRoom: string | null;
+  chainRoomId: number | null;
+  chainGameId: number | null;
+  mpOnChainMode: boolean;
+  isRoomHost: boolean;
+  amIHost: boolean;
+  scrollMode: "top" | "bet" | "table";
+};
+const UI_STATE_KEY = "pixelBlackjackUiStateV1";
+const UI_STATE_TTL_MS = 24 * 60 * 60 * 1000;
+let restoredUiState: PersistedUiState | null = null;
+let restoreChainStateAttempted = false;
+let isApplyingUiState = false;
 
 // ==================== ON-CHAIN ROOM STATE ====================
 let chainRoomId: number | null = null;
@@ -1105,6 +1126,142 @@ function forceScrollToAbsoluteTop() {
   });
 }
 
+function getScrollModeForPersist(): "top" | "bet" | "table" {
+  if (!isSessionStarted) return "top";
+  if (document.body.classList.contains("game-active") || isPlaying || multiplayerRoom) return "table";
+  return "bet";
+}
+
+function saveUiState() {
+  if (isApplyingUiState) return;
+  try {
+    const state: PersistedUiState = {
+      v: 1,
+      ts: Date.now(),
+      sessionStarted: Boolean(isSessionStarted),
+      sessionMode: walletAddress ? "wallet" : "demo",
+      gameActive: document.body.classList.contains("game-active"),
+      isPlaying: Boolean(isPlaying),
+      hasGameResult: Boolean(hasGameResult),
+      multiplayerRoom: multiplayerRoom || null,
+      chainRoomId: chainRoomId ?? null,
+      chainGameId: chainGameId ?? null,
+      mpOnChainMode: Boolean(mpOnChainMode),
+      isRoomHost: Boolean(isRoomHost),
+      amIHost: Boolean(amIHost),
+      scrollMode: getScrollModeForPersist(),
+    };
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore localStorage failures.
+  }
+}
+
+function applySessionLayout() {
+  nameSection.style.display = isSessionStarted ? "none" : "block";
+  walletSection.style.display = isSessionStarted ? "block" : "none";
+  gameArea.style.display = isSessionStarted ? "block" : "none";
+  setDarkVeilVisible(!isSessionStarted);
+  setShadowBarsVisible(isSessionStarted);
+}
+
+function restoreUiStateFromStorage() {
+  let parsed: PersistedUiState | null = null;
+  try {
+    const raw = localStorage.getItem(UI_STATE_KEY);
+    if (!raw) return;
+    parsed = JSON.parse(raw) as PersistedUiState;
+  } catch {
+    return;
+  }
+  if (!parsed || parsed.v !== 1) return;
+  if (!parsed.ts || (Date.now() - parsed.ts) > UI_STATE_TTL_MS) return;
+  restoredUiState = parsed;
+  if (!parsed.sessionStarted || RELEASE_MODE) return;
+
+  isApplyingUiState = true;
+  isSessionStarted = true;
+  if (parsed.multiplayerRoom) multiplayerRoom = parsed.multiplayerRoom;
+  if (parsed.chainRoomId) chainRoomId = parsed.chainRoomId;
+  if (parsed.chainGameId) chainGameId = parsed.chainGameId;
+  mpOnChainMode = Boolean(parsed.mpOnChainMode);
+  isRoomHost = Boolean(parsed.isRoomHost);
+  amIHost = Boolean(parsed.amIHost);
+  hasGameResult = Boolean(parsed.hasGameResult);
+  isPlaying = false;
+  applySessionLayout();
+  if (playerDisplayName) playerDisplayName.textContent = playerName || I18N[currentLocale].player_placeholder;
+  if (playerHandNameEl) playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
+  if (parsed.gameActive) {
+    document.body.classList.add("game-active");
+  } else {
+    document.body.classList.remove("game-active");
+  }
+  isApplyingUiState = false;
+}
+
+function restoreDemoGameIfNeeded() {
+  if (!restoredUiState || restoredUiState.sessionMode !== "demo") return;
+  if (multiplayerRoom) return;
+  const existingGame = game.getCurrentGame();
+  if (!existingGame) return;
+  if (!existingGame.isFinished) {
+    pendingResume = { mode: "demo", game: existingGame };
+    setTurn("you");
+    showMessage(I18N[currentLocale].msg_resume_ready, "info");
+    return;
+  }
+  hasGameResult = true;
+  void renderGame(existingGame).then(() => {
+    updateUI();
+  }).catch(() => {});
+}
+
+async function restoreChainStateIfNeeded() {
+  if (restoreChainStateAttempted) return;
+  if (!restoredUiState || restoredUiState.sessionMode !== "wallet") return;
+  if (!walletAddress) return;
+  restoreChainStateAttempted = true;
+
+  if (restoredUiState.chainRoomId && restoredUiState.mpOnChainMode) {
+    chainRoomId = restoredUiState.chainRoomId;
+    mpOnChainMode = true;
+    multiplayerRoom = `chain_${restoredUiState.chainRoomId}`;
+    try {
+      const room = await getRoomOnChain(restoredUiState.chainRoomId, networkMode);
+      chainRoom = room;
+      renderChainRoom(room);
+      startRoomPolling();
+      showMessage(
+        currentLocale === "ru" ? "СЕССИЯ В КОМНАТЕ ВОССТАНОВЛЕНА" : "ROOM SESSION RESTORED",
+        "info"
+      );
+      return;
+    } catch {
+      // Room may be unavailable already.
+    }
+  }
+
+  if (restoredUiState.chainGameId && !multiplayerRoom) {
+    try {
+      const savedChainGame = await getGame(restoredUiState.chainGameId, networkMode);
+      chainGameId = restoredUiState.chainGameId;
+      chainGame = savedChainGame;
+      if (savedChainGame && !savedChainGame.isFinished) {
+        pendingResume = { mode: "chain", game: savedChainGame, gameId: restoredUiState.chainGameId };
+        setTurn("you");
+        showMessage(I18N[currentLocale].msg_resume_ready, "info");
+      } else if (savedChainGame) {
+        hasGameResult = true;
+        await renderGame(savedChainGame);
+      }
+      updateUI();
+    } catch {
+      // Ignore restore errors.
+    }
+  }
+}
+
 function initDebug() {
   // Debug UI removed — log only to console
   debugEnabled = true;
@@ -1432,18 +1589,15 @@ function resetCurrentGameState() {
 }
 
 function returnToStartScreen() {
-  nameSection.style.display = "block";
-  walletSection.style.display = "none";
-  gameArea.style.display = "none";
   isSessionStarted = false;
-  setDarkVeilVisible(true);
-  setShadowBarsVisible(false);
+  applySessionLayout();
   resetCurrentGameState();
   startIdleMusic();
   mpPayoutBucket = 0;
   mpPayoutRoom = null;
   localStorage.setItem("mpPayoutBucket", "0");
   localStorage.removeItem("mpPayoutRoom");
+  saveUiState();
   window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 }
 
@@ -2327,6 +2481,20 @@ function init() {
     // wallet=luffa оставляем — нужен для автоконнекта
     history.replaceState({}, "", cleanUrl.toString());
   }
+  if (!inviteFrom) {
+    restoreUiStateFromStorage();
+    restoreDemoGameIfNeeded();
+    const mode = restoredUiState?.scrollMode || "bet";
+    window.setTimeout(() => {
+      if (mode === "top") {
+        forceScrollToAbsoluteTop();
+      } else if (mode === "table") {
+        focusGameplayArea();
+      } else if (isSessionStarted) {
+        focusBetArea();
+      }
+    }, 160);
+  }
 
   updateSoundIcon();
   // allow network toggle even in demo for visibility
@@ -2346,6 +2514,7 @@ function init() {
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
+      saveUiState();
       soundManager.stopMusic();
     } else if (!soundManager.getMuted()) {
       if (gameMusicActive) {
@@ -2355,6 +2524,8 @@ function init() {
       }
     }
   });
+  window.addEventListener("beforeunload", () => saveUiState());
+  window.addEventListener("pagehide", () => saveUiState());
 
   // Initial UI update to show/hide buttons correctly
   updateUI();
@@ -2417,12 +2588,8 @@ async function startSession() {
   playerName = name.slice(0, 12);
   localStorage.setItem("playerName", playerName);
 
-  nameSection.style.display = "none";
-  walletSection.style.display = "block";
-  gameArea.style.display = "block";
   isSessionStarted = true;
-  setDarkVeilVisible(false);
-  setShadowBarsVisible(true);
+  applySessionLayout();
 
   playerDisplayName.textContent = playerName;
   if (playerHandNameEl) {
@@ -2466,6 +2633,7 @@ async function startSession() {
     if (!mpNameFrozen) mpNameFrozen = getMpName();
     multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
   }
+  saveUiState();
 }
 
 // ==================== MASCOT ====================
@@ -4940,6 +5108,7 @@ function updateUI() {
       "info"
     );
   }
+  saveUiState();
 }
 
 function cleanupMultiplayer() {
@@ -4995,6 +5164,7 @@ function cleanupMultiplayer() {
   betPlus.disabled = false;
   betInput.disabled = false;
   startIdleMusic();
+  saveUiState();
 }
 
 async function handleLeaveGame() {
@@ -5165,12 +5335,8 @@ async function startDemoSession() {
   playerName = name.slice(0, 12);
   localStorage.setItem("playerName", playerName);
 
-  nameSection.style.display = "none";
-  walletSection.style.display = "block";
-  gameArea.style.display = "block";
   isSessionStarted = true;
-  setDarkVeilVisible(false);
-  setShadowBarsVisible(true);
+  applySessionLayout();
 
   if (playerDisplayName) playerDisplayName.textContent = playerName;
   if (playerHandNameEl) playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
@@ -5194,6 +5360,7 @@ async function startDemoSession() {
   initFeed();
   renderLeaderboard();
   renderActivePlayers();
+  saveUiState();
 }
 
 async function handleFaucet() {
@@ -5702,6 +5869,7 @@ async function onWalletConnectSuccess() {
       showMessage(I18N[currentLocale].msg_place_bet, "info");
     }
   }, 2000);
+  await restoreChainStateIfNeeded();
   updateUI();
 }
 
