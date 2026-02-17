@@ -69,6 +69,12 @@ export class MultiplayerClient {
   private players: string[] = [];
   private turnIndex: number | null = null;
   public connected: boolean = false;
+  private intentionalClose: boolean = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectAttempts: number = 0;
+  private static readonly MAX_RECONNECT_ATTEMPTS = 50;
+  private static readonly KEEPALIVE_INTERVAL = 30_000; // 30s ping to keep WS alive
 
   constructor(onState: OnState, onSnapshot: OnSnapshot, onEvent: OnEvent, onLog?: (msg: string) => void) {
     this.onState = onState;
@@ -87,6 +93,18 @@ export class MultiplayerClient {
     this.hostName = hostName;
     this.isHost = hostName === name;
     this.connected = false;
+    this.intentionalClose = false;
+    this.reconnectAttempts = 0;
+
+    this.openWs();
+  }
+
+  private openWs() {
+    this.clearKeepAlive();
+    if (this.ws) {
+      try { this.ws.close(); } catch {}
+      this.ws = null;
+    }
 
     const topic = this.topic();
     this.onLog(`Connecting to ntfy.sh/${topic}`);
@@ -94,6 +112,7 @@ export class MultiplayerClient {
     this.ws = new WebSocket(`${NTFY_WS}/${topic}/ws`);
     this.ws.onopen = () => {
       this.onLog("WS open");
+      this.startKeepAlive();
     };
     this.ws.onmessage = (event) => {
       this.handleWsMessage(event.data as string);
@@ -104,6 +123,10 @@ export class MultiplayerClient {
     this.ws.onclose = (e) => {
       this.onLog(`WS closed: ${e.code}`);
       this.connected = false;
+      this.clearKeepAlive();
+      if (!this.intentionalClose) {
+        this.scheduleReconnect();
+      }
     };
   }
 
@@ -148,6 +171,12 @@ export class MultiplayerClient {
   }
 
   disconnect() {
+    this.intentionalClose = true;
+    this.clearKeepAlive();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -155,6 +184,41 @@ export class MultiplayerClient {
     this.connected = false;
     this.players = [];
     this.turnIndex = null;
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectAttempts >= MultiplayerClient.MAX_RECONNECT_ATTEMPTS) {
+      this.onLog("Max reconnect attempts reached");
+      return;
+    }
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 15_000);
+    this.reconnectAttempts++;
+    this.onLog(`Reconnecting in ${Math.round(delay / 1000)}s (attempt ${this.reconnectAttempts})...`);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.openWs();
+    }, delay);
+  }
+
+  private startKeepAlive() {
+    this.clearKeepAlive();
+    this.keepaliveTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // ntfy.sh ignores unknown JSON, but sending a small message keeps the connection alive
+        fetch(`${NTFY_BASE}/${this.topic()}`, {
+          method: "POST",
+          body: JSON.stringify({ __from: this.clientId, __ping: true }),
+          headers: { "Content-Type": "text/plain" },
+        }).catch(() => {});
+      }
+    }, MultiplayerClient.KEEPALIVE_INTERVAL);
+  }
+
+  private clearKeepAlive() {
+    if (this.keepaliveTimer) {
+      clearInterval(this.keepaliveTimer);
+      this.keepaliveTimer = null;
+    }
   }
 
   private topic(): string {
@@ -172,6 +236,7 @@ export class MultiplayerClient {
     // ntfy.sh wraps messages: { event: "open"|"message", message: "..." }
     if (msg.event === "open") {
       this.connected = true;
+      this.reconnectAttempts = 0;
       this.onLog("ntfy connected, sending join...");
       this.sendEvent({ type: "game:join", name: this.name } satisfies JoinEvent);
       return;

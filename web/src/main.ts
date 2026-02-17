@@ -25,6 +25,15 @@ import {
   creditPayout,
   deductBet,
   type ChainGame,
+  type ChainRoom,
+  createRoom as createRoomOnChain,
+  joinRoom as joinRoomOnChain,
+  roomHit as roomHitOnChain,
+  roomStand as roomStandOnChain,
+  cancelRoom as cancelRoomOnChain,
+  claimTimeout as claimTimeoutOnChain,
+  getRoom as getRoomOnChain,
+  getLatestRoomId as getLatestRoomIdOnChain,
 } from "./chain";
 import QRCode from "qrcode";
 import { formatEDS, parseEDS, MIN_BET, MAX_BET, SUITS, RANKS, DEMO_MODE, RELEASE_MODE, LS_PUBLIC_KEY, LS_WS_URL } from "./config";
@@ -476,6 +485,246 @@ let mpBetsDeducted = false;
 let mpOnChainMode = false;
 let mpWaitingForGuest = false;
 let mpLogLines: string[] = [];
+
+// ==================== ON-CHAIN ROOM STATE ====================
+let chainRoomId: number | null = null;
+let chainRoom: ChainRoom | null = null;
+let roomPollingTimer: ReturnType<typeof setInterval> | null = null;
+let isRoomPolling = false;
+// Room status constants (mirror contract)
+const ROOM_STATUS_WAITING = 0;
+const ROOM_STATUS_PLAYING = 1;
+const ROOM_STATUS_FINISHED = 2;
+const ROOM_STATUS_CANCELLED = 3;
+const ROOM_STATUS_TIMEOUT = 4;
+// Room result: 0=in progress, 1=host win, 2=guest win, 3=draw
+let amIHost = false; // true if I'm the room host
+
+function startRoomPolling() {
+  stopRoomPolling();
+  isRoomPolling = true;
+  roomPollingTimer = setInterval(async () => {
+    if (!chainRoomId || !isRoomPolling) return;
+    try {
+      const room = await getRoomOnChain(chainRoomId, networkMode);
+      const prevStatus = chainRoom?.status;
+      const prevTurn = chainRoom?.turn;
+      chainRoom = room;
+
+      // Update UI based on room state
+      renderChainRoom(room);
+
+      // Detect status changes
+      if (prevStatus !== room.status) {
+        if (room.status === ROOM_STATUS_PLAYING && prevStatus === ROOM_STATUS_WAITING) {
+          // Guest joined - game started
+          playSound("chip");
+          mpLog(`Room ${chainRoomId}: game started!`);
+          mpWaitingForGuest = false;
+          const shareEl = document.getElementById("invite-share");
+          if (shareEl) shareEl.style.display = "none";
+          startGameMusic();
+        }
+        if (room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT || room.status === ROOM_STATUS_CANCELLED) {
+          // Game ended
+          mpLog(`Room ${chainRoomId}: ended with status=${room.status} result=${room.result}`);
+          stopRoomPolling();
+        }
+      }
+      // Detect turn changes
+      if (prevTurn !== undefined && prevTurn !== room.turn && room.status === ROOM_STATUS_PLAYING) {
+        playSound("deal");
+      }
+    } catch (err) {
+      mpLog(`Poll error: ${err}`);
+    }
+  }, 2500);
+}
+
+function stopRoomPolling() {
+  isRoomPolling = false;
+  if (roomPollingTimer) {
+    clearInterval(roomPollingTimer);
+    roomPollingTimer = null;
+  }
+}
+
+function getMyTurnIndex(): number {
+  // host = 0, guest = 1
+  return amIHost ? 0 : 1;
+}
+
+function isMyTurn(room: ChainRoom): boolean {
+  if (room.status !== ROOM_STATUS_PLAYING) return false;
+  const myIdx = getMyTurnIndex();
+  if (myIdx === 0 && room.hostDone) return false;
+  if (myIdx === 1 && room.guestDone) return false;
+  return room.turn === myIdx;
+}
+
+function renderChainRoom(room: ChainRoom) {
+  if (!opponentHandEl || !opponentCardsEl || !opponentScoreEl || !opponentNameEl) return;
+  if (dealerHandEl) dealerHandEl.style.display = "none";
+
+  const myIdx = getMyTurnIndex();
+  const oppIdx = myIdx === 0 ? 1 : 0;
+
+  if (room.status === ROOM_STATUS_WAITING) {
+    // Waiting for guest
+    opponentHandEl.style.display = "none";
+    if (winnerBannerEl) winnerBannerEl.style.display = "none";
+    return;
+  }
+
+  opponentHandEl.style.display = "flex";
+  const myCards = myIdx === 0 ? room.hostCards : room.guestCards;
+  const oppCards = oppIdx === 0 ? room.hostCards : room.guestCards;
+  const myScore = myIdx === 0 ? room.hostScore : room.guestScore;
+  const oppScore = oppIdx === 0 ? room.hostScore : room.guestScore;
+  const myDone = myIdx === 0 ? room.hostDone : room.guestDone;
+  const oppDone = oppIdx === 0 ? room.hostDone : room.guestDone;
+
+  const oppAddr = oppIdx === 0 ? room.host : room.guest;
+  opponentNameEl.textContent = oppAddr.slice(0, 8) + "...";
+
+  // Render cards
+  playerCardsEl.innerHTML = "";
+  opponentCardsEl.innerHTML = "";
+  dealerCardsEl.innerHTML = "";
+
+  myCards.forEach(card => playerCardsEl.appendChild(renderCard(card)));
+
+  if (room.status === ROOM_STATUS_PLAYING && !oppDone) {
+    // Hide opponent cards during play
+    for (let i = 0; i < oppCards.length; i++) {
+      opponentCardsEl.appendChild(renderCardBack());
+    }
+  } else {
+    oppCards.forEach(card => opponentCardsEl.appendChild(renderCard(card)));
+  }
+
+  playerScoreEl.textContent = myScore.toString();
+  dealerScoreEl.textContent = "-";
+
+  if (room.status === ROOM_STATUS_PLAYING && !oppDone) {
+    opponentScoreEl.textContent = oppCards.length.toString();
+  } else {
+    opponentScoreEl.textContent = oppScore.toString();
+  }
+
+  // Update player hints
+  updatePlayerHints(myCards);
+
+  // Update buttons and turn
+  isPlaying = room.status === ROOM_STATUS_PLAYING;
+  const myTurn = isMyTurn(room);
+
+  if (room.status === ROOM_STATUS_PLAYING) {
+    if (winnerBannerEl) winnerBannerEl.style.display = "none";
+    hitBtn.disabled = !myTurn;
+    standBtn.disabled = !myTurn;
+    if (myTurn) {
+      setTurn("you");
+      showMessage(
+        currentLocale === "ru" ? "ВАШ ХОД! HIT ИЛИ STAND" : "YOUR TURN! HIT OR STAND",
+        "info"
+      );
+    } else if (myDone) {
+      setTurnText(currentLocale === "ru" ? "Ожидание оппонента..." : "Waiting for opponent...");
+      showMessage(
+        currentLocale === "ru" ? "ОЖИДАНИЕ ХОДА ОППОНЕНТА..." : "WAITING FOR OPPONENT'S MOVE...",
+        "info"
+      );
+    } else {
+      setTurnText(currentLocale === "ru" ? "Ход оппонента" : "Opponent's turn");
+      showMessage(
+        currentLocale === "ru" ? "ОЖИДАНИЕ ХОДА ОППОНЕНТА..." : "WAITING FOR OPPONENT'S MOVE...",
+        "info"
+      );
+    }
+
+    // Timeout check
+    const now = Math.floor(Date.now() / 1000);
+    if (now - room.lastActionAt >= 300 && !myTurn && room.turn !== getMyTurnIndex()) {
+      // Opponent may have timed out - but only show claim if it's THEIR turn
+      // Actually we show claim if opponent's turn and they've been AFK
+    }
+    // Show claim timeout button if opponent AFK > 5 min and it's their turn
+    const claimTimeoutBtn = document.getElementById("claim-timeout-btn") as HTMLButtonElement;
+    if (claimTimeoutBtn) {
+      const opponentTurn = room.turn !== getMyTurnIndex();
+      if (opponentTurn && now - room.lastActionAt >= 300) {
+        claimTimeoutBtn.style.display = "block";
+        claimTimeoutBtn.textContent = currentLocale === "ru" ? "ЗАБРАТЬ ВЫИГРЫШ (ТАЙМАУТ)" : "CLAIM WIN (TIMEOUT)";
+      } else {
+        claimTimeoutBtn.style.display = "none";
+      }
+    }
+  }
+
+  if (room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) {
+    isPlaying = false;
+    hitBtn.disabled = true;
+    standBtn.disabled = true;
+    setTurn(null);
+    startIdleMusic();
+
+    // Determine result for me
+    let myResult: "win" | "lose" | "draw";
+    if (room.result === 3) {
+      myResult = "draw";
+    } else if ((room.result === 1 && amIHost) || (room.result === 2 && !amIHost)) {
+      myResult = "win";
+    } else {
+      myResult = "lose";
+    }
+
+    if (myResult === "win") {
+      showMessage(
+        currentLocale === "ru" ? "ПОБЕДА!" : "YOU WIN!",
+        "success"
+      );
+      playSound("win");
+      createConfetti();
+      setMascotState("excited", "🤩", currentLocale === "ru" ? "ПОБЕДА!" : "YOU WIN!");
+      if (winnerBannerEl) {
+        winnerBannerEl.style.display = "block";
+        winnerBannerEl.textContent = currentLocale === "ru" ? "ПОБЕДИТЕЛЬ" : "WINNER";
+      }
+    } else if (myResult === "draw") {
+      showMessage(
+        currentLocale === "ru" ? "НИЧЬЯ! Ставки возвращены" : "DRAW! Bets returned",
+        "info"
+      );
+      setMascotState("thinking", "🤷", currentLocale === "ru" ? "Ничья!" : "Draw!");
+      if (winnerBannerEl) winnerBannerEl.style.display = "none";
+    } else {
+      showMessage(
+        currentLocale === "ru" ? "ПОРАЖЕНИЕ" : "YOU LOSE",
+        "error"
+      );
+      setMascotState("sad", "😞", currentLocale === "ru" ? "Поражение..." : "You lose...");
+      if (winnerBannerEl) winnerBannerEl.style.display = "none";
+    }
+
+    // Refresh balance
+    setTimeout(() => {
+      updateInGameBalance();
+    }, 2000);
+  }
+
+  if (room.status === ROOM_STATUS_CANCELLED) {
+    isPlaying = false;
+    showMessage(
+      currentLocale === "ru" ? "КОМНАТА ОТМЕНЕНА" : "ROOM CANCELLED",
+      "info"
+    );
+    cleanupMultiplayer();
+  }
+
+  updateUI();
+}
+
 function mpLog(msg: string) {
   const ts = new Date().toISOString().slice(11, 19);
   const line = `[${ts}] ${msg}`;
@@ -1403,6 +1652,36 @@ function init() {
       handleLeaveGame();
     });
   }
+  // Claim timeout button (on-chain rooms)
+  const claimTimeoutBtnInit = document.getElementById("claim-timeout-btn") as HTMLButtonElement;
+  if (claimTimeoutBtnInit) {
+    claimTimeoutBtnInit.addEventListener("click", async () => {
+      if (!chainRoomId || !mpOnChainMode) return;
+      try {
+        claimTimeoutBtnInit.disabled = true;
+        showMessage(
+          currentLocale === "ru" ? "ЗАБИРАЕМ ВЫИГРЫШ..." : "CLAIMING WIN...",
+          "info"
+        );
+        await claimTimeoutOnChain(chainRoomId, networkMode);
+        mpLog(`Timeout claimed for room ${chainRoomId}`);
+        showMessage(
+          currentLocale === "ru" ? "ПОБЕДА ПО ТАЙМАУТУ!" : "WIN BY TIMEOUT!",
+          "success"
+        );
+        playSound("win");
+        stopRoomPolling();
+        await updateInGameBalance();
+      } catch (err) {
+        mpLog(`claim_timeout error: ${err}`);
+        showMessage(
+          currentLocale === "ru" ? "ОШИБКА CLAIM" : "CLAIM ERROR",
+          "error"
+        );
+        claimTimeoutBtnInit.disabled = false;
+      }
+    });
+  }
   themeToggle.addEventListener("click", toggleTheme);
   langToggle.addEventListener("click", toggleLanguage);
   if (networkTestnetBtn) networkTestnetBtn.addEventListener("click", () => setNetwork("testnet"));
@@ -1604,6 +1883,7 @@ function init() {
   const inviteRoom = params.get("room");
   const inviteHost = params.get("host_id");
   const inviteWalletAddr = params.get("wallet_addr");
+  const inviteRoomId = params.get("room_id");
   if (inviteFrom) {
     invitedByLink = true;
     const mode: "demo" | "testnet" | "mainnet" =
@@ -1611,7 +1891,12 @@ function init() {
     if (inviteWalletAddr && inviteHost) {
       mpWalletAddresses[inviteHost] = inviteWalletAddr;
     }
-    const inviteKey = `invite_seen_${inviteRoom || "no-room"}_${inviteFrom}`;
+    // On-chain room ID from URL
+    if (inviteRoomId) {
+      chainRoomId = parseInt(inviteRoomId, 10);
+      amIHost = false;
+    }
+    const inviteKey = `invite_seen_${inviteRoomId || inviteRoom || "no-room"}_${inviteFrom}`;
     if (!sessionStorage.getItem(inviteKey)) {
     pendingInvite = {
       name: inviteFrom || I18N[currentLocale].player_placeholder,
@@ -1630,6 +1915,7 @@ function init() {
     cleanUrl.searchParams.delete("mode");
     cleanUrl.searchParams.delete("bet");
     cleanUrl.searchParams.delete("room");
+    cleanUrl.searchParams.delete("room_id");
     cleanUrl.searchParams.delete("host_id");
     cleanUrl.searchParams.delete("wallet_addr");
     // wallet=luffa оставляем — нужен для автоконнекта
@@ -2665,6 +2951,13 @@ async function handleStartGame() {
       await startSession();
     }
   }
+
+  // On-chain room: game starts automatically when guest joins (no manual start needed)
+  if (chainRoomId && mpOnChainMode) {
+    // Room already created/joined, polling handles everything
+    return;
+  }
+
   if (multiplayerRoom && LS_PUBLIC_KEY && !isRoomHost) {
     showMessage(currentLocale === "ru" ? "Ждём хоста..." : "Waiting for host...", "info");
     return;
@@ -2899,6 +3192,33 @@ async function handleStartGame() {
 
 async function handleHit() {
   if (!isPlaying) return;
+
+  // On-chain room multiplayer
+  if (chainRoomId && chainRoom && mpOnChainMode) {
+    if (!isMyTurn(chainRoom)) return;
+    try {
+      hitBtn.disabled = true;
+      standBtn.disabled = true;
+      showMessage(
+        currentLocale === "ru" ? "БЕРЁМ КАРТУ..." : "HITTING...",
+        "info"
+      );
+      await roomHitOnChain(chainRoomId, networkMode);
+      // Poll will update UI
+      mpLog(`room_hit sent for room ${chainRoomId}`);
+    } catch (err) {
+      mpLog(`room_hit error: ${err}`);
+      showMessage(
+        currentLocale === "ru" ? "ОШИБКА HIT" : "HIT ERROR",
+        "error"
+      );
+      hitBtn.disabled = false;
+      standBtn.disabled = false;
+    }
+    return;
+  }
+
+  // Legacy ntfy.sh multiplayer
   if (multiplayerSnapshot && multiplayerRoom) {
     const meIndex = multiplayerSnapshot.players.findIndex(p => p === getMpName());
     if (multiplayerSnapshot.turnIndex !== meIndex) return;
@@ -2968,6 +3288,32 @@ async function handleHit() {
 
 async function handleStand() {
   if (!isPlaying) return;
+
+  // On-chain room multiplayer
+  if (chainRoomId && chainRoom && mpOnChainMode) {
+    if (!isMyTurn(chainRoom)) return;
+    try {
+      hitBtn.disabled = true;
+      standBtn.disabled = true;
+      showMessage(
+        currentLocale === "ru" ? "СТОИМ..." : "STANDING...",
+        "info"
+      );
+      await roomStandOnChain(chainRoomId, networkMode);
+      mpLog(`room_stand sent for room ${chainRoomId}`);
+    } catch (err) {
+      mpLog(`room_stand error: ${err}`);
+      showMessage(
+        currentLocale === "ru" ? "ОШИБКА STAND" : "STAND ERROR",
+        "error"
+      );
+      hitBtn.disabled = false;
+      standBtn.disabled = false;
+    }
+    return;
+  }
+
+  // Legacy ntfy.sh multiplayer
   if (multiplayerSnapshot && multiplayerRoom) {
     const meIndex = multiplayerSnapshot.players.findIndex(p => p === getMpName());
     if (multiplayerSnapshot.turnIndex !== meIndex) return;
@@ -3478,7 +3824,7 @@ async function handleInvite() {
   }
   const betValue = parseFloat(betInput.value) || 1;
 
-  // Проверка баланса хоста перед инвайтом
+  // On-chain room creation (wallet required)
   if (walletAddress) {
     await updateInGameBalance();
     const betOctas = parseEDS(betValue.toString());
@@ -3496,8 +3842,53 @@ async function handleInvite() {
       }
       return;
     }
+
+    // Create room on-chain
+    showMessage(
+      currentLocale === "ru" ? "СОЗДАНИЕ КОМНАТЫ..." : "CREATING ROOM...",
+      "info"
+    );
+    try {
+      await createRoomOnChain(betOctas, networkMode);
+      const roomId = await getLatestRoomIdOnChain(networkMode);
+      chainRoomId = roomId;
+      amIHost = true;
+      isRoomHost = true;
+      mpOnChainMode = true;
+      multiplayerRoom = `chain_${roomId}`;
+      mpLog(`Room created: id=${roomId}, bet=${betOctas}`);
+      await updateInGameBalance();
+
+      // Start polling
+      startRoomPolling();
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      mpLog(`create_room error: ${errMsg}`);
+      showMessage(
+        currentLocale === "ru"
+          ? `ОШИБКА СОЗДАНИЯ КОМНАТЫ: ${errMsg}`
+          : `ROOM CREATION ERROR: ${errMsg}`,
+        "error"
+      );
+      return;
+    }
+  } else {
+    // Demo mode: use old ntfy.sh flow
+    if (!multiplayerRoom) {
+      multiplayerRoom = Math.random().toString(36).slice(2, 10);
+    }
+    isRoomHost = true;
+    multiplayerHost = getMpName();
+    mpOnChainMode = false;
+    if (LS_PUBLIC_KEY && isSessionStarted) {
+      if (!mpNameFrozen) mpNameFrozen = getMpName();
+      multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), multiplayerHost);
+      multiplayer.proposeBet(betValue);
+      updateMpDebug("invite");
+    }
   }
 
+  // Build invite URL
   const url = new URL(window.location.href);
   url.searchParams.set("invite", name);
   url.searchParams.set("bet", betValue.toString());
@@ -3507,24 +3898,15 @@ async function handleInvite() {
     url.searchParams.set("wallet_addr", walletAddress);
     url.searchParams.set("wallet", "luffa");
   }
-  if (!multiplayerRoom) {
-    multiplayerRoom = Math.random().toString(36).slice(2, 10);
+  if (chainRoomId) {
+    url.searchParams.set("room_id", chainRoomId.toString());
   }
-  url.searchParams.set("room", multiplayerRoom);
+  if (multiplayerRoom) {
+    url.searchParams.set("room", multiplayerRoom);
+  }
   const hostId = getMpName();
   url.searchParams.set("host_id", hostId);
   multiplayerHost = hostId;
-  isRoomHost = true;
-  mpOnChainMode = Boolean(walletAddress);
-  if (LS_PUBLIC_KEY && isSessionStarted) {
-    if (!mpNameFrozen) mpNameFrozen = getMpName();
-    multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), multiplayerHost);
-    multiplayer.proposeBet(betValue);
-    if (walletAddress) {
-      multiplayer.sendWalletInfo(walletAddress);
-    }
-    updateMpDebug("invite");
-  }
   // QR URL без wallet=luffa — чистый HTTPS для сканера Luffa
   const qrUrl = new URL(url.toString());
   qrUrl.searchParams.delete("wallet");
@@ -3710,6 +4092,7 @@ function buildInviteQrUrl(): string {
     params.set("mode", pendingInvite.mode);
   }
   if (multiplayerRoom) params.set("room", multiplayerRoom);
+  if (chainRoomId) params.set("room_id", chainRoomId.toString());
   if (multiplayerHost) params.set("host_id", multiplayerHost);
   // Адрес хоста из сохранённых
   const hostAddr = multiplayerHost ? mpWalletAddresses[multiplayerHost] : null;
@@ -3827,7 +4210,6 @@ async function handleInviteAccept() {
         depositAmountInput.value = Math.ceil(neededEDS).toString();
         depositModal.style.display = "flex";
       }
-      // НЕ возвращаемся — показываем баннер обратно чтобы можно было нажать ACCEPT снова
       return;
     }
   }
@@ -3837,26 +4219,50 @@ async function handleInviteAccept() {
     return;
   }
 
-  // Подключаемся к комнате
-  debugLogLine(`handleInviteAccept: connecting to room=${multiplayerRoom}`);
-  if (multiplayerRoom && LS_PUBLIC_KEY) {
+  // On-chain room: join via contract
+  if (isOnChainInvite && chainRoomId && walletAddress) {
     showMessage(
-      currentLocale === "ru" ? "ПОДКЛЮЧЕНИЕ К ИГРЕ..." : "CONNECTING TO GAME...",
+      currentLocale === "ru" ? "ВХОД В КОМНАТУ..." : "JOINING ROOM...",
       "info"
     );
-    const host = multiplayerHost || pendingInvite?.name || playerName;
-    if (!mpNameFrozen) mpNameFrozen = getMpName();
-    multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
-    isRoomHost = false;
-    // acceptBet и walletInfo будут в очереди и отправятся после подписки на канал
-    multiplayer.acceptBet();
-    mpLog("handleInviteAccept: acceptBet queued");
-    if (walletAddress) {
-      multiplayer.sendWalletInfo(walletAddress);
+    try {
+      await joinRoomOnChain(chainRoomId, networkMode);
+      amIHost = false;
+      isRoomHost = false;
+      mpOnChainMode = true;
+      multiplayerRoom = `chain_${chainRoomId}`;
+      mpLog(`Joined room ${chainRoomId}`);
+      await updateInGameBalance();
+      startRoomPolling();
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      mpLog(`join_room error: ${errMsg}`);
+      showMessage(
+        currentLocale === "ru"
+          ? `ОШИБКА ВХОДА В КОМНАТУ: ${errMsg}`
+          : `ROOM JOIN ERROR: ${errMsg}`,
+        "error"
+      );
+      return;
     }
-    updateMpDebug("accept");
-  } else {
-    mpLog(`NO room or key! room=${multiplayerRoom} key=${LS_PUBLIC_KEY ? "yes" : "no"}`);
+  } else if (!isOnChainInvite) {
+    // Demo mode: use old ntfy.sh flow
+    debugLogLine(`handleInviteAccept: connecting to room=${multiplayerRoom}`);
+    if (multiplayerRoom && LS_PUBLIC_KEY) {
+      showMessage(
+        currentLocale === "ru" ? "ПОДКЛЮЧЕНИЕ К ИГРЕ..." : "CONNECTING TO GAME...",
+        "info"
+      );
+      const host = multiplayerHost || pendingInvite?.name || playerName;
+      if (!mpNameFrozen) mpNameFrozen = getMpName();
+      multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
+      isRoomHost = false;
+      multiplayer.acceptBet();
+      mpLog("handleInviteAccept: acceptBet queued");
+      updateMpDebug("accept");
+    } else {
+      mpLog(`NO room or key! room=${multiplayerRoom} key=${LS_PUBLIC_KEY ? "yes" : "no"}`);
+    }
   }
 
   if (inviteBanner) inviteBanner.style.display = "none";
@@ -4045,6 +4451,11 @@ function cleanupMultiplayer() {
   mpWaitingForGuest = false;
   mpPayoutBucket = 0;
   localStorage.setItem("mpPayoutBucket", "0");
+  // Clean up chain room state
+  stopRoomPolling();
+  chainRoomId = null;
+  chainRoom = null;
+  amIHost = false;
   isPlaying = false;
   if (opponentHandEl) opponentHandEl.style.display = "none";
   if (winnerBannerEl) winnerBannerEl.style.display = "none";
@@ -4070,12 +4481,36 @@ function cleanupMultiplayer() {
 async function handleLeaveGame() {
   if (!multiplayerRoom) return;
 
+  // On-chain room: cancel if waiting, otherwise just leave (opponent can claim timeout)
+  if (chainRoomId && mpOnChainMode && walletAddress) {
+    if (chainRoom && chainRoom.status === ROOM_STATUS_WAITING && amIHost) {
+      try {
+        await cancelRoomOnChain(chainRoomId, networkMode);
+        mpLog(`Room ${chainRoomId} cancelled`);
+      } catch (err) {
+        mpLog(`cancel_room error: ${err}`);
+      }
+    }
+    // If game is in progress, the opponent can claim timeout after 5 min
+    stopRoomPolling();
+    cleanupMultiplayer();
+    showMessage(
+      currentLocale === "ru"
+        ? "Вы покинули игру."
+        : "You left the game.",
+      "info"
+    );
+    await updateInGameBalance();
+    updateUI();
+    return;
+  }
+
+  // Legacy ntfy.sh flow
   const isInGame = multiplayerSnapshot &&
     multiplayerSnapshot.phase === "player" &&
     multiplayerSnapshot.hands.length >= 2;
 
   if (isInGame && mpBetsDeducted && mpOnChainMode && walletAddress) {
-    // Mid-game forfeit with on-chain bets: pay opponent
     const players = multiplayerSnapshot!.players || [];
     const meIndex = players.findIndex(p => p === getMpName());
     const oppIndex = meIndex === 0 ? 1 : 0;
@@ -4091,17 +4526,10 @@ async function handleLeaveGame() {
         mpBetsDeducted = false;
       } catch (err) {
         debugLogLine(`FORFEIT payout error: ${err}`);
-        showMessage(
-          currentLocale === "ru"
-            ? "Ошибка выплаты оппоненту. Свяжитесь с администрацией."
-            : "Error paying opponent. Contact admin.",
-          "error"
-        );
       }
     }
   }
 
-  // Send forfeit event
   multiplayer.forfeit();
   multiplayer.disconnect();
   cleanupMultiplayer();

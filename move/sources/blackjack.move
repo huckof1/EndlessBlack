@@ -16,23 +16,23 @@ module pixel_blackjack::blackjack {
 
     // ====================  ====================
 
-    ///   
+    ///
     const E_GAME_NOT_FOUND: u64 = 1;
-    ///   
+    ///
     const E_GAME_ALREADY_FINISHED: u64 = 2;
-    ///  
+    ///
     const E_INSUFFICIENT_FUNDS: u64 = 3;
-    ///  
+    ///
     const E_INVALID_BET: u64 = 4;
-    ///    
+    ///
     const E_GAME_NOT_FINISHED: u64 = 5;
-    ///   
+    ///
     const E_PLAYER_BUSTED: u64 = 6;
-    ///    
+    ///
     const E_INSUFFICIENT_BANKROLL: u64 = 7;
-    ///   
+    ///
     const E_NOT_OWNER: u64 = 8;
-    ///  
+    ///
     const E_INVALID_FEE: u64 = 9;
     ///
     const E_PAYOUT_ALREADY_CLAIMED: u64 = 10;
@@ -40,6 +40,26 @@ module pixel_blackjack::blackjack {
     const E_INVALID_AMOUNT: u64 = 11;
     ///
     const E_INSUFFICIENT_BALANCE: u64 = 12;
+    /// Room not found
+    const E_ROOM_NOT_FOUND: u64 = 100;
+    /// Room is not in waiting status
+    const E_ROOM_NOT_WAITING: u64 = 101;
+    /// Room is not in playing status
+    const E_ROOM_NOT_PLAYING: u64 = 102;
+    /// Not your turn
+    const E_NOT_YOUR_TURN: u64 = 103;
+    /// Cannot join your own room
+    const E_CANNOT_JOIN_OWN_ROOM: u64 = 104;
+    /// Only host can cancel
+    const E_NOT_HOST: u64 = 105;
+    /// Player already done (stood or busted)
+    const E_PLAYER_ALREADY_DONE: u64 = 106;
+    /// Timeout not reached yet
+    const E_TIMEOUT_NOT_REACHED: u64 = 107;
+    /// Room already finished
+    const E_ROOM_ALREADY_FINISHED: u64 = 108;
+    /// Not a participant
+    const E_NOT_PARTICIPANT: u64 = 109;
 
     // ====================  ====================
 
@@ -53,6 +73,15 @@ module pixel_blackjack::blackjack {
     const DEALER_STAND: u64 = 17;
     ///   (10%)
     const MAX_FEE_BPS: u128 = 1000;
+
+    // Room status constants
+    const ROOM_WAITING: u8 = 0;
+    const ROOM_PLAYING: u8 = 1;
+    const ROOM_FINISHED: u8 = 2;
+    const ROOM_CANCELLED: u8 = 3;
+    const ROOM_TIMEOUT: u8 = 4;
+    // Room turn timeout: 5 minutes
+    const ROOM_TURN_TIMEOUT: u64 = 300;
 
     // ====================  ====================
 
@@ -116,7 +145,35 @@ module pixel_blackjack::blackjack {
         player_balances: SimpleMap<address, u128>,
     }
 
-    ///  
+    /// Multiplayer room
+    struct Room has store, copy, drop {
+        room_id: u64,
+        host: address,
+        guest: address,
+        bet_amount: u128,
+        net_bet: u128,
+        fee_amount: u128,
+        status: u8,
+        host_cards: vector<Card>,
+        guest_cards: vector<Card>,
+        host_score: u64,
+        guest_score: u64,
+        deck_index: u64,
+        turn: u8,
+        host_done: bool,
+        guest_done: bool,
+        result: u8,
+        created_at: u64,
+        last_action_at: u64,
+    }
+
+    /// RoomStore - separate from GameStore to avoid migration issues
+    struct RoomStore has key {
+        room_counter: u64,
+        rooms: vector<Room>,
+    }
+
+    ///
     struct PlayerStats has key {
         ///  
         total_games: u64,
@@ -194,6 +251,56 @@ module pixel_blackjack::blackjack {
         delta: u128,
         is_win: bool,
         new_balance: u128,
+    }
+
+    // ==================== ROOM EVENTS ====================
+
+    #[event]
+    struct RoomCreated has drop, store {
+        room_id: u64,
+        host: address,
+        bet_amount: u128,
+    }
+
+    #[event]
+    struct RoomJoined has drop, store {
+        room_id: u64,
+        guest: address,
+    }
+
+    #[event]
+    struct RoomCardDealt has drop, store {
+        room_id: u64,
+        player: address,
+        card: Card,
+        new_score: u64,
+    }
+
+    #[event]
+    struct RoomStandEvent has drop, store {
+        room_id: u64,
+        player: address,
+    }
+
+    #[event]
+    struct RoomFinished has drop, store {
+        room_id: u64,
+        result: u8,
+        host_score: u64,
+        guest_score: u64,
+        winner: address,
+    }
+
+    #[event]
+    struct RoomCancelled has drop, store {
+        room_id: u64,
+        host: address,
+    }
+
+    #[event]
+    struct RoomTimeoutEvent has drop, store {
+        room_id: u64,
+        claimer: address,
     }
 
     // ====================  ====================
@@ -823,7 +930,7 @@ module pixel_blackjack::blackjack {
     }
 
     #[view]
-    ///   
+    ///
     public fun get_latest_game_id(player: address): u64 acquires GameStore {
         let game_store = borrow_global<GameStore>(@pixel_blackjack);
         let i = 0;
@@ -837,5 +944,436 @@ module pixel_blackjack::blackjack {
             i = i + 1;
         };
         latest
+    }
+
+    // ==================== MULTIPLAYER ROOMS ====================
+
+    /// Initialize RoomStore (call once after upgrade)
+    public entry fun init_rooms(owner: &signer) acquires GameStore {
+        let owner_addr = signer::address_of(owner);
+        let game_store = borrow_global<GameStore>(@pixel_blackjack);
+        assert!(owner_addr == game_store.owner, E_NOT_OWNER);
+        move_to(owner, RoomStore {
+            room_counter: 0,
+            rooms: vector::empty(),
+        });
+    }
+
+    /// Host creates a room, locking bet from player_balances
+    public entry fun create_room(
+        host: &signer,
+        bet_amount: u128,
+    ) acquires GameStore, RoomStore {
+        let host_addr = signer::address_of(host);
+        assert!(bet_amount >= MIN_BET, E_INVALID_BET);
+        assert!(bet_amount <= MAX_BET, E_INVALID_BET);
+
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        assert!(simple_map::contains_key(&game_store.player_balances, &host_addr), E_INSUFFICIENT_BALANCE);
+        let host_balance = simple_map::borrow_mut(&mut game_store.player_balances, &host_addr);
+        assert!(*host_balance >= bet_amount, E_INSUFFICIENT_BALANCE);
+
+        let fee_amount = bet_amount * game_store.fee_bps / 10000;
+        assert!(fee_amount < bet_amount, E_INVALID_FEE);
+        let net_bet = bet_amount - fee_amount;
+
+        // Deduct bet from host balance
+        *host_balance = *host_balance - bet_amount;
+        game_store.treasury = game_store.treasury + fee_amount;
+
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+        let room_id = room_store.room_counter + 1;
+        room_store.room_counter = room_id;
+
+        let now = timestamp::now_seconds();
+        let room = Room {
+            room_id,
+            host: host_addr,
+            guest: @0x0,
+            bet_amount,
+            net_bet,
+            fee_amount,
+            status: ROOM_WAITING,
+            host_cards: vector::empty(),
+            guest_cards: vector::empty(),
+            host_score: 0,
+            guest_score: 0,
+            deck_index: 0,
+            turn: 0,
+            host_done: false,
+            guest_done: false,
+            result: 0,
+            created_at: now,
+            last_action_at: now,
+        };
+        vector::push_back(&mut room_store.rooms, room);
+
+        event::emit(RoomCreated { room_id, host: host_addr, bet_amount });
+    }
+
+    /// Guest joins a room, locking their bet
+    public entry fun join_room(
+        guest: &signer,
+        room_id: u64,
+    ) acquires GameStore, RoomStore {
+        let guest_addr = signer::address_of(guest);
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow_mut(&mut room_store.rooms, room_idx);
+
+        assert!(room.status == ROOM_WAITING, E_ROOM_NOT_WAITING);
+        assert!(guest_addr != room.host, E_CANNOT_JOIN_OWN_ROOM);
+
+        // Check and deduct guest balance
+        assert!(simple_map::contains_key(&game_store.player_balances, &guest_addr), E_INSUFFICIENT_BALANCE);
+        let guest_balance = simple_map::borrow_mut(&mut game_store.player_balances, &guest_addr);
+        assert!(*guest_balance >= room.bet_amount, E_INSUFFICIENT_BALANCE);
+
+        let fee_amount = room.bet_amount * game_store.fee_bps / 10000;
+        *guest_balance = *guest_balance - room.bet_amount;
+        game_store.treasury = game_store.treasury + fee_amount;
+
+        room.guest = guest_addr;
+        room.status = ROOM_PLAYING;
+
+        // Deal initial cards: 2 for host, 2 for guest
+        let base_seed = room_id * 1000;
+        room.host_cards = vector::empty();
+        room.guest_cards = vector::empty();
+
+        vector::push_back(&mut room.host_cards, draw_card(base_seed, 0));
+        vector::push_back(&mut room.host_cards, draw_card(base_seed, 1));
+        vector::push_back(&mut room.guest_cards, draw_card(base_seed, 2));
+        vector::push_back(&mut room.guest_cards, draw_card(base_seed, 3));
+
+        room.host_score = calculate_score(&room.host_cards);
+        room.guest_score = calculate_score(&room.guest_cards);
+        room.deck_index = 4;
+        room.turn = 0; // host goes first
+        room.last_action_at = timestamp::now_seconds();
+
+        // Check for immediate blackjacks
+        let host_bj = room.host_score == BLACKJACK;
+        let guest_bj = room.guest_score == BLACKJACK;
+        if (host_bj && guest_bj) {
+            room.host_done = true;
+            room.guest_done = true;
+            finalize_room(room, game_store);
+        } else if (host_bj) {
+            room.host_done = true;
+            room.turn = 1; // skip to guest
+            if (guest_bj) {
+                room.guest_done = true;
+                finalize_room(room, game_store);
+            };
+        } else if (guest_bj) {
+            room.guest_done = true;
+            // host still plays first
+        };
+
+        event::emit(RoomJoined { room_id, guest: guest_addr });
+    }
+
+    /// Player takes a card (hit)
+    public entry fun room_hit(
+        player: &signer,
+        room_id: u64,
+    ) acquires GameStore, RoomStore {
+        let player_addr = signer::address_of(player);
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow_mut(&mut room_store.rooms, room_idx);
+
+        assert!(room.status == ROOM_PLAYING, E_ROOM_NOT_PLAYING);
+
+        let is_host = player_addr == room.host;
+        let is_guest = player_addr == room.guest;
+        assert!(is_host || is_guest, E_NOT_PARTICIPANT);
+
+        if (is_host) {
+            assert!(room.turn == 0, E_NOT_YOUR_TURN);
+            assert!(!room.host_done, E_PLAYER_ALREADY_DONE);
+
+            let new_card = draw_card(room.room_id * 1000, room.deck_index);
+            room.deck_index = room.deck_index + 1;
+            vector::push_back(&mut room.host_cards, new_card);
+            room.host_score = calculate_score(&room.host_cards);
+            room.last_action_at = timestamp::now_seconds();
+
+            event::emit(RoomCardDealt {
+                room_id, player: player_addr, card: new_card, new_score: room.host_score,
+            });
+
+            if (room.host_score >= BLACKJACK) {
+                room.host_done = true;
+                if (room.guest_done) {
+                    finalize_room(room, game_store);
+                } else {
+                    room.turn = 1;
+                };
+            };
+        } else {
+            assert!(room.turn == 1, E_NOT_YOUR_TURN);
+            assert!(!room.guest_done, E_PLAYER_ALREADY_DONE);
+
+            let new_card = draw_card(room.room_id * 1000, room.deck_index);
+            room.deck_index = room.deck_index + 1;
+            vector::push_back(&mut room.guest_cards, new_card);
+            room.guest_score = calculate_score(&room.guest_cards);
+            room.last_action_at = timestamp::now_seconds();
+
+            event::emit(RoomCardDealt {
+                room_id, player: player_addr, card: new_card, new_score: room.guest_score,
+            });
+
+            if (room.guest_score >= BLACKJACK) {
+                room.guest_done = true;
+                if (room.host_done) {
+                    finalize_room(room, game_store);
+                } else {
+                    room.turn = 0;
+                };
+            };
+        };
+    }
+
+    /// Player stands
+    public entry fun room_stand(
+        player: &signer,
+        room_id: u64,
+    ) acquires GameStore, RoomStore {
+        let player_addr = signer::address_of(player);
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow_mut(&mut room_store.rooms, room_idx);
+
+        assert!(room.status == ROOM_PLAYING, E_ROOM_NOT_PLAYING);
+
+        let is_host = player_addr == room.host;
+        let is_guest = player_addr == room.guest;
+        assert!(is_host || is_guest, E_NOT_PARTICIPANT);
+
+        if (is_host) {
+            assert!(room.turn == 0, E_NOT_YOUR_TURN);
+            assert!(!room.host_done, E_PLAYER_ALREADY_DONE);
+            room.host_done = true;
+            room.last_action_at = timestamp::now_seconds();
+
+            event::emit(RoomStandEvent { room_id, player: player_addr });
+
+            if (room.guest_done) {
+                finalize_room(room, game_store);
+            } else {
+                room.turn = 1;
+            };
+        } else {
+            assert!(room.turn == 1, E_NOT_YOUR_TURN);
+            assert!(!room.guest_done, E_PLAYER_ALREADY_DONE);
+            room.guest_done = true;
+            room.last_action_at = timestamp::now_seconds();
+
+            event::emit(RoomStandEvent { room_id, player: player_addr });
+
+            if (room.host_done) {
+                finalize_room(room, game_store);
+            } else {
+                room.turn = 0;
+            };
+        };
+    }
+
+    /// Cancel a waiting room (host only, before guest joins)
+    public entry fun cancel_room(
+        host: &signer,
+        room_id: u64,
+    ) acquires GameStore, RoomStore {
+        let host_addr = signer::address_of(host);
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow_mut(&mut room_store.rooms, room_idx);
+
+        assert!(host_addr == room.host, E_NOT_HOST);
+        assert!(room.status == ROOM_WAITING, E_ROOM_NOT_WAITING);
+
+        room.status = ROOM_CANCELLED;
+
+        // Refund full bet (including fee) to host
+        let refund = room.bet_amount;
+        let fee = room.fee_amount;
+        if (simple_map::contains_key(&game_store.player_balances, &host_addr)) {
+            let balance = simple_map::borrow_mut(&mut game_store.player_balances, &host_addr);
+            *balance = *balance + refund;
+        } else {
+            simple_map::add(&mut game_store.player_balances, host_addr, refund);
+        };
+        // Return fee from treasury
+        game_store.treasury = game_store.treasury - fee;
+
+        event::emit(RoomCancelled { room_id, host: host_addr });
+    }
+
+    /// Claim win if opponent AFK > 5 min
+    public entry fun claim_timeout(
+        player: &signer,
+        room_id: u64,
+    ) acquires GameStore, RoomStore {
+        let player_addr = signer::address_of(player);
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow_mut(&mut room_store.rooms, room_idx);
+
+        assert!(room.status == ROOM_PLAYING, E_ROOM_NOT_PLAYING);
+        let is_host = player_addr == room.host;
+        let is_guest = player_addr == room.guest;
+        assert!(is_host || is_guest, E_NOT_PARTICIPANT);
+
+        let now = timestamp::now_seconds();
+        assert!(now - room.last_action_at >= ROOM_TURN_TIMEOUT, E_TIMEOUT_NOT_REACHED);
+
+        // The player whose turn it is has timed out, so the OTHER player wins
+        if (is_host) {
+            // Host is claiming — must be guest's turn (guest timed out)
+            assert!(room.turn == 1, E_NOT_YOUR_TURN);
+        } else {
+            // Guest is claiming — must be host's turn (host timed out)
+            assert!(room.turn == 0, E_NOT_YOUR_TURN);
+        };
+
+        room.status = ROOM_TIMEOUT;
+        // Winner gets the full pot (net_bet * 2)
+        let payout = room.net_bet * 2;
+        if (simple_map::contains_key(&game_store.player_balances, &player_addr)) {
+            let balance = simple_map::borrow_mut(&mut game_store.player_balances, &player_addr);
+            *balance = *balance + payout;
+        } else {
+            simple_map::add(&mut game_store.player_balances, player_addr, payout);
+        };
+
+        if (is_host) {
+            room.result = 1; // host wins
+        } else {
+            room.result = 2; // guest wins
+        };
+
+        event::emit(RoomTimeoutEvent { room_id, claimer: player_addr });
+    }
+
+    /// Internal: finalize room when both players are done
+    fun finalize_room(room: &mut Room, game_store: &mut GameStore) {
+        room.status = ROOM_FINISHED;
+
+        let host_bust = room.host_score > BLACKJACK;
+        let guest_bust = room.guest_score > BLACKJACK;
+
+        let (result, host_payout, guest_payout) = if (host_bust && guest_bust) {
+            // Both bust → draw, return net_bet each
+            (3u8, room.net_bet, room.net_bet)
+        } else if (host_bust) {
+            // Host bust → guest wins
+            (2u8, 0u128, room.net_bet * 2)
+        } else if (guest_bust) {
+            // Guest bust → host wins
+            (1u8, room.net_bet * 2, 0u128)
+        } else if (room.host_score > room.guest_score) {
+            (1u8, room.net_bet * 2, 0u128)
+        } else if (room.guest_score > room.host_score) {
+            (2u8, 0u128, room.net_bet * 2)
+        } else {
+            // Draw
+            (3u8, room.net_bet, room.net_bet)
+        };
+
+        room.result = result;
+
+        // Credit payouts to player balances
+        if (host_payout > 0) {
+            if (simple_map::contains_key(&game_store.player_balances, &room.host)) {
+                let balance = simple_map::borrow_mut(&mut game_store.player_balances, &room.host);
+                *balance = *balance + host_payout;
+            } else {
+                simple_map::add(&mut game_store.player_balances, room.host, host_payout);
+            };
+        };
+        if (guest_payout > 0) {
+            if (simple_map::contains_key(&game_store.player_balances, &room.guest)) {
+                let balance = simple_map::borrow_mut(&mut game_store.player_balances, &room.guest);
+                *balance = *balance + guest_payout;
+            } else {
+                simple_map::add(&mut game_store.player_balances, room.guest, guest_payout);
+            };
+        };
+
+        let winner = if (result == 1) { room.host } else if (result == 2) { room.guest } else { @0x0 };
+        event::emit(RoomFinished {
+            room_id: room.room_id,
+            result,
+            host_score: room.host_score,
+            guest_score: room.guest_score,
+            winner,
+        });
+    }
+
+    /// Find room by ID
+    fun find_room_index(rooms: &vector<Room>, room_id: u64): u64 {
+        let i = 0;
+        let len = vector::length(rooms);
+        while (i < len) {
+            let room = vector::borrow(rooms, i);
+            if (room.room_id == room_id) {
+                return i
+            };
+            i = i + 1;
+        };
+        abort E_ROOM_NOT_FOUND
+    }
+
+    // ==================== ROOM VIEW FUNCTIONS ====================
+
+    #[view]
+    /// Get room details by ID
+    public fun get_room(room_id: u64): (
+        u64, address, address, u128, u128, u128, u8,
+        vector<Card>, vector<Card>, u64, u64,
+        u8, bool, bool, u8, u64, u64
+    ) acquires RoomStore {
+        let room_store = borrow_global<RoomStore>(@pixel_blackjack);
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow(&room_store.rooms, room_idx);
+        (
+            room.room_id,
+            room.host,
+            room.guest,
+            room.bet_amount,
+            room.net_bet,
+            room.fee_amount,
+            room.status,
+            room.host_cards,
+            room.guest_cards,
+            room.host_score,
+            room.guest_score,
+            room.turn,
+            room.host_done,
+            room.guest_done,
+            room.result,
+            room.created_at,
+            room.last_action_at
+        )
+    }
+
+    #[view]
+    /// Get latest room ID
+    public fun get_latest_room_id(): u64 acquires RoomStore {
+        let room_store = borrow_global<RoomStore>(@pixel_blackjack);
+        room_store.room_counter
     }
 }

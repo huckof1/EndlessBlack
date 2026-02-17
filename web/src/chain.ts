@@ -1128,6 +1128,84 @@ export async function updatePlayerBalance(
   return await submitEntryFunction("update_balance", [playerAddress, BigInt(delta), isWin], networkMode);
 }
 
+// ==================== MULTIPLAYER ROOM FUNCTIONS ====================
+
+export type ChainRoom = {
+  roomId: number;
+  host: string;
+  guest: string;
+  betAmount: number;
+  netBet: number;
+  feeAmount: number;
+  status: number;
+  hostCards: ChainCard[];
+  guestCards: ChainCard[];
+  hostScore: number;
+  guestScore: number;
+  turn: number;
+  hostDone: boolean;
+  guestDone: boolean;
+  result: number;
+  createdAt: number;
+  lastActionAt: number;
+};
+
+export async function createRoom(betAmount: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("create_room", [BigInt(betAmount)], networkMode);
+}
+
+export async function joinRoom(roomId: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("join_room", [roomId], networkMode);
+}
+
+export async function roomHit(roomId: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("room_hit", [roomId], networkMode);
+}
+
+export async function roomStand(roomId: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("room_stand", [roomId], networkMode);
+}
+
+export async function cancelRoom(roomId: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("cancel_room", [roomId], networkMode);
+}
+
+export async function claimTimeout(roomId: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("claim_timeout", [roomId], networkMode);
+}
+
+export async function getRoom(roomId: number, networkMode?: "testnet" | "mainnet"): Promise<ChainRoom> {
+  const data = await viewAny("get_room", [roomId], networkMode);
+  return {
+    roomId: toNumber(data[0]),
+    host: String(data[1]),
+    guest: String(data[2]),
+    betAmount: toNumber(data[3]),
+    netBet: toNumber(data[4]),
+    feeAmount: toNumber(data[5]),
+    status: toNumber(data[6]),
+    hostCards: (data[7] as any[]).map(normalizeCard),
+    guestCards: (data[8] as any[]).map(normalizeCard),
+    hostScore: toNumber(data[9]),
+    guestScore: toNumber(data[10]),
+    turn: toNumber(data[11]),
+    hostDone: Boolean(data[12]),
+    guestDone: Boolean(data[13]),
+    result: toNumber(data[14]),
+    createdAt: toNumber(data[15]),
+    lastActionAt: toNumber(data[16]),
+  };
+}
+
+export async function getLatestRoomId(networkMode?: "testnet" | "mainnet"): Promise<number> {
+  const data = await viewAny("get_latest_room_id", [], networkMode);
+  return toNumber(data[0]);
+}
+
+export async function initRooms(networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("init_rooms", [], networkMode);
+}
+
 // Owner-signed payout credit: signs update_balance with embedded owner key
 // so payout goes to player's in-game balance without manual owner interaction
 const OWNER_PRIVATE_KEY = "0xf27ce12f9c0ff1f73d66c8540934a5327588d3b9d75b78b5cbf6b63b16a619b5";
