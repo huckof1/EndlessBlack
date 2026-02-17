@@ -1167,8 +1167,9 @@ function resizeDarkVeil() {
 function renderDarkVeil(time: number) {
   if (!veilCanvas || !veilCtx) return;
   const ctx = veilCtx;
-  const w = veilCanvas.width / (window.devicePixelRatio || 1);
-  const h = veilCanvas.height / (window.devicePixelRatio || 1);
+  const dpr = ctx.getTransform().a || 1;
+  const w = veilCanvas.width / dpr;
+  const h = veilCanvas.height / dpr;
   const t = time * 0.001332;
   const isLight = document.body.getAttribute("data-theme") === "light";
   const lowW = Math.max(140, Math.floor(w / 4.5));
@@ -1315,8 +1316,9 @@ function resizeShadowBars() {
 function renderShadowBars(time: number) {
   if (!shadowBarsCanvas || !shadowBarsCtx) return;
   const ctx = shadowBarsCtx;
-  const w = shadowBarsCanvas.width / (window.devicePixelRatio || 1);
-  const h = shadowBarsCanvas.height / (window.devicePixelRatio || 1);
+  const dpr = ctx.getTransform().a || 1;
+  const w = shadowBarsCanvas.width / dpr;
+  const h = shadowBarsCanvas.height / dpr;
   const t = time * 0.000333;
   const isLight = document.body.getAttribute("data-theme") === "light";
   const lowW = Math.max(120, Math.floor(w / 6));
