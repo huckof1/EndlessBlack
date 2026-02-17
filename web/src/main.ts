@@ -1701,9 +1701,29 @@ function init() {
     });
   }
 
-  // Fund bankroll button — owner only
+  // Fund bankroll button - owner only
   if (fundBankHeader) {
     fundBankHeader.addEventListener("click", () => handleFundBankroll());
+  }
+  // Init rooms button - owner only, one-time
+  const initRoomsBtnSetup = document.getElementById("init-rooms-btn") as HTMLButtonElement;
+  if (initRoomsBtnSetup) {
+    initRoomsBtnSetup.addEventListener("click", async () => {
+      try {
+        initRoomsBtnSetup.disabled = true;
+        initRoomsBtnSetup.textContent = "INITIALIZING...";
+        const { initRooms } = await import("./chain");
+        await initRooms(networkMode);
+        initRoomsBtnSetup.textContent = "DONE!";
+        showMessage("RoomStore initialized!", "success");
+        setTimeout(() => { initRoomsBtnSetup.style.display = "none"; }, 2000);
+      } catch (err) {
+        initRoomsBtnSetup.disabled = false;
+        initRoomsBtnSetup.textContent = "INIT ROOMS";
+        const msg = err instanceof Error ? err.message : String(err);
+        showMessage("Init rooms error: " + msg, "error");
+      }
+    });
   }
   // Fund modal confirm/cancel
   if (fundModalConfirm) {
@@ -4375,6 +4395,10 @@ function updateUI() {
   if (fundBankHeader) {
     fundBankHeader.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
     fundBankHeader.textContent = I18N[currentLocale].fund_bank;
+  }
+  const initRoomsBtn = document.getElementById("init-rooms-btn") as HTMLButtonElement;
+  if (initRoomsBtn) {
+    initRoomsBtn.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
   }
   if (walletModal) {
     walletModal.style.display = "none";
