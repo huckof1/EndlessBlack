@@ -3228,13 +3228,9 @@ function validateBet() {
 // ==================== GAME ====================
 function scrollToGameArea() {
   if (!gameArea) return;
-  // Scroll so the green table is at the top of viewport
-  const table = gameArea.querySelector(".table");
-  if (table) {
-    table.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    gameArea.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  // Keep BET/DEAL area visible (top of game block), not action buttons below table.
+  const top = window.scrollY + gameArea.getBoundingClientRect().top - 8;
+  window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "smooth" });
 }
 async function handleStartGame() {
   focusBetArea();
