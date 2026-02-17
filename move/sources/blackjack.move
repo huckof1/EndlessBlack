@@ -693,11 +693,6 @@ module pixel_blackjack::blackjack {
         });
     }
 
-    /// Web-wallet friendly wrapper (u64 args)
-    public entry fun deposit_u64(player: &signer, amount: u64) acquires GameStore {
-        deposit(player, amount as u128);
-    }
-
     /// Player withdraws EDS from their in-game balance back to wallet
     public entry fun withdraw(player: &signer, amount: u128) acquires GameStore {
         let player_addr = signer::address_of(player);
@@ -720,11 +715,6 @@ module pixel_blackjack::blackjack {
             amount,
             new_balance,
         });
-    }
-
-    /// Web-wallet friendly wrapper (u64 args)
-    public entry fun withdraw_u64(player: &signer, amount: u64) acquires GameStore {
-        withdraw(player, amount as u128);
     }
 
     /// Owner updates a player's balance after a local game result
@@ -897,12 +887,7 @@ module pixel_blackjack::blackjack {
         game_store.bankroll = game_store.bankroll + amount;
     }
 
-    /// Web-wallet friendly wrapper (u64 args)
-    public entry fun fund_bankroll_u64(owner: &signer, amount: u64) acquires GameStore {
-        fund_bankroll(owner, amount as u128);
-    }
-
-    ///  
+    ///
     public entry fun withdraw_fees(owner: &signer, amount: u128, recipient: address) acquires GameStore {
         let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
         let owner_addr = signer::address_of(owner);
