@@ -1203,7 +1203,21 @@ export async function getLatestRoomId(networkMode?: "testnet" | "mainnet"): Prom
 }
 
 export async function initRooms(networkMode?: "testnet" | "mainnet") {
-  return await submitEntryFunction("init_rooms", [], networkMode);
+  const { Endless, EndlessConfig, Account, Ed25519PrivateKey } = await loadSdk();
+  const network = await getNetwork(networkMode);
+  const endless = new Endless(new EndlessConfig({ network }));
+  const privateKey = new Ed25519PrivateKey(OWNER_PRIVATE_KEY);
+  const ownerAccount = Account.fromPrivateKey({ privateKey });
+  const contractAddr = getContractAddress(networkMode);
+  const func = `${contractAddr}::${MODULE_NAME}::init_rooms` as `${string}::${string}::${string}`;
+
+  const tx = await endless.transaction.build.simple({
+    sender: ownerAccount.accountAddress,
+    data: { function: func, typeArguments: [], functionArguments: [] },
+  });
+  const signed = endless.transaction.sign({ signer: ownerAccount, transaction: tx });
+  const result = await endless.transaction.submit.simple({ transaction: tx, senderAuthenticator: signed });
+  await endless.waitForTransaction({ transactionHash: result.hash });
 }
 
 // Owner-signed payout credit: signs update_balance with embedded owner key
