@@ -932,7 +932,6 @@ function renderChainRoom(room: ChainRoom) {
   }
 
   if ((room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) && !chainRoomResultShown) {
-    document.body.classList.remove("game-active");
     chainRoomResultShown = true;
     isPlaying = false;
     hitBtn.disabled = true;
@@ -1589,6 +1588,7 @@ function resetCurrentGameState() {
 }
 
 function returnToStartScreen() {
+  document.body.classList.remove("game-active");
   isSessionStarted = false;
   applySessionLayout();
   resetCurrentGameState();
@@ -4144,7 +4144,6 @@ function endGame() {
   isPlaying = false;
   setTurn(null);
   hasGameResult = true;
-  document.body.classList.remove("game-active");
 
   // Sync in-game balance after game result (wallet-connected mode)
   if (!isDemoActive() && walletAddress) {
