@@ -643,6 +643,8 @@ function stopRematchPolling() {
 }
 
 function showRematchOffer(roomId: number, room: ChainRoom) {
+  const existing = document.getElementById("rematch-banner");
+  if (existing) existing.remove();
   const betEds = formatEDS(room.netBet);
   const banner = document.createElement("div");
   banner.id = "rematch-banner";
@@ -662,6 +664,12 @@ function showRematchOffer(roomId: number, room: ChainRoom) {
   if (parent) {
     parent.insertBefore(banner, gameArea);
   }
+  showMessage(
+    currentLocale === "ru"
+      ? `${I18N[currentLocale].rematch_offer}: ${betEds} EDS`
+      : `${I18N[currentLocale].rematch_offer}: ${betEds} EDS`,
+    "info"
+  );
 
   document.getElementById("rematch-accept-btn")?.addEventListener("click", async () => {
     banner.remove();
@@ -670,11 +678,15 @@ function showRematchOffer(roomId: number, room: ChainRoom) {
 
   document.getElementById("rematch-decline-btn")?.addEventListener("click", () => {
     banner.remove();
-    rematchOpponentAddr = null;
     rematchMyRoomId = null;
-    document.body.classList.remove("game-active");
-    cleanupMultiplayer();
-    updateUI();
+    showMessage(
+      currentLocale === "ru"
+        ? "Реванш отклонён. Вы можете предложить новый реванш или выйти из игры."
+        : "Rematch declined. You can offer a new rematch or leave the game.",
+      "info"
+    );
+    // Keep session alive; continue listening for future rematch offers.
+    startRematchPolling();
   });
 }
 
@@ -4713,9 +4725,7 @@ function updateUI() {
       (mpOnChainMode && chainRoom && (chainRoom.status === ROOM_STATUS_FINISHED || chainRoom.status === ROOM_STATUS_TIMEOUT))
     ));
     rematchBtn.style.display = showRematch ? "inline-flex" : "none";
-    if (showRematch && mpOnChainMode) {
-      rematchBtn.textContent = I18N[currentLocale].rematch_continue;
-    } else if (showRematch) {
+    if (showRematch) {
       rematchBtn.textContent = I18N[currentLocale].rematch;
     }
   }
