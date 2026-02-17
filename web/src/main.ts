@@ -4545,10 +4545,11 @@ async function handleInvite() {
   url.searchParams.set("host_id", hostId);
   multiplayerHost = hostId;
   // QR URL без wallet=luffa — чистый HTTPS для сканера Luffa
-    const qrUrl = new URL(url.toString());
+    const inviteUrl = url.toString(); // includes wallet=luffa for auto-connect
+    const qrUrl = new URL(inviteUrl);
     qrUrl.searchParams.delete("wallet");
     const qrUrlStr = qrUrl.toString();
-    const deepLink = `luffa://connect?url=${encodeURIComponent(qrUrlStr)}`;
+    const deepLink = `luffa://connect?url=${encodeURIComponent(inviteUrl)}`;
 
   // Показать секцию с QR для хоста
   const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
