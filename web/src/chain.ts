@@ -855,11 +855,22 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     functionArguments: luffaArgs,
   };
   try {
+    dbg?.(`Luffa SDK signAndSubmit payload: ${JSON.stringify(luffaPayload.function)}`);
     const res = await sdk.signAndSubmitTransaction({ payload: luffaPayload });
+    dbg?.(`Luffa SDK response: status=${res?.status} hash=${(res as any)?.args?.hash || "none"}`);
     if (res.status === LuffaUserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
       await endless.waitForTransaction({ transactionHash: res.args.hash });
       return res.args;
+    }
+    // Try data format as fallback before rejecting
+    dbg?.("Luffa SDK: not approved with payload, trying data format...");
+    const res2 = await sdk.signAndSubmitTransaction({ data: luffaPayload } as any);
+    dbg?.(`Luffa SDK data response: status=${(res2 as any)?.status} hash=${(res2 as any)?.args?.hash || "none"}`);
+    if (res2.status === LuffaUserResponseStatus.APPROVED) {
+      const endless = await getEndless(mode);
+      await endless.waitForTransaction({ transactionHash: res2.args.hash });
+      return res2.args;
     }
     throw new Error("Transaction rejected by user");
   } catch (err) {
@@ -1189,8 +1200,8 @@ export async function getRoom(roomId: number, networkMode?: "testnet" | "mainnet
     hostScore: toNumber(data[9]),
     guestScore: toNumber(data[10]),
     turn: toNumber(data[11]),
-    hostDone: Boolean(data[12]),
-    guestDone: Boolean(data[13]),
+    hostDone: data[12] === true || data[12] === "true",
+    guestDone: data[13] === true || data[13] === "true",
     result: toNumber(data[14]),
     createdAt: toNumber(data[15]),
     lastActionAt: toNumber(data[16]),

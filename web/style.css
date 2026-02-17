@@ -2030,13 +2030,16 @@ body.invite-mode .mascot-right {
   display: flex;
   justify-content: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-height: 70px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Cards */
 .card {
   width: var(--card-width);
+  min-width: 42px;
   height: var(--card-height);
   border: 2px solid rgba(255,255,255,0.8);
   border-radius: 10px;
@@ -2044,6 +2047,7 @@ body.invite-mode .mascot-right {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  flex-shrink: 1;
   animation: dealCard 0.35s ease-out;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255,255,255,0.1) inset;
 }

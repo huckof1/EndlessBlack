@@ -503,6 +503,10 @@ let amIHost = false; // true if I'm the room host
 function startRoomPolling() {
   stopRoomPolling();
   isRoomPolling = true;
+  lastRenderedMyCardCount = 0;
+  lastRenderedOppCardCount = 0;
+  lastRenderedOppDone = false;
+  chainRoomResultShown = false;
   roomPollingTimer = setInterval(async () => {
     if (!chainRoomId || !isRoomPolling) return;
     try {
@@ -562,21 +566,54 @@ function isMyTurn(room: ChainRoom): boolean {
   return room.turn === myIdx;
 }
 
+// Track rendered state to avoid flicker on every poll
+let lastRenderedMyCardCount = 0;
+let lastRenderedOppCardCount = 0;
+let lastRenderedOppDone = false;
+let chainRoomResultShown = false;
+
+function renderCardsIfChanged(container: HTMLElement, cards: { suit: number; rank: number }[], prevCount: number, hidden: boolean): number {
+  if (cards.length === prevCount && container.children.length === cards.length) return prevCount;
+  // Only append new cards (don't clear existing)
+  while (container.children.length > cards.length) {
+    container.removeChild(container.lastChild!);
+  }
+  for (let i = container.children.length; i < cards.length; i++) {
+    const el = hidden ? renderCardBack() : renderCard(cards[i]);
+    el.style.animation = i >= prevCount ? "dealCard 0.35s ease-out" : "none";
+    container.appendChild(el);
+  }
+  // If switching from hidden to shown (opponent done), replace all
+  if (!hidden && prevCount === cards.length && container.querySelector(".card-back")) {
+    container.innerHTML = "";
+    cards.forEach(card => {
+      const el = renderCard(card);
+      el.style.animation = "none";
+      container.appendChild(el);
+    });
+  }
+  return cards.length;
+}
+
 function renderChainRoom(room: ChainRoom) {
   if (!opponentHandEl || !opponentCardsEl || !opponentScoreEl || !opponentNameEl) return;
-  if (dealerHandEl) dealerHandEl.style.display = "none";
 
   const myIdx = getMyTurnIndex();
   const oppIdx = myIdx === 0 ? 1 : 0;
 
   if (room.status === ROOM_STATUS_WAITING) {
-    // Waiting for guest
+    // Waiting for guest - use dealer area for "waiting" UI, hide opponent
+    if (dealerHandEl) dealerHandEl.style.display = "none";
     opponentHandEl.style.display = "none";
     if (winnerBannerEl) winnerBannerEl.style.display = "none";
     return;
   }
 
-  opponentHandEl.style.display = "flex";
+  // Multiplayer layout: opponent at top (dealer area), my cards at bottom (player area)
+  // Use dealer-hand for opponent (top of table)
+  if (dealerHandEl) dealerHandEl.style.display = "block";
+  opponentHandEl.style.display = "none"; // Don't use bottom opponent area
+
   const myCards = myIdx === 0 ? room.hostCards : room.guestCards;
   const oppCards = oppIdx === 0 ? room.hostCards : room.guestCards;
   const myScore = myIdx === 0 ? room.hostScore : room.guestScore;
@@ -584,32 +621,27 @@ function renderChainRoom(room: ChainRoom) {
   const myDone = myIdx === 0 ? room.hostDone : room.guestDone;
   const oppDone = oppIdx === 0 ? room.hostDone : room.guestDone;
 
+  // Show opponent name in dealer label
   const oppAddr = oppIdx === 0 ? room.host : room.guest;
-  opponentNameEl.textContent = oppAddr.slice(0, 8) + "...";
+  const dealerNameEl = dealerHandEl?.querySelector(".hand-name") as HTMLSpanElement;
+  if (dealerNameEl) dealerNameEl.textContent = oppAddr.slice(0, 8) + "...";
 
-  // Render cards
-  playerCardsEl.innerHTML = "";
-  opponentCardsEl.innerHTML = "";
-  dealerCardsEl.innerHTML = "";
+  // Render MY cards at bottom (player area) - only add new cards, no flicker
+  const showOppCards = room.status !== ROOM_STATUS_PLAYING || oppDone;
+  lastRenderedMyCardCount = renderCardsIfChanged(playerCardsEl, myCards, lastRenderedMyCardCount, false);
 
-  myCards.forEach(card => playerCardsEl.appendChild(renderCard(card)));
-
-  if (room.status === ROOM_STATUS_PLAYING && !oppDone) {
-    // Hide opponent cards during play
-    for (let i = 0; i < oppCards.length; i++) {
-      opponentCardsEl.appendChild(renderCardBack());
-    }
-  } else {
-    oppCards.forEach(card => opponentCardsEl.appendChild(renderCard(card)));
+  // Render OPPONENT cards at top (dealer area) - hidden during play unless opp is done
+  if (showOppCards !== lastRenderedOppDone || oppCards.length !== lastRenderedOppCardCount) {
+    lastRenderedOppCardCount = renderCardsIfChanged(dealerCardsEl, oppCards, lastRenderedOppCardCount, !showOppCards);
+    lastRenderedOppDone = showOppCards;
   }
 
+  // Scores
   playerScoreEl.textContent = myScore.toString();
-  dealerScoreEl.textContent = "-";
-
-  if (room.status === ROOM_STATUS_PLAYING && !oppDone) {
-    opponentScoreEl.textContent = oppCards.length.toString();
+  if (!showOppCards) {
+    dealerScoreEl.textContent = oppCards.length + " cards";
   } else {
-    opponentScoreEl.textContent = oppScore.toString();
+    dealerScoreEl.textContent = oppScore.toString();
   }
 
   // Update player hints
@@ -643,13 +675,8 @@ function renderChainRoom(room: ChainRoom) {
       );
     }
 
-    // Timeout check
-    const now = Math.floor(Date.now() / 1000);
-    if (now - room.lastActionAt >= 300 && !myTurn && room.turn !== getMyTurnIndex()) {
-      // Opponent may have timed out - but only show claim if it's THEIR turn
-      // Actually we show claim if opponent's turn and they've been AFK
-    }
     // Show claim timeout button if opponent AFK > 5 min and it's their turn
+    const now = Math.floor(Date.now() / 1000);
     const claimTimeoutBtn = document.getElementById("claim-timeout-btn") as HTMLButtonElement;
     if (claimTimeoutBtn) {
       const opponentTurn = room.turn !== getMyTurnIndex();
@@ -662,12 +689,22 @@ function renderChainRoom(room: ChainRoom) {
     }
   }
 
-  if (room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) {
+  if ((room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) && !chainRoomResultShown) {
+    chainRoomResultShown = true;
     isPlaying = false;
     hitBtn.disabled = true;
     standBtn.disabled = true;
     setTurn(null);
     startIdleMusic();
+
+    // Show opponent cards face up (they were hidden)
+    dealerCardsEl.innerHTML = "";
+    oppCards.forEach(card => {
+      const el = renderCard(card);
+      el.style.animation = "none";
+      dealerCardsEl.appendChild(el);
+    });
+    dealerScoreEl.textContent = oppScore.toString();
 
     // Determine result for me
     let myResult: "win" | "lose" | "draw";
@@ -679,14 +716,15 @@ function renderChainRoom(room: ChainRoom) {
       myResult = "lose";
     }
 
+    const betEds = formatEDS(room.netBet);
     if (myResult === "win") {
       showMessage(
-        currentLocale === "ru" ? "ПОБЕДА!" : "YOU WIN!",
+        currentLocale === "ru" ? `ПОБЕДА! +${betEds}` : `YOU WIN! +${betEds}`,
         "success"
       );
       playSound("win");
       createConfetti();
-      setMascotState("excited", "🤩", currentLocale === "ru" ? "ПОБЕДА!" : "YOU WIN!");
+      setMascotState("excited", "\u{1F929}", currentLocale === "ru" ? "ПОБЕДА!" : "YOU WIN!");
       if (winnerBannerEl) {
         winnerBannerEl.style.display = "block";
         winnerBannerEl.textContent = currentLocale === "ru" ? "ПОБЕДИТЕЛЬ" : "WINNER";
@@ -696,21 +734,20 @@ function renderChainRoom(room: ChainRoom) {
         currentLocale === "ru" ? "НИЧЬЯ! Ставки возвращены" : "DRAW! Bets returned",
         "info"
       );
-      setMascotState("thinking", "🤷", currentLocale === "ru" ? "Ничья!" : "Draw!");
+      setMascotState("thinking", "\u{1F937}", currentLocale === "ru" ? "Ничья!" : "Draw!");
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
     } else {
       showMessage(
-        currentLocale === "ru" ? "ПОРАЖЕНИЕ" : "YOU LOSE",
+        currentLocale === "ru" ? `ПОРАЖЕНИЕ -${betEds}` : `YOU LOSE -${betEds}`,
         "error"
       );
-      setMascotState("sad", "😞", currentLocale === "ru" ? "Поражение..." : "You lose...");
+      setMascotState("sad", "\u{1F61E}", currentLocale === "ru" ? "Поражение..." : "You lose...");
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
     }
 
     // Refresh balance
-    setTimeout(() => {
-      updateInGameBalance();
-    }, 2000);
+    updateInGameBalance();
+    setTimeout(() => updateInGameBalance(), 3000);
   }
 
   if (room.status === ROOM_STATUS_CANCELLED) {
@@ -2073,7 +2110,7 @@ async function startSession() {
   // Update active players
   renderActivePlayers();
   renderLeaderboard();
-  if (multiplayerRoom && LS_PUBLIC_KEY) {
+  if (multiplayerRoom && LS_PUBLIC_KEY && !mpOnChainMode) {
     const host = multiplayerHost || getMpName();
     if (!mpNameFrozen) mpNameFrozen = getMpName();
     multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), host || "");
@@ -3224,8 +3261,13 @@ async function handleHit() {
         "info"
       );
       await roomHitOnChain(chainRoomId, networkMode);
-      // Poll will update UI
       mpLog(`room_hit sent for room ${chainRoomId}`);
+      // Immediate poll to update UI without waiting 2.5s
+      try {
+        const freshRoom = await getRoomOnChain(chainRoomId!, networkMode);
+        chainRoom = freshRoom;
+        renderChainRoom(freshRoom);
+      } catch (_) {}
     } catch (err) {
       mpLog(`room_hit error: ${err}`);
       showMessage(
@@ -3321,6 +3363,12 @@ async function handleStand() {
       );
       await roomStandOnChain(chainRoomId, networkMode);
       mpLog(`room_stand sent for room ${chainRoomId}`);
+      // Immediate poll to update UI without waiting 2.5s
+      try {
+        const freshRoom = await getRoomOnChain(chainRoomId!, networkMode);
+        chainRoom = freshRoom;
+        renderChainRoom(freshRoom);
+      } catch (_) {}
     } catch (err) {
       mpLog(`room_stand error: ${err}`);
       showMessage(
@@ -4480,12 +4528,20 @@ function cleanupMultiplayer() {
   chainRoomId = null;
   chainRoom = null;
   amIHost = false;
+  lastRenderedMyCardCount = 0;
+  lastRenderedOppCardCount = 0;
+  lastRenderedOppDone = false;
+  chainRoomResultShown = false;
   isPlaying = false;
   if (opponentHandEl) opponentHandEl.style.display = "none";
   if (winnerBannerEl) winnerBannerEl.style.display = "none";
   if (betOffer) betOffer.style.display = "none";
   if (turnIndicator) turnIndicator.style.display = "none";
-  if (dealerHandEl) dealerHandEl.style.display = "flex";
+  if (dealerHandEl) {
+    dealerHandEl.style.display = "flex";
+    const dealerNameEl = dealerHandEl.querySelector(".hand-name") as HTMLSpanElement;
+    if (dealerNameEl) dealerNameEl.textContent = currentLocale === "ru" ? "ДИЛЕР" : "DEALER";
+  }
   if (mascot) mascot.style.display = "flex";
   const luffaQrScreen = document.getElementById("luffa-qr-screen");
   if (luffaQrScreen) luffaQrScreen.style.display = "none";
