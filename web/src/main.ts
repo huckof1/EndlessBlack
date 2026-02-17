@@ -3208,12 +3208,12 @@ function validateBet() {
 // ==================== GAME ====================
 function scrollToGameArea() {
   if (!gameArea) return;
-  // Scroll so the table + action buttons are fully visible
-  const actionsBottom = gameArea.querySelector(".actions-bottom");
-  if (actionsBottom) {
-    actionsBottom.scrollIntoView({ behavior: "smooth", block: "end" });
+  // Scroll so the green table is at the top of viewport
+  const table = gameArea.querySelector(".table");
+  if (table) {
+    table.scrollIntoView({ behavior: "smooth", block: "start" });
   } else {
-    gameArea.scrollIntoView({ behavior: "smooth", block: "end" });
+    gameArea.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 async function handleStartGame() {
