@@ -4524,22 +4524,41 @@ async function handleInviteAccept() {
   }
 
   // On-chain room: join via contract
+  if (isOnChainInvite && !chainRoomId) {
+    mpLog(`handleInviteAccept: on-chain invite but no chainRoomId!`);
+    showMessage(
+      currentLocale === "ru"
+        ? "ОШИБКА: НЕТ ID КОМНАТЫ. ПОПРОСИТЕ НОВУЮ ССЫЛКУ."
+        : "ERROR: NO ROOM ID. ASK FOR A NEW LINK.",
+      "error"
+    );
+    return;
+  }
   if (isOnChainInvite && chainRoomId && walletAddress) {
     showMessage(
       currentLocale === "ru" ? "ВХОД В КОМНАТУ..." : "JOINING ROOM...",
       "info"
     );
+    mpLog(`joinRoomOnChain(${chainRoomId}) starting...`);
+    setTxStatus(currentLocale === "ru" ? "Подтвердите транзакцию в кошельке..." : "Confirm transaction in wallet...");
     try {
       await joinRoomOnChain(chainRoomId, networkMode);
+      setTxStatus(null);
+      mpLog(`joinRoomOnChain(${chainRoomId}) success`);
       amIHost = false;
       isRoomHost = false;
       mpOnChainMode = true;
       multiplayerRoom = `chain_${chainRoomId}`;
-      mpLog(`Joined room ${chainRoomId}`);
+      document.body.classList.add("game-active");
+      showMessage(
+        currentLocale === "ru" ? "ВЫ В КОМНАТЕ! ОЖИДАНИЕ НАЧАЛА..." : "JOINED! WAITING FOR START...",
+        "success"
+      );
       await updateInGameBalance();
       startRoomPolling();
       scrollToGameArea();
     } catch (err) {
+      setTxStatus(null);
       const errMsg = err instanceof Error ? err.message : String(err);
       mpLog(`join_room error: ${errMsg}`);
       showMessage(
