@@ -922,12 +922,9 @@ function renderChainRoom(room: ChainRoom) {
     updateInGameBalance();
     setTimeout(() => updateInGameBalance(), 3000);
     updateUI();
-    // Scroll to continue/rematch buttons
+    // Keep result + table + action buttons in view
     setTimeout(() => {
-      const target = rematchBtn || leaveGameBtn;
-      if (target && target.style.display !== "none") {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
+      focusGameplayArea();
     }, 500);
   }
 
@@ -3920,14 +3917,9 @@ function endGame() {
     setMascotState("happy", "😊", I18N[currentLocale].msg_play_again);
   }, 1000);
 
-  // Scroll to continue/end buttons after header reappears
+  // Keep result + table + action buttons in view
   setTimeout(() => {
-    const target = continueBtn || endGameBtn;
-    if (target && target.style.display !== "none") {
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-    } else {
-      scrollToGameArea();
-    }
+    focusGameplayArea();
   }, 500);
 
   setTxStatus(null);
