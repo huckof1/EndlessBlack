@@ -491,6 +491,7 @@ let mpLogLines: string[] = [];
 // ==================== ON-CHAIN ROOM STATE ====================
 let chainRoomId: number | null = null;
 let chainRoom: ChainRoom | null = null;
+let lastRenderedChainRoomStatus: number | null = null;
 let roomPollingTimer: ReturnType<typeof setInterval> | null = null;
 let isRoomPolling = false;
 // Room status constants (mirror contract)
@@ -505,6 +506,7 @@ let amIHost = false; // true if I'm the room host
 function startRoomPolling() {
   stopRoomPolling();
   isRoomPolling = true;
+  lastRenderedChainRoomStatus = null;
   lastRenderedMyCardCount = 0;
   lastRenderedOppCardCount = 0;
   lastRenderedOppDone = false;
@@ -530,7 +532,7 @@ function startRoomPolling() {
           const shareEl = document.getElementById("invite-share");
           if (shareEl) shareEl.style.display = "none";
           startGameMusic();
-          focusBetArea();
+          focusGameplayArea();
         }
         // Handle instant finish (e.g. both players got blackjack on deal)
         if ((room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) && prevStatus === ROOM_STATUS_WAITING) {
@@ -759,6 +761,12 @@ function renderCardsIfChanged(container: HTMLElement, cards: { suit: number; ran
 }
 
 function renderChainRoom(room: ChainRoom) {
+  const justEnteredPlaying = room.status === ROOM_STATUS_PLAYING && lastRenderedChainRoomStatus !== ROOM_STATUS_PLAYING;
+  lastRenderedChainRoomStatus = room.status;
+  if (justEnteredPlaying) {
+    focusGameplayArea();
+  }
+
   if (!opponentHandEl || !opponentCardsEl || !opponentScoreEl || !opponentNameEl) return;
 
   const myIdx = getMyTurnIndex();
@@ -1031,6 +1039,10 @@ function pulseDepositButton() {
 function focusBetArea() {
   scrollToGameArea();
   pulseBetDisplay();
+}
+
+function focusGameplayArea() {
+  scrollToGameArea(window.innerWidth <= 520 ? 150 : 110);
 }
 
 function initDebug() {
@@ -2906,7 +2918,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     startGameMusic();
   }
   if (snapshot.phase === "player" && prevPhase !== "player") {
-    focusBetArea();
+    focusGameplayArea();
   }
 
   const meIndex = players.findIndex(p => p === getMpName());
@@ -4867,6 +4879,7 @@ function cleanupMultiplayer() {
   lastKnownRoomId = 0;
   chainRoomId = null;
   chainRoom = null;
+  lastRenderedChainRoomStatus = null;
   amIHost = false;
   lastRenderedMyCardCount = 0;
   lastRenderedOppCardCount = 0;
