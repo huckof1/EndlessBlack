@@ -5577,17 +5577,37 @@ async function handleLuffaWalletConnect() {
   if (walletAddress) {
     await handleDisconnectWallet();
   }
-  // Hide picker options, show QR + status
+  // Hide picker options and try direct in-app connect first.
   if (walletPickerOptions) walletPickerOptions.style.display = "none";
   if (walletPickerBack) walletPickerBack.style.display = "inline-flex";
-  if (walletConnectStatus) walletConnectStatus.style.display = "none";
+  if (walletConnectStatus) walletConnectStatus.style.display = "flex";
   if (walletInstallLink) walletInstallLink.style.display = "none";
   if (walletPickerTitle) {
     walletPickerTitle.textContent = I18N[currentLocale].wallet_luffa || "LUFFA WALLET";
   }
-  // Show QR code for scanning
+  if (walletStatusText) {
+    walletStatusText.textContent = I18N[currentLocale].wallet_luffa_connecting;
+  }
+  if (walletLuffaQrSection) walletLuffaQrSection.style.display = "none";
+
+  // Try connecting directly several times (Luffa bridge may inject with delay).
+  const maxAttempts = 8;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      walletAddress = await connectLuffa(networkMode);
+      await onWalletConnectSuccess();
+      return;
+    } catch {
+      if (attempt < maxAttempts) {
+        await delay(450);
+      }
+    }
+  }
+
+  // Fallback: show QR only when direct connect did not succeed.
+  if (walletConnectStatus) walletConnectStatus.style.display = "none";
   generateLuffaQr();
-  // Try auto-connect if already inside Luffa app
+  // Keep background auto-retry for late bridge injection.
   tryLuffaAutoConnect();
 }
 
