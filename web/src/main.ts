@@ -4555,6 +4555,7 @@ async function handleInvite() {
   const inviteShareQr = document.getElementById("invite-share-qr") as HTMLDivElement;
   const inviteShareCopy = document.getElementById("invite-share-copy") as HTMLButtonElement;
   const inviteShareDownload = document.getElementById("invite-share-download") as HTMLButtonElement;
+  const inviteShareLink = document.getElementById("invite-share-link") as HTMLButtonElement;
   const inviteShareHint = document.getElementById("invite-share-hint") as HTMLDivElement;
   if (inviteShare && inviteShareQr) {
     inviteShare.style.display = "flex";
@@ -4574,6 +4575,7 @@ async function handleInvite() {
       inviteShareQr.textContent = qrUrlStr;
     });
 
+    const latestUrl = qrUrlStr;
     let latestInviteBlob: Blob | null = null;
     const resetInviteShareHint = () => {
       latestInviteBlob = null;
@@ -4627,7 +4629,7 @@ async function handleInvite() {
         }
         if (navigator.share && navigator.canShare?.({ files: [file] })) {
           try {
-            await navigator.share({ files: [file] });
+            await navigator.share({ files: [file], text: latestUrl });
             resetInviteShareHint();
             return;
           } catch (_) {
@@ -4650,6 +4652,26 @@ async function handleInvite() {
         : "Share QR or show to scan in Luffa";
       inviteShareHint.textContent = hintText;
       inviteShareHint.dataset.defaultText = hintText;
+    }
+    if (inviteShareLink) {
+      inviteShareLink.style.display = "inline-flex";
+      inviteShareLink.textContent = currentLocale === "ru" ? "КОПИРОВАТЬ ССЫЛКУ" : "COPY LINK";
+      inviteShareLink.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(latestUrl);
+          showMessage(
+            currentLocale === "ru" ? "Ссылка скопирована!" : "Link copied!",
+            "success"
+          );
+        } catch {
+          showMessage(
+            currentLocale === "ru"
+              ? "Копируйте вручную: удержите ?"
+              : "Copy manually: long-press the URL",
+            "error"
+          );
+        }
+      };
     }
   }
 
