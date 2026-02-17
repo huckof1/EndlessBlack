@@ -586,8 +586,19 @@ function startRematchPolling() {
 
   // Get baseline FIRST, then start polling
   let baselineReady = false;
-  getLatestRoomIdOnChain(networkMode).then(id => {
+  getLatestRoomIdOnChain(networkMode).then(async (id) => {
     lastKnownRoomId = id;
+    try {
+      const existing = await findOpponentRematchRoom(30);
+      if (existing) {
+        mpLog(`Rematch room found on baseline: id=${existing.id}`);
+        showRematchOffer(existing.id, existing.room);
+        stopRematchPolling();
+        return;
+      }
+    } catch (e) {
+      mpLog(`Rematch baseline scan error: ${e}`);
+    }
     baselineReady = true;
     mpLog(`Rematch polling started, baseline roomId=${id}`);
   }).catch((e) => {
@@ -606,8 +617,8 @@ function startRematchPolling() {
       const latestId = await getLatestRoomIdOnChain(networkMode);
       if (latestId <= lastKnownRoomId) return;
 
-      // Only check a reasonable range (max 10 rooms)
-      const startId = Math.max(lastKnownRoomId + 1, latestId - 9);
+      // Only check a reasonable range (max 30 rooms)
+      const startId = Math.max(lastKnownRoomId + 1, latestId - 29);
 
       // Check new rooms
       for (let id = startId; id <= latestId; id++) {
@@ -642,6 +653,30 @@ function stopRematchPolling() {
     clearInterval(rematchPollingTimer);
     rematchPollingTimer = null;
   }
+}
+
+async function findOpponentRematchRoom(maxLookback = 20): Promise<{ id: number; room: ChainRoom } | null> {
+  if (!rematchOpponentAddr) return null;
+  const oppNorm = normalizeAddress(rematchOpponentAddr);
+  const latestId = await getLatestRoomIdOnChain(networkMode);
+  if (latestId <= 0) return null;
+  const startId = Math.max(1, latestId - maxLookback + 1);
+
+  for (let id = latestId; id >= startId; id--) {
+    try {
+      const room = await getRoomOnChain(id, networkMode);
+      if (room.status !== ROOM_STATUS_WAITING) continue;
+      const hostNorm = normalizeAddress(room.host);
+      const guestNorm = normalizeAddress(room.guest);
+      if (hostNorm === oppNorm || (guestNorm === oppNorm && room.guest !== "")) {
+        return { id, room };
+      }
+    } catch {
+      // Ignore room read errors and continue scanning.
+    }
+  }
+
+  return null;
 }
 
 function showRematchOffer(roomId: number, room: ChainRoom) {
@@ -2057,6 +2092,19 @@ function init() {
         // Save opponent address from old room
         const myIdx = amIHost ? 0 : 1;
         rematchOpponentAddr = myIdx === 0 ? chainRoom.guest : chainRoom.host;
+
+        // If opponent already proposed a rematch, join that room instead of creating duplicate.
+        const existingOffer = await findOpponentRematchRoom(30);
+        if (existingOffer) {
+          showMessage(
+            currentLocale === "ru"
+              ? "Оппонент уже предложил реванш. Подключаемся..."
+              : "Opponent already offered rematch. Joining...",
+            "info"
+          );
+          await acceptRematchRoom(existingOffer.id);
+          return;
+        }
 
         // Check balance
         await updateInGameBalance();
