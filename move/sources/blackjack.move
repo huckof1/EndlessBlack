@@ -1276,13 +1276,13 @@ module pixel_blackjack::blackjack {
         let guest_bust = room.guest_score > BLACKJACK;
 
         let (result, host_payout, guest_payout) = if (host_bust && guest_bust) {
-            // Both bust → draw, return net_bet each
+            // Both bust -> draw, return net_bet each
             (3u8, room.net_bet, room.net_bet)
         } else if (host_bust) {
-            // Host bust → guest wins
+            // Host bust -> guest wins
             (2u8, 0u128, room.net_bet * 2)
         } else if (guest_bust) {
-            // Guest bust → host wins
+            // Guest bust -> host wins
             (1u8, room.net_bet * 2, 0u128)
         } else if (room.host_score > room.guest_score) {
             (1u8, room.net_bet * 2, 0u128)
