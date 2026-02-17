@@ -3435,6 +3435,7 @@ async function handleStartGame() {
       debugLogLine(`DEAL on-chain OK: gameId=${chainGameId}, score=${chainGame.playerScore}`);
       isPlaying = true;
       await renderGame(chainGame);
+      scrollToGameArea();
       await updateInGameBalance();
       await updateBank();
       updateUI();
@@ -3459,6 +3460,7 @@ async function handleStartGame() {
       const gameState = await game.startGame(betAmount);
       isPlaying = true;
       await renderGame(gameState);
+      scrollToGameArea();
       updateUI();
       setTurn("you");
       startBtn.classList.remove("btn-pulse");
