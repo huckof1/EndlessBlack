@@ -5505,6 +5505,13 @@ async function generateLuffaQr() {
   }
 }
 
+async function connectLuffaWithTimeout(timeoutMs = 4000): Promise<string> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    window.setTimeout(() => reject(new Error("LUFFA_CONNECT_TIMEOUT")), timeoutMs);
+  });
+  return Promise.race([connectLuffa(networkMode), timeoutPromise]);
+}
+
 async function tryLuffaAutoConnect() {
   if (walletAddress) return;
   // Luffa bridge may take time to inject — retry several times
@@ -5515,7 +5522,7 @@ async function tryLuffaAutoConnect() {
     attempt++;
     if (isLuffaInApp()) {
       try {
-        walletAddress = await connectLuffa(networkMode);
+        walletAddress = await connectLuffaWithTimeout(3000);
         await onWalletConnectSuccess();
       } catch {
         // failed — QR is visible for manual scan
@@ -5594,7 +5601,7 @@ async function handleLuffaWalletConnect() {
   const maxAttempts = 8;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      walletAddress = await connectLuffa(networkMode);
+      walletAddress = await connectLuffaWithTimeout(3500);
       await onWalletConnectSuccess();
       return;
     } catch {
