@@ -1009,8 +1009,7 @@ function requestAutoConnectInLuffa() {
   setTimeout(check, 500);
 }
 
-function focusBetArea() {
-  scrollToGameArea();
+function pulseBetDisplay() {
   if (betDisplay) {
     betDisplay.classList.remove("bet-pulse");
     // Force reflow to restart animation
@@ -1018,6 +1017,11 @@ function focusBetArea() {
     betDisplay.classList.add("bet-pulse");
     window.setTimeout(() => betDisplay.classList.remove("bet-pulse"), 3800);
   }
+}
+
+function focusBetArea() {
+  scrollToGameArea();
+  pulseBetDisplay();
 }
 
 function initDebug() {
@@ -2311,7 +2315,8 @@ async function startSession() {
   }
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
-  focusBetArea();
+  scrollToGameArea(window.innerWidth <= 520 ? 150 : 110);
+  pulseBetDisplay();
 
   // Восстановление текущей игры (если была)
   if (isDemoActive()) {
@@ -3226,10 +3231,10 @@ function validateBet() {
 }
 
 // ==================== GAME ====================
-function scrollToGameArea() {
+function scrollToGameArea(offset = 8) {
   if (!gameArea) return;
   // Keep BET/DEAL area visible (top of game block), not action buttons below table.
-  const top = window.scrollY + gameArea.getBoundingClientRect().top - 8;
+  const top = window.scrollY + gameArea.getBoundingClientRect().top - offset;
   window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "smooth" });
 }
 async function handleStartGame() {
