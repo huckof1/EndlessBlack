@@ -5052,7 +5052,7 @@ function updateUI() {
     resetDemoBtn.style.display = demo && !multiplayerRoom && !inviteActive ? "inline-flex" : "none";
   }
   if (inviteBtnHeader) {
-    inviteBtnHeader.style.display = isSessionStarted ? "inline-flex" : "none";
+    inviteBtnHeader.style.display = (isSessionStarted || Boolean(walletAddress)) ? "inline-flex" : "none";
     inviteBtnHeader.textContent = I18N[currentLocale].invite;
   }
   if (connectWalletHeader) {
