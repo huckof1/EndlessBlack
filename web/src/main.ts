@@ -96,7 +96,6 @@ const opponentScoreEl = document.getElementById("opponent-score") as HTMLSpanEle
 const opponentHandEl = document.getElementById("opponent-hand") as HTMLDivElement;
 const opponentNameEl = document.getElementById("opponent-name") as HTMLSpanElement;
 const messageEl = document.getElementById("message") as HTMLDivElement;
-const mpDebugEl = document.getElementById("mp-debug") as HTMLDivElement;
 const turnIndicator = document.getElementById("turn-indicator") as HTMLDivElement;
 const txStatusEl = document.getElementById("tx-status") as HTMLDivElement;
 
@@ -153,10 +152,7 @@ const ingameBalanceRow = document.getElementById("ingame-balance-row") as HTMLDi
 const ingameBalanceEl = document.getElementById("ingame-balance") as HTMLSpanElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
 const walletModalClose = document.getElementById("wallet-modal-close") as HTMLButtonElement;
-const debugModal = document.getElementById("debug-modal") as HTMLDivElement;
 const debugLogEl = document.getElementById("debug-log") as HTMLDivElement;
-const debugCloseBtn = document.getElementById("debug-close") as HTMLButtonElement;
-const debugCopyBtn = document.getElementById("debug-copy") as HTMLButtonElement;
 const walletInstallLink = document.getElementById("wallet-install-link") as HTMLAnchorElement;
 const walletPickerTitle = document.getElementById("wallet-picker-title") as HTMLDivElement;
 const walletPickerOptions = document.getElementById("wallet-picker-options") as HTMLDivElement;
@@ -213,6 +209,11 @@ let hasGameResult = false;
 let invitedByLink = false;
 let rematchModalActive = false;
 let rematchRetryTimer: number | null = null;
+// On-chain rematch state
+let rematchOpponentAddr: string | null = null;
+let rematchPollingTimer: ReturnType<typeof setInterval> | null = null;
+let rematchMyRoomId: number | null = null;
+let lastKnownRoomId: number = 0;
 let mpPayoutBucket = parseFloat(localStorage.getItem("mpPayoutBucket") || "0") || 0;
 let mpPayoutRoom: string | null = localStorage.getItem("mpPayoutRoom");
 let mpLastWinKey: string | null = localStorage.getItem("mpLastWinKey");
@@ -529,10 +530,21 @@ function startRoomPolling() {
           if (shareEl) shareEl.style.display = "none";
           startGameMusic();
         }
+        // Handle instant finish (e.g. both players got blackjack on deal)
+        if ((room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) && prevStatus === ROOM_STATUS_WAITING) {
+          mpWaitingForGuest = false;
+          const shareEl = document.getElementById("invite-share");
+          if (shareEl) shareEl.style.display = "none";
+          mpLog(`Room ${chainRoomId}: instant finish (both blackjack?)`);
+        }
         if (room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT || room.status === ROOM_STATUS_CANCELLED) {
           // Game ended
           mpLog(`Room ${chainRoomId}: ended with status=${room.status} result=${room.result}`);
           stopRoomPolling();
+          // Start rematch polling for FINISHED/TIMEOUT (not CANCELLED)
+          if (room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) {
+            startRematchPolling();
+          }
         }
       }
       // Detect turn changes
@@ -550,6 +562,140 @@ function stopRoomPolling() {
   if (roomPollingTimer) {
     clearInterval(roomPollingTimer);
     roomPollingTimer = null;
+  }
+}
+
+// ==================== REMATCH POLLING ====================
+function startRematchPolling() {
+  stopRematchPolling();
+  if (!walletAddress || !chainRoom) return;
+
+  // Save opponent address
+  const myIdx = amIHost ? 0 : 1;
+  rematchOpponentAddr = myIdx === 0 ? chainRoom.guest : chainRoom.host;
+
+  // Get current latest room id as baseline
+  getLatestRoomIdOnChain(networkMode).then(id => {
+    lastKnownRoomId = id;
+    mpLog(`Rematch polling started, baseline roomId=${id}, opponent=${rematchOpponentAddr?.slice(0, 10)}`);
+  }).catch(() => {});
+
+  rematchPollingTimer = setInterval(async () => {
+    if (!rematchOpponentAddr || !walletAddress) return;
+    // If I already created a rematch room, don't show my own offer
+    if (rematchMyRoomId) return;
+
+    try {
+      const latestId = await getLatestRoomIdOnChain(networkMode);
+      if (latestId <= lastKnownRoomId) return;
+
+      // Check new rooms
+      for (let id = lastKnownRoomId + 1; id <= latestId; id++) {
+        try {
+          const room = await getRoomOnChain(id, networkMode);
+          if (room.status !== ROOM_STATUS_WAITING) continue;
+
+          // Check if the room host is my opponent
+          const oppNorm = normalizeAddress(rematchOpponentAddr!);
+          const hostNorm = normalizeAddress(room.host);
+          if (hostNorm === oppNorm) {
+            // Found opponent's rematch room!
+            mpLog(`Rematch room found: id=${id}, bet=${room.netBet}`);
+            showRematchOffer(id, room);
+            stopRematchPolling();
+            return;
+          }
+        } catch (e) {
+          // Skip rooms that can't be fetched
+        }
+      }
+      lastKnownRoomId = latestId;
+    } catch (err) {
+      mpLog(`Rematch poll error: ${err}`);
+    }
+  }, 3000);
+}
+
+function stopRematchPolling() {
+  if (rematchPollingTimer) {
+    clearInterval(rematchPollingTimer);
+    rematchPollingTimer = null;
+  }
+}
+
+function showRematchOffer(roomId: number, room: ChainRoom) {
+  const betEds = formatEDS(room.netBet);
+  const banner = document.createElement("div");
+  banner.id = "rematch-banner";
+  banner.className = "invite-banner";
+  banner.innerHTML = `
+    <div class="invite-text">
+      ${I18N[currentLocale].rematch_offer} · ${I18N[currentLocale].rematch_bet_label} ${betEds} EDS
+    </div>
+    <div class="invite-actions">
+      <button id="rematch-accept-btn" class="btn btn-small btn-success">${I18N[currentLocale].rematch_accept}</button>
+      <button id="rematch-decline-btn" class="btn btn-small btn-danger">${I18N[currentLocale].rematch_decline}</button>
+    </div>
+  `;
+
+  // Insert before game area
+  const parent = gameArea.parentElement;
+  if (parent) {
+    parent.insertBefore(banner, gameArea);
+  }
+
+  document.getElementById("rematch-accept-btn")?.addEventListener("click", async () => {
+    banner.remove();
+    await acceptRematchRoom(roomId);
+  });
+
+  document.getElementById("rematch-decline-btn")?.addEventListener("click", () => {
+    banner.remove();
+    rematchOpponentAddr = null;
+    rematchMyRoomId = null;
+    document.body.classList.remove("game-active");
+    cleanupMultiplayer();
+    updateUI();
+  });
+}
+
+async function acceptRematchRoom(roomId: number) {
+  showMessage(
+    currentLocale === "ru" ? "ВХОД В КОМНАТУ..." : "JOINING ROOM...",
+    "info"
+  );
+  try {
+    // Reset state for new game
+    stopRoomPolling();
+    chainRoomResultShown = false;
+    lastRenderedMyCardCount = 0;
+    lastRenderedOppCardCount = 0;
+    lastRenderedOppDone = false;
+    playerCardsEl.innerHTML = "";
+    dealerCardsEl.innerHTML = "";
+    if (winnerBannerEl) winnerBannerEl.style.display = "none";
+
+    await joinRoomOnChain(roomId, networkMode);
+    chainRoomId = roomId;
+    amIHost = false;
+    isRoomHost = false;
+    mpOnChainMode = true;
+    multiplayerRoom = `chain_${roomId}`;
+    rematchMyRoomId = null;
+    mpLog(`Joined rematch room ${roomId}`);
+    await updateInGameBalance();
+    startRoomPolling();
+    scrollToGameArea();
+    updateUI();
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    mpLog(`rematch join error: ${errMsg}`);
+    showMessage(
+      currentLocale === "ru"
+        ? `ОШИБКА ВХОДА В КОМНАТУ: ${errMsg}`
+        : `ROOM JOIN ERROR: ${errMsg}`,
+      "error"
+    );
   }
 }
 
@@ -652,6 +798,7 @@ function renderChainRoom(room: ChainRoom) {
   const myTurn = isMyTurn(room);
 
   if (room.status === ROOM_STATUS_PLAYING) {
+    document.body.classList.add("game-active");
     if (winnerBannerEl) winnerBannerEl.style.display = "none";
     hitBtn.disabled = !myTurn;
     standBtn.disabled = !myTurn;
@@ -690,6 +837,7 @@ function renderChainRoom(room: ChainRoom) {
   }
 
   if ((room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) && !chainRoomResultShown) {
+    document.body.classList.remove("game-active");
     chainRoomResultShown = true;
     isPlaying = false;
     hitBtn.disabled = true;
@@ -767,16 +915,7 @@ function mpLog(msg: string) {
   const line = `[${ts}] ${msg}`;
   mpLogLines.push(line);
   if (mpLogLines.length > 20) mpLogLines = mpLogLines.slice(-20);
-  // Показать на экране
-  let el = document.getElementById("mp-debug-log");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "mp-debug-log";
-    el.style.cssText = "position:fixed;bottom:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,0.9);color:#0f0;font-size:10px;font-family:monospace;padding:6px;max-height:30vh;overflow-y:auto;white-space:pre-wrap;";
-    document.body.appendChild(el);
-  }
-  el.textContent = mpLogLines.join("\n");
-  el.scrollTop = el.scrollHeight;
+  console.log(line);
 }
 
 // Normalize address: convert base58 to hex if needed, lowercase
@@ -859,34 +998,9 @@ function focusBetArea() {
 }
 
 function initDebug() {
+  // Debug UI removed — log only to console
   debugEnabled = true;
   (window as any).__debugLog = debugLogLine;
-  const btn = document.createElement("button");
-  btn.textContent = "DEBUG";
-  btn.className = "btn btn-small";
-  btn.style.position = "fixed";
-  btn.style.right = "10px";
-  btn.style.bottom = "10px";
-  btn.style.zIndex = "4000";
-  btn.addEventListener("click", () => {
-    if (debugModal) debugModal.style.display = "flex";
-  });
-  document.body.appendChild(btn);
-  if (debugCloseBtn) {
-    debugCloseBtn.addEventListener("click", () => {
-      if (debugModal) debugModal.style.display = "none";
-    });
-  }
-  if (debugCopyBtn) {
-    debugCopyBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(debugLog.join("\n"));
-        showMessage("DEBUG COPIED", "success");
-      } catch {
-        // ignore
-      }
-    });
-  }
 }
 
 function debugLogLine(message: string) {
@@ -1370,6 +1484,12 @@ const I18N = {
     rematch_modal_title: "REMATCH BET",
     rematch_modal_text: "Enter the bet for rematch.",
     rematch_modal_send: "SEND OFFER",
+    rematch_continue: "CONTINUE",
+    rematch_waiting: "Waiting for opponent...",
+    rematch_offer: "Opponent offers rematch",
+    rematch_bet_label: "Bet:",
+    rematch_accept: "ACCEPT",
+    rematch_decline: "DECLINE",
     change_login: "CHANGE LOGIN",
     nickname_title: "YOUR NICKNAME",
     nickname_text: "Choose a name to show in games.",
@@ -1535,6 +1655,12 @@ const I18N = {
     rematch_modal_title: "СТАВКА ДЛЯ РЕВАНША",
     rematch_modal_text: "Введите ставку для реванша.",
     rematch_modal_send: "ОТПРАВИТЬ",
+    rematch_continue: "ПРОДОЛЖИТЬ",
+    rematch_waiting: "Ожидание оппонента...",
+    rematch_offer: "Оппонент предлагает рематч",
+    rematch_bet_label: "Ставка:",
+    rematch_accept: "ПРИНЯТЬ",
+    rematch_decline: "ОТКЛОНИТЬ",
     change_login: "СМЕНИТЬ ЛОГИН",
     nickname_title: "ВАШ НИКНЕЙМ",
     nickname_text: "Выберите имя для отображения в игре.",
@@ -1674,6 +1800,19 @@ function init() {
   }
   if (rematchBtn) {
     rematchBtn.addEventListener("click", () => {
+      if (mpOnChainMode && chainRoom && walletAddress) {
+        // On-chain rematch: show bet modal, then create new room
+        if (inviteModal) {
+          rematchModalActive = true;
+          if (inviteModalTitle) inviteModalTitle.textContent = I18N[currentLocale].rematch_modal_title;
+          if (inviteModalText) inviteModalText.textContent = I18N[currentLocale].rematch_modal_text;
+          if (inviteBetConfirm) inviteBetConfirm.textContent = I18N[currentLocale].rematch_modal_send;
+          const prevBet = chainRoom.netBet ? formatEDS(chainRoom.netBet) : (betInput.value || "1");
+          inviteBetInput.value = prevBet.toString();
+          inviteModal.style.display = "flex";
+        }
+        return;
+      }
       if (inviteModal) {
         rematchModalActive = true;
         if (inviteModalTitle) inviteModalTitle.textContent = I18N[currentLocale].rematch_modal_title;
@@ -1836,11 +1975,74 @@ function init() {
     if (inviteModal) inviteModal.style.display = "none";
     rematchModalActive = false;
   });
-  inviteBetConfirm.addEventListener("click", () => {
+  inviteBetConfirm.addEventListener("click", async () => {
     if (inviteModal) inviteModal.style.display = "none";
     betInput.value = inviteBetInput.value || betInput.value || "1";
     if (rematchModalActive) {
       rematchModalActive = false;
+
+      // On-chain rematch: create a new room
+      if (mpOnChainMode && walletAddress && chainRoom) {
+        const value = parseFloat(betInput.value) || 1;
+        const betOctas = parseEDS(value.toString());
+
+        // Save opponent address from old room
+        const myIdx = amIHost ? 0 : 1;
+        rematchOpponentAddr = myIdx === 0 ? chainRoom.guest : chainRoom.host;
+
+        // Check balance
+        await updateInGameBalance();
+        if (inGameBalance < betOctas) {
+          const neededEDS = ((betOctas - inGameBalance) / 100000000) + 0.01;
+          showMessage(
+            currentLocale === "ru"
+              ? `НЕДОСТАТОЧНО БАЛАНСА. НУЖНО ЕЩЁ ${neededEDS.toFixed(2)} EDS.`
+              : `INSUFFICIENT BALANCE. NEED ${neededEDS.toFixed(2)} MORE EDS.`,
+            "error"
+          );
+          return;
+        }
+
+        // Stop rematch polling (we're creating room ourselves)
+        stopRematchPolling();
+
+        showMessage(I18N[currentLocale].rematch_waiting, "info");
+
+        try {
+          // Reset chain room state for new room
+          stopRoomPolling();
+          chainRoomResultShown = false;
+          lastRenderedMyCardCount = 0;
+          lastRenderedOppCardCount = 0;
+          lastRenderedOppDone = false;
+          playerCardsEl.innerHTML = "";
+          dealerCardsEl.innerHTML = "";
+          if (winnerBannerEl) winnerBannerEl.style.display = "none";
+
+          await createRoomOnChain(betOctas, networkMode);
+          const roomId = await getLatestRoomIdOnChain(networkMode);
+          chainRoomId = roomId;
+          rematchMyRoomId = roomId;
+          amIHost = true;
+          isRoomHost = true;
+          multiplayerRoom = `chain_${roomId}`;
+          mpLog(`Rematch room created: id=${roomId}, bet=${betOctas}`);
+          await updateInGameBalance();
+          startRoomPolling();
+          updateUI();
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          mpLog(`rematch create_room error: ${errMsg}`);
+          showMessage(
+            currentLocale === "ru"
+              ? `ОШИБКА СОЗДАНИЯ КОМНАТЫ: ${errMsg}`
+              : `ROOM CREATION ERROR: ${errMsg}`,
+            "error"
+          );
+        }
+        return;
+      }
+
       const value = parseFloat(betInput.value) || 1;
       sendRematchProposal(value);
       if (!isRoomHost && multiplayerSnapshot) {
@@ -2996,6 +3198,7 @@ function scrollToGameArea() {
 }
 async function handleStartGame() {
   scrollToGameArea();
+  document.body.classList.add("game-active");
   hasGameResult = false;
   hideGameResult();
   hidePlayerHints();
@@ -3253,6 +3456,8 @@ async function handleHit() {
   // On-chain room multiplayer
   if (chainRoomId && chainRoom && mpOnChainMode) {
     if (!isMyTurn(chainRoom)) return;
+    // Don't hit if room is already finished
+    if (chainRoom.status !== ROOM_STATUS_PLAYING) return;
     try {
       hitBtn.disabled = true;
       standBtn.disabled = true;
@@ -3270,6 +3475,17 @@ async function handleHit() {
       } catch (_) {}
     } catch (err) {
       mpLog(`room_hit error: ${err}`);
+      // Check if room finished while we were hitting (e.g. both got 21)
+      try {
+        const freshRoom = await getRoomOnChain(chainRoomId!, networkMode);
+        chainRoom = freshRoom;
+        if (freshRoom.status === ROOM_STATUS_FINISHED || freshRoom.status === ROOM_STATUS_TIMEOUT) {
+          // Room already ended - render the result instead of error
+          renderChainRoom(freshRoom);
+          updateUI();
+          return;
+        }
+      } catch (_) {}
       showMessage(
         currentLocale === "ru" ? "ОШИБКА HIT" : "HIT ERROR",
         "error"
@@ -3354,6 +3570,7 @@ async function handleStand() {
   // On-chain room multiplayer
   if (chainRoomId && chainRoom && mpOnChainMode) {
     if (!isMyTurn(chainRoom)) return;
+    if (chainRoom.status !== ROOM_STATUS_PLAYING) return;
     try {
       hitBtn.disabled = true;
       standBtn.disabled = true;
@@ -3371,6 +3588,16 @@ async function handleStand() {
       } catch (_) {}
     } catch (err) {
       mpLog(`room_stand error: ${err}`);
+      // Check if room finished while we were standing
+      try {
+        const freshRoom = await getRoomOnChain(chainRoomId!, networkMode);
+        chainRoom = freshRoom;
+        if (freshRoom.status === ROOM_STATUS_FINISHED || freshRoom.status === ROOM_STATUS_TIMEOUT) {
+          renderChainRoom(freshRoom);
+          updateUI();
+          return;
+        }
+      } catch (_) {}
       showMessage(
         currentLocale === "ru" ? "ОШИБКА STAND" : "STAND ERROR",
         "error"
@@ -3570,6 +3797,7 @@ function endGame() {
   isPlaying = false;
   setTurn(null);
   hasGameResult = true;
+  document.body.classList.remove("game-active");
 
   // Sync in-game balance after game result (wallet-connected mode)
   if (!isDemoActive() && walletAddress) {
@@ -3691,29 +3919,12 @@ function showMessage(text: string, type: "info" | "success" | "error") {
   messageEl.className = `message message-${type}`;
 }
 
-function showDebugState(reason: string) {
-  if (!messageEl) return;
-  if (!multiplayerRoom) return;
-  const players = multiplayerSnapshot?.players?.join(",") || "-";
-  const agreed = multiplayerSnapshot?.agreed ? "yes" : "no";
-  const phase = multiplayerSnapshot?.phase || "-";
-  const pending = multiplayerSnapshot?.pendingBet ? multiplayerSnapshot.pendingBet : "-";
-  messageEl.textContent = `DBG(${reason}) players=${players} agreed=${agreed} phase=${phase} pending=${pending}`;
-  messageEl.className = "message message-info";
-  if (mpDebugEl) {
-    mpDebugEl.style.display = "block";
-    mpDebugEl.textContent = `room=${multiplayerRoom || "-"} host=${isRoomHost ? "yes" : "no"} players=${players} agreed=${agreed} phase=${phase} pending=${pending} my=${getMpName()} hostId=${multiplayerHost || "-"}`;
-  }
+function showDebugState(_reason: string) {
+  // Debug UI removed — keep function signature for callers
 }
 
-function updateMpDebug(reason: string) {
-  if (!mpDebugEl || !multiplayerRoom) return;
-  const players = multiplayerSnapshot?.players?.join(",") || multiplayerState?.players?.join(",") || "-";
-  const agreed = multiplayerSnapshot?.agreed ? "yes" : "no";
-  const phase = multiplayerSnapshot?.phase || "-";
-  const pending = multiplayerSnapshot?.pendingBet ? multiplayerSnapshot.pendingBet : "-";
-  mpDebugEl.style.display = "block";
-  mpDebugEl.textContent = `DBG(${reason}) room=${multiplayerRoom || "-"} host=${isRoomHost ? "yes" : "no"} players=${players} agreed=${agreed} phase=${phase} pending=${pending} my=${getMpName()} hostId=${multiplayerHost || "-"}`;
+function updateMpDebug(_reason: string) {
+  // Debug UI removed — keep function signature for callers
 }
 
 function setTxStatus(text: string | null) {
@@ -4302,6 +4513,7 @@ async function handleInviteAccept() {
       mpLog(`Joined room ${chainRoomId}`);
       await updateInGameBalance();
       startRoomPolling();
+      scrollToGameArea();
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       mpLog(`join_room error: ${errMsg}`);
@@ -4380,8 +4592,16 @@ function updateUI() {
     continueBtn.style.display = showContinue ? "inline-flex" : "none";
   }
   if (rematchBtn) {
-    const showRematch = Boolean(multiplayerRoom && multiplayerSnapshot?.phase === "done");
+    const showRematch = Boolean(multiplayerRoom && (
+      multiplayerSnapshot?.phase === "done" ||
+      (mpOnChainMode && chainRoom && (chainRoom.status === ROOM_STATUS_FINISHED || chainRoom.status === ROOM_STATUS_TIMEOUT))
+    ));
     rematchBtn.style.display = showRematch ? "inline-flex" : "none";
+    if (showRematch && mpOnChainMode) {
+      rematchBtn.textContent = I18N[currentLocale].rematch_continue;
+    } else if (showRematch) {
+      rematchBtn.textContent = I18N[currentLocale].rematch;
+    }
   }
   if (leaveGameBtn) {
     leaveGameBtn.style.display = multiplayerRoom ? "inline-flex" : "none";
@@ -4525,6 +4745,10 @@ function cleanupMultiplayer() {
   localStorage.setItem("mpPayoutBucket", "0");
   // Clean up chain room state
   stopRoomPolling();
+  stopRematchPolling();
+  rematchOpponentAddr = null;
+  rematchMyRoomId = null;
+  lastKnownRoomId = 0;
   chainRoomId = null;
   chainRoom = null;
   amIHost = false;
@@ -4547,6 +4771,9 @@ function cleanupMultiplayer() {
   if (luffaQrScreen) luffaQrScreen.style.display = "none";
   const inviteShareCleanup = document.getElementById("invite-share");
   if (inviteShareCleanup) inviteShareCleanup.style.display = "none";
+  const rematchBannerCleanup = document.getElementById("rematch-banner");
+  if (rematchBannerCleanup) rematchBannerCleanup.remove();
+  document.body.classList.remove("game-active");
   playerCardsEl.innerHTML = "";
   opponentCardsEl.innerHTML = "";
   dealerCardsEl.innerHTML = "";

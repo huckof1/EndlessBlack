@@ -1007,6 +1007,41 @@ body[data-theme="light"] .player-name-display {
   color: #ffd700;
 }
 
+/* ==================== GAME ACTIVE (HIDE HEADER) ==================== */
+.header {
+  transition: max-height 0.45s ease, opacity 0.35s ease, padding 0.45s ease, margin 0.45s ease, border-color 0.35s ease;
+  max-height: 300px;
+  overflow: hidden;
+}
+
+body.game-active .header {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-color: transparent;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.wallet-section {
+  transition: max-height 0.45s ease, opacity 0.35s ease, padding 0.45s ease, margin 0.45s ease, border-color 0.35s ease;
+  max-height: 500px;
+  overflow: hidden;
+}
+
+body.game-active .wallet-section {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 0;
+  border-color: transparent;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 /* ==================== NAME INPUT ==================== */
 .name-section {
   background: linear-gradient(180deg, #1a1a2e, #16213e);
