@@ -1138,14 +1138,25 @@ function initDarkVeil() {
   veilCtx = veilCanvas.getContext("2d");
   const onResize = () => resizeDarkVeil();
   window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", onResize);
+  window.visualViewport?.addEventListener("resize", onResize);
   resizeDarkVeil();
+}
+
+function getViewportSize(): { width: number; height: number } {
+  const vv = window.visualViewport;
+  if (vv && vv.width > 0 && vv.height > 0) {
+    return { width: vv.width, height: vv.height };
+  }
+  return { width: window.innerWidth, height: window.innerHeight };
 }
 
 function resizeDarkVeil() {
   if (!veilCanvas || !veilCtx) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const width = Math.max(1, window.innerWidth);
-  const height = Math.max(1, window.innerHeight);
+  const { width: vw, height: vh } = getViewportSize();
+  const width = Math.max(1, vw);
+  const height = Math.max(1, vh);
   veilCanvas.width = Math.floor(width * dpr);
   veilCanvas.height = Math.floor(height * dpr);
   veilCanvas.style.width = `${width}px`;
@@ -1283,14 +1294,17 @@ function initShadowBars() {
   shadowBarsCtx = shadowBarsCanvas.getContext("2d");
   const onResize = () => resizeShadowBars();
   window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", onResize);
+  window.visualViewport?.addEventListener("resize", onResize);
   resizeShadowBars();
 }
 
 function resizeShadowBars() {
   if (!shadowBarsCanvas || !shadowBarsCtx) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const width = Math.max(1, window.innerWidth);
-  const height = Math.max(1, window.innerHeight);
+  const { width: vw, height: vh } = getViewportSize();
+  const width = Math.max(1, vw);
+  const height = Math.max(1, vh);
   shadowBarsCanvas.width = Math.floor(width * dpr);
   shadowBarsCanvas.height = Math.floor(height * dpr);
   shadowBarsCanvas.style.width = `${width}px`;

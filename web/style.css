@@ -79,11 +79,17 @@ body {
 /* ==================== MAIN VEIL (HOME ONLY) ==================== */
 .dark-veil {
   position: fixed;
+  top: 0;
+  left: 0;
   inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   z-index: 0;
   pointer-events: none;
   background: #07080f;
   opacity: 1;
+  overflow: hidden;
 }
 
 body > .container {
@@ -100,10 +106,16 @@ body > .container {
 /* ==================== SHADOW BARS (GAME ONLY) ==================== */
 .shadow-bars {
   position: fixed;
+  top: 0;
+  left: 0;
   inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   z-index: 0;
   pointer-events: none;
   background: #05060b;
+  overflow: hidden;
 }
 
 .shadow-bars-canvas {
