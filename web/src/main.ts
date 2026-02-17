@@ -1091,6 +1091,20 @@ function focusGameplayArea() {
   scrollToGameArea(window.innerWidth <= 520 ? 150 : 110);
 }
 
+function forceScrollToAbsoluteTop() {
+  // Mobile in-app browsers may ignore a single smooth scroll call.
+  const applyTop = () => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+  applyTop();
+  requestAnimationFrame(() => {
+    applyTop();
+    window.setTimeout(applyTop, 80);
+  });
+}
+
 function initDebug() {
   // Debug UI removed — log only to console
   debugEnabled = true;
@@ -5659,10 +5673,10 @@ async function onWalletConnectSuccess() {
   if (pendingInvite) {
     showInviteBanner();
   }
-  // After successful wallet connect, bring the page fully to the top.
+  // After successful wallet connect, bring the page fully to the absolute top.
   if (!isPlaying && !pendingInvite && !multiplayerRoom && !mpWaitingForGuest) {
     window.setTimeout(() => {
-      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      forceScrollToAbsoluteTop();
     }, 120);
   }
   window.setTimeout(() => {
