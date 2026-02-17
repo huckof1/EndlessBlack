@@ -5432,6 +5432,16 @@ async function handleFaucet() {
     await requestFaucet(walletAddress, networkMode);
     await updateBalance();
     showMessage(I18N[currentLocale].faucet_success, "success");
+    if (pendingInvite) {
+      showInviteBanner();
+      showMessage(
+        currentLocale === "ru"
+          ? "Баланс пополнен. Прими приглашение!"
+          : "Balance topped up. Accept the invite!",
+        "info"
+      );
+      focusGameplayArea();
+    }
   } catch (err) {
     console.warn("Faucet failed:", err);
     debugLogLine(`FAUCET error: ${err instanceof Error ? err.message : String(err)}`);
