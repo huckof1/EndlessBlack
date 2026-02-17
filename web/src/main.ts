@@ -69,7 +69,6 @@ const betInput = document.getElementById("bet-input") as HTMLInputElement;
 const betMinus = document.getElementById("bet-minus") as HTMLButtonElement;
 const betPlus = document.getElementById("bet-plus") as HTMLButtonElement;
 const betOffer = document.getElementById("bet-offer") as HTMLDivElement;
-const betSection = document.querySelector(".bet-section") as HTMLDivElement;
 const betDisplay = document.querySelector(".bet-display") as HTMLDivElement;
 const betOfferText = document.getElementById("bet-offer-text") as HTMLDivElement;
 const betAccept = document.getElementById("bet-accept") as HTMLButtonElement;
@@ -246,6 +245,7 @@ type MultiplayerSnapshot = {
   claimed?: boolean[];
 };
 let multiplayerSnapshot: MultiplayerSnapshot | null = null;
+let lastRenderedMpPhase: MultiplayerSnapshot["phase"] | null = null;
 const mpSessionId = Math.random().toString(36).slice(2, 6);
 let mpNameCached = "";
 let mpNameFrozen: string | null = null;
@@ -530,6 +530,7 @@ function startRoomPolling() {
           const shareEl = document.getElementById("invite-share");
           if (shareEl) shareEl.style.display = "none";
           startGameMusic();
+          focusBetArea();
         }
         // Handle instant finish (e.g. both players got blackjack on deal)
         if ((room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) && prevStatus === ROOM_STATUS_WAITING) {
@@ -1009,9 +1010,7 @@ function requestAutoConnectInLuffa() {
 }
 
 function focusBetArea() {
-  if (betSection) {
-    betSection.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
+  scrollToGameArea();
   if (betDisplay) {
     betDisplay.classList.remove("bet-pulse");
     // Force reflow to restart animation
@@ -2312,6 +2311,7 @@ async function startSession() {
   }
 
   setMascotState("happy", "👍", `${currentLocale === "ru" ? "Привет" : "Welcome"}, ${playerName}!`);
+  focusBetArea();
 
   // Восстановление текущей игры (если была)
   if (isDemoActive()) {
@@ -2860,6 +2860,8 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
 
   const players = snapshot.players || [];
   multiplayerState = { players, turnIndex: snapshot.turnIndex };
+  const prevPhase = lastRenderedMpPhase;
+  lastRenderedMpPhase = snapshot.phase;
   // Не меняем turnIndex на клиенте — только хост задаёт ход
   if (players.length < 2) {
     opponentHandEl.style.display = "none";
@@ -2884,6 +2886,9 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
   }
   if (snapshot.phase === "player" && !gameMusicActive) {
     startGameMusic();
+  }
+  if (snapshot.phase === "player" && prevPhase !== "player") {
+    focusBetArea();
   }
 
   const meIndex = players.findIndex(p => p === getMpName());
@@ -3232,7 +3237,7 @@ function scrollToGameArea() {
   }
 }
 async function handleStartGame() {
-  scrollToGameArea();
+  focusBetArea();
   document.body.classList.add("game-active");
   hasGameResult = false;
   hideGameResult();

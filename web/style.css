@@ -1880,14 +1880,19 @@ body.invite-mode .mascot-right {
 }
 
 .bet-display.bet-pulse {
-  animation: betPulse 1.2s ease-in-out 3;
-  box-shadow: 0 0 0 rgba(255,215,0,0.0), 0 0 14px rgba(255,215,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+  animation: betPulse 0.95s steps(2, end) 3;
+  box-shadow: 0 0 12px rgba(255,215,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 @keyframes betPulse {
-  0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0.0), 0 0 0 rgba(255,215,0,0.0); }
-  50% { transform: scale(1.05); box-shadow: 0 0 18px rgba(255,215,0,0.5), 0 0 36px rgba(255,215,0,0.3); }
-  100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0.0), 0 0 0 rgba(255,215,0,0.0); }
+  0%, 100% {
+    border-color: var(--gold);
+    box-shadow: 0 2px 10px rgba(255,215,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  50% {
+    border-color: #fff2a8;
+    box-shadow: 0 0 22px rgba(255,215,0,0.7), 0 0 40px rgba(255,215,0,0.35), inset 0 1px 0 rgba(255,255,255,0.22);
+  }
 }
 
 .bet-display .label,
