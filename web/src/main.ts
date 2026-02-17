@@ -3409,6 +3409,15 @@ async function handleStartGame() {
   validateBet();
   const betValue = betInput.value;
   const betAmount = parseEDS(betValue);
+  const { minOctas, maxOctas } = getBetLimits();
+  const topUpMsg = currentLocale === "ru" ? "ПОПОЛНИТЕ ИГРОВОЙ БАЛАНС." : "TOP UP IN-GAME BALANCE.";
+
+  if (!isDemoActive() && walletAddress && (inGameBalance < MIN_BET || inGameBalance < minOctas)) {
+    playSound("lose");
+    showMessage(topUpMsg, "error");
+    setMascotState("sad", "💸", topUpMsg);
+    return;
+  }
 
   if (betAmount < MIN_BET || betAmount > MAX_BET) {
     playSound("lose");
@@ -3416,8 +3425,13 @@ async function handleStartGame() {
     setMascotState("sad", "😕", I18N[currentLocale].msg_check_bet);
     return;
   }
-  const { minOctas, maxOctas } = getBetLimits();
   if (betAmount < minOctas || betAmount > maxOctas) {
+    if (!isDemoActive() && walletAddress && (inGameBalance < betAmount || inGameBalance < minOctas)) {
+      playSound("lose");
+      showMessage(topUpMsg, "error");
+      setMascotState("sad", "💸", topUpMsg);
+      return;
+    }
     playSound("lose");
     showMessage(I18N[currentLocale].msg_invalid_bet, "error");
     setMascotState("sad", "😕", I18N[currentLocale].msg_check_bet);
