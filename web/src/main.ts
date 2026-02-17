@@ -3709,6 +3709,9 @@ async function handleStartGame() {
   }
 
   const betEDS = (betAmount / 100000000).toFixed(2);
+  const prevInGameBalance = inGameBalance;
+  const prevBankroll = currentBankrollOctas;
+  const prevChainGameId = Math.max(0, chainGameId || 0);
 
   // Check balance before starting
   debugLogLine(`DEAL check: isDemoActive=${isDemoActive()}, walletAddress=${!!walletAddress}, inGameBalance=${inGameBalance}, betAmount=${betAmount}`);
@@ -3744,14 +3747,13 @@ async function handleStartGame() {
       // ON-CHAIN: start_game deducts bet, adds to bankroll/treasury
       debugLogLine(`DEAL on-chain: bet=${betAmount}`);
       await startGameOnChain(betAmount, networkMode);
-      chainGameId = await getLatestGameId(walletAddress, networkMode);
+      chainGameId = await waitForLatestGameId(walletAddress, prevChainGameId, networkMode);
       chainGame = await getGame(chainGameId, networkMode);
       debugLogLine(`DEAL on-chain OK: gameId=${chainGameId}, score=${chainGame.playerScore}`);
       isPlaying = true;
       await renderGame(chainGame);
       scrollToGameArea();
-      await updateInGameBalance();
-      await updateBank();
+      await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
       updateUI();
       setTurn("you");
       startBtn.classList.remove("btn-pulse");
@@ -3761,8 +3763,7 @@ async function handleStartGame() {
         if (chainGame.payoutDue > 0) {
           debugLogLine(`BLACKJACK payout: ${chainGame.payoutDue} octas`);
           await creditPayout(walletAddress, chainGame.payoutDue, networkMode);
-          await updateInGameBalance();
-          await updateBank();
+          await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
         }
         game.recordOnChainResult(4, betAmount, chainGame.payoutDue || 0);
         await showBlackjackEffect(betAmount);
@@ -3804,6 +3805,8 @@ async function handleStartGame() {
 
 async function handleHit() {
   if (!isPlaying) return;
+  const prevInGameBalance = inGameBalance;
+  const prevBankroll = currentBankrollOctas;
 
   // On-chain room multiplayer
   if (chainRoomId && chainRoom && mpOnChainMode) {
@@ -3888,8 +3891,7 @@ async function handleHit() {
       setTurn(null);
       if (!isDemoActive() && walletAddress) {
         game.recordOnChainResult(2, gameState.betAmount, 0);
-        await updateInGameBalance();
-        await updateBank();
+        await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
       }
       await showLoseEffect(gameState.betAmount);
     } else if (gameState.playerScore === 21) {
@@ -3918,6 +3920,8 @@ async function handleHit() {
 
 async function handleStand() {
   if (!isPlaying) return;
+  const prevInGameBalance = inGameBalance;
+  const prevBankroll = currentBankrollOctas;
 
   // On-chain room multiplayer
   if (chainRoomId && chainRoom && mpOnChainMode) {
@@ -4007,12 +4011,10 @@ async function handleStand() {
     if (!isDemoActive() && walletAddress && gameState.payoutDue > 0) {
       debugLogLine(`PAYOUT credit: ${gameState.payoutDue} octas (result=${result})`);
       await creditPayout(walletAddress, gameState.payoutDue, networkMode);
-      await updateInGameBalance();
-      await updateBank();
+      await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
     } else if (!isDemoActive() && walletAddress) {
       // Loss — just refresh balances
-      await updateInGameBalance();
-      await updateBank();
+      await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
     }
 
     // Record on-chain result in local stats for leaderboard
@@ -4144,27 +4146,6 @@ function endGame() {
   isPlaying = false;
   setTurn(null);
   hasGameResult = true;
-
-  // Sync in-game balance after game result (wallet-connected mode)
-  if (!isDemoActive() && walletAddress) {
-    const currentGame = game.getCurrentGame();
-    if (currentGame && currentGame.isFinished) {
-      const bet = currentGame.betAmount;
-      const result = currentGame.result;
-      if (result === 1) {
-        // Win: payout is 2x bet, net gain = bet (we already deducted bet at start)
-        inGameBalance += bet * 2;
-      } else if (result === 4) {
-        // Blackjack: payout is 2.5x bet
-        inGameBalance += Math.floor(bet * 2.5);
-      } else if (result === 3) {
-        // Draw: return the bet
-        inGameBalance += bet;
-      }
-      // result === 2 (loss): bet was already deducted, nothing to add back
-      if (ingameBalanceEl) ingameBalanceEl.textContent = formatEDS(inGameBalance);
-    }
-  }
 
   updateUI();
   updateBalance();
@@ -4336,6 +4317,32 @@ async function updateBank() {
     bankrollEl.textContent = "—";
     if (betFeeEl) betFeeEl.textContent = "—";
     feeEl.textContent = "—";
+  }
+}
+
+async function waitForLatestGameId(
+  address: string,
+  minExpectedId: number,
+  mode: "testnet" | "mainnet",
+): Promise<number> {
+  let lastSeen = Math.max(0, minExpectedId);
+  for (let i = 0; i < 8; i++) {
+    const latest = await getLatestGameId(address, mode);
+    if (latest > minExpectedId) return latest;
+    lastSeen = Math.max(lastSeen, latest);
+    await delay(450);
+  }
+  return lastSeen;
+}
+
+async function syncOnChainHudAfterTx(prevInGame: number, prevBankroll: number) {
+  // Indexer/view may lag right after tx confirmation (especially first tx in session).
+  for (let i = 0; i < 7; i++) {
+    await Promise.all([updateInGameBalance(), updateBank()]);
+    const inGameChanged = inGameBalance !== prevInGame;
+    const bankrollChanged = currentBankrollOctas !== prevBankroll;
+    if (inGameChanged || bankrollChanged) return;
+    await delay(500);
   }
 }
 
