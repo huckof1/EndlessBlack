@@ -1857,7 +1857,11 @@ function init() {
   }
   if (leaveGameBtn) {
     leaveGameBtn.addEventListener("click", () => {
-      handleLeaveGame();
+      if (multiplayerRoom) {
+        handleLeaveGame();
+      } else {
+        backToWalletStep();
+      }
     });
   }
   // Claim timeout button (on-chain rooms)
@@ -3237,6 +3241,20 @@ function scrollToGameArea(offset = 8) {
   const top = window.scrollY + gameArea.getBoundingClientRect().top - offset;
   window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "smooth" });
 }
+
+function backToWalletStep() {
+  document.body.classList.remove("game-active");
+  if (walletSection && walletSection.style.display !== "none") {
+    walletSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }
+  showMessage(
+    currentLocale === "ru" ? "Вернулись к кошельку. Пополните баланс и начните раздачу." : "Back to wallet. Deposit and start dealing.",
+    "info"
+  );
+}
+
 async function handleStartGame() {
   scrollToGameArea(window.innerWidth <= 520 ? 150 : 110);
   pulseBetDisplay();
@@ -4678,8 +4696,12 @@ function updateUI() {
     }
   }
   if (leaveGameBtn) {
-    leaveGameBtn.style.display = multiplayerRoom ? "inline-flex" : "none";
-    leaveGameBtn.textContent = currentLocale === "ru" ? "ПОКИНУТЬ ИГРУ" : "LEAVE GAME";
+    const showLeaveMultiplayer = Boolean(multiplayerRoom);
+    const showBackToWalletSolo = Boolean(!multiplayerRoom && isSessionStarted && !isPlaying && !hasGameResult);
+    leaveGameBtn.style.display = (showLeaveMultiplayer || showBackToWalletSolo) ? "inline-flex" : "none";
+    leaveGameBtn.textContent = showLeaveMultiplayer
+      ? (currentLocale === "ru" ? "ПОКИНУТЬ ИГРУ" : "LEAVE GAME")
+      : (currentLocale === "ru" ? "НАЗАД К КОШЕЛЬКУ" : "BACK TO WALLET");
   }
   updateMpDebug("ui");
   const demo = isDemoActive();
