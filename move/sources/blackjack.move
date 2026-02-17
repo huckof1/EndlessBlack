@@ -1242,10 +1242,10 @@ module pixel_blackjack::blackjack {
 
         // The player whose turn it is has timed out, so the OTHER player wins
         if (is_host) {
-            // Host is claiming — must be guest's turn (guest timed out)
+            // Host is claiming - must be guest's turn (guest timed out)
             assert!(room.turn == 1, E_NOT_YOUR_TURN);
         } else {
-            // Guest is claiming — must be host's turn (host timed out)
+            // Guest is claiming - must be host's turn (host timed out)
             assert!(room.turn == 0, E_NOT_YOUR_TURN);
         };
 
