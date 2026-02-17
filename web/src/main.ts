@@ -5600,11 +5600,19 @@ async function handleLuffaWalletConnect() {
   // Try connecting directly several times (Luffa bridge may inject with delay).
   const maxAttempts = 8;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (walletAddress) {
+      await onWalletConnectSuccess();
+      return;
+    }
     try {
       walletAddress = await connectLuffaWithTimeout(3500);
       await onWalletConnectSuccess();
       return;
     } catch {
+      if (walletAddress) {
+        await onWalletConnectSuccess();
+        return;
+      }
       if (attempt < maxAttempts) {
         await delay(450);
       }

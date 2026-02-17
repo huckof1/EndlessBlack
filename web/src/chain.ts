@@ -63,7 +63,29 @@ function toNumber(value: any): number {
 // Извлечь адрес из ответа SDK (поле может быть address или account)
 function extractAddress(data: any): string | null {
   if (!data) return null;
-  return data.address || data.account || null;
+  if (typeof data === "string") return data;
+  const direct =
+    data.address ||
+    data.account ||
+    data.accountAddress ||
+    data.walletAddress ||
+    data.selectedAddress ||
+    data.publicAddress ||
+    null;
+  if (typeof direct === "string") return direct;
+  if (direct && typeof direct === "object") {
+    const nested = extractAddress(direct);
+    if (nested) return nested;
+  }
+  if (data.args && typeof data.args === "object") {
+    const nested = extractAddress(data.args);
+    if (nested) return nested;
+  }
+  if (data.data && typeof data.data === "object") {
+    const nested = extractAddress(data.data);
+    if (nested) return nested;
+  }
+  return null;
 }
 
 function getContractAddress(mode?: "testnet" | "mainnet"): string {
@@ -163,6 +185,7 @@ function getLuffaSdk(mode?: "testnet" | "mainnet"): EndlessLuffaSdk {
       const addr = extractAddress(info);
       if (addr) {
         connectedAddress = addr;
+        activeWalletType = "luffa";
         onWalletConnect?.(addr);
       }
     });
@@ -278,14 +301,20 @@ export async function connectEndlessExtension(_mode?: "testnet" | "mainnet"): Pr
 export async function connectLuffa(mode?: "testnet" | "mainnet"): Promise<string> {
   const sdk = getLuffaSdk(mode);
   const res = await sdk.connect();
-  if (res.status === LuffaUserResponseStatus.APPROVED) {
-    const addr = extractAddress(res.args);
-    if (addr) {
-      connectedAddress = addr;
-      activeWalletType = "luffa";
-      return addr;
-    }
-    throw new Error("Wallet returned empty address");
+  const statusText = String((res as any)?.status ?? "");
+  const isApproved =
+    (res as any)?.status === LuffaUserResponseStatus.APPROVED ||
+    statusText.toUpperCase() === "APPROVED";
+  const addr = extractAddress((res as any)?.args ?? res);
+  if (addr) {
+    connectedAddress = addr;
+    activeWalletType = "luffa";
+    return addr;
+  }
+  // Some Luffa builds emit CONNECT event but return sparse payload.
+  if (isApproved && connectedAddress) {
+    activeWalletType = "luffa";
+    return connectedAddress;
   }
   throw new Error("LUFFA_CONNECT_FAILED");
 }
