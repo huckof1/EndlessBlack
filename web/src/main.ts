@@ -110,6 +110,7 @@ const soundToggle = document.getElementById("sound-toggle") as HTMLButtonElement
 const homeBtn = document.getElementById("home-btn") as HTMLButtonElement;
 const soundIcon = document.getElementById("sound-icon") as HTMLSpanElement;
 const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement;
+const endGameBtn = document.getElementById("end-game-btn") as HTMLButtonElement;
 const gameResultAmount = document.getElementById("game-result-amount") as HTMLSpanElement;
 const rematchBtn = document.getElementById("rematch-btn") as HTMLButtonElement;
 const leaveGameBtn = document.getElementById("leave-game-btn") as HTMLButtonElement;
@@ -896,6 +897,14 @@ function renderChainRoom(room: ChainRoom) {
     // Refresh balance
     updateInGameBalance();
     setTimeout(() => updateInGameBalance(), 3000);
+    updateUI();
+    // Scroll to continue/rematch buttons
+    setTimeout(() => {
+      const target = rematchBtn || leaveGameBtn;
+      if (target && target.style.display !== "none") {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 500);
   }
 
   if (room.status === ROOM_STATUS_CANCELLED) {
@@ -1796,6 +1805,11 @@ function init() {
   if (continueBtn) {
     continueBtn.addEventListener("click", () => {
       handleStartGame();
+    });
+  }
+  if (endGameBtn) {
+    endGameBtn.addEventListener("click", () => {
+      returnToStartScreen();
     });
   }
   if (rematchBtn) {
@@ -3194,7 +3208,13 @@ function validateBet() {
 // ==================== GAME ====================
 function scrollToGameArea() {
   if (!gameArea) return;
-  gameArea.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Scroll so the table + action buttons are fully visible
+  const actionsBottom = gameArea.querySelector(".actions-bottom");
+  if (actionsBottom) {
+    actionsBottom.scrollIntoView({ behavior: "smooth", block: "end" });
+  } else {
+    gameArea.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
 }
 async function handleStartGame() {
   scrollToGameArea();
@@ -3714,11 +3734,6 @@ function showGameResult(amount: number, type: "win" | "lose" | "draw") {
     gameResultAmount.textContent = `0 EDS`;
     gameResultAmount.className = "game-result-amount result-draw";
   }
-  if (continueBtn) {
-    continueBtn.scrollIntoView({ behavior: "smooth", block: "center" });
-  } else {
-    scrollToGameArea();
-  }
 }
 
 function hideGameResult() {
@@ -3830,6 +3845,16 @@ function endGame() {
   setTimeout(() => {
     setMascotState("happy", "😊", I18N[currentLocale].msg_play_again);
   }, 1000);
+
+  // Scroll to continue/end buttons after header reappears
+  setTimeout(() => {
+    const target = continueBtn || endGameBtn;
+    if (target && target.style.display !== "none") {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      scrollToGameArea();
+    }
+  }, 500);
 
   setTxStatus(null);
 }
@@ -4590,6 +4615,12 @@ function updateUI() {
   if (continueBtn) {
     const showContinue = !multiplayerRoom && isSessionStarted && !isPlaying && hasGameResult;
     continueBtn.style.display = showContinue ? "inline-flex" : "none";
+    continueBtn.textContent = currentLocale === "ru" ? "ПРОДОЛЖИТЬ" : "CONTINUE";
+  }
+  if (endGameBtn) {
+    const showEnd = !multiplayerRoom && isSessionStarted && !isPlaying && hasGameResult;
+    endGameBtn.style.display = showEnd ? "inline-flex" : "none";
+    endGameBtn.textContent = currentLocale === "ru" ? "ЗАВЕРШИТЬ" : "END GAME";
   }
   if (rematchBtn) {
     const showRematch = Boolean(multiplayerRoom && (
