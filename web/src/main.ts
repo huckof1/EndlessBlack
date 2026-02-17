@@ -2191,7 +2191,8 @@ function init() {
   });
   connectWalletHeader.addEventListener("click", async () => {
     if (walletAddress) {
-      // Already connected — let user choose wallet type explicitly
+      // Fully disconnect current wallet, then allow choosing another.
+      await handleDisconnectWallet();
       showWalletPicker();
       return;
     }
@@ -4813,7 +4814,7 @@ function updateUI() {
     // Always visible — connect or reconnect
     connectWalletHeader.style.display = "inline-flex";
     if (walletAddress) {
-      connectWalletHeader.textContent = I18N[currentLocale].reconnect_wallet;
+      connectWalletHeader.textContent = I18N[currentLocale].disconnect_wallet;
     } else {
       connectWalletHeader.textContent = I18N[currentLocale].connect_wallet;
     }
