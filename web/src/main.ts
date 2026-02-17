@@ -576,6 +576,8 @@ function startRematchPolling() {
     mpLog(`Rematch polling skipped: wallet=${!!walletAddress} chainRoom=${!!chainRoom}`);
     return;
   }
+  // New rematch cycle: allow receiving opponent offers again.
+  rematchMyRoomId = null;
 
   // Save opponent address
   const myIdx = amIHost ? 0 : 1;
