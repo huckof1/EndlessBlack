@@ -1751,8 +1751,20 @@ body.invite-mode .mascot-right {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
   width: 100%;
+}
+
+.continue-row .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.continue-row .game-result-amount {
+  flex: 0 0 100%;
+  text-align: center;
 }
 
 .game-result-amount {
@@ -2526,6 +2538,10 @@ body.invite-mode .mascot-right {
 
   .actions-bottom { gap: 6px; }
   .btn-action { min-height: 54px; }
+  .continue-row .btn {
+    font-size: 11px;
+    padding: 10px 8px;
+  }
   .bet-controls { width: 100%; justify-content: center; }
   .input { width: 90px; }
 }

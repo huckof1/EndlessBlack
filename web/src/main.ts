@@ -569,39 +569,54 @@ function stopRoomPolling() {
 // ==================== REMATCH POLLING ====================
 function startRematchPolling() {
   stopRematchPolling();
-  if (!walletAddress || !chainRoom) return;
+  if (!walletAddress || !chainRoom) {
+    mpLog(`Rematch polling skipped: wallet=${!!walletAddress} chainRoom=${!!chainRoom}`);
+    return;
+  }
 
   // Save opponent address
   const myIdx = amIHost ? 0 : 1;
   rematchOpponentAddr = myIdx === 0 ? chainRoom.guest : chainRoom.host;
+  mpLog(`Rematch polling: opponent=${rematchOpponentAddr?.slice(0, 10)}, amIHost=${amIHost}`);
 
-  // Get current latest room id as baseline
+  // Get baseline FIRST, then start polling
+  let baselineReady = false;
   getLatestRoomIdOnChain(networkMode).then(id => {
     lastKnownRoomId = id;
-    mpLog(`Rematch polling started, baseline roomId=${id}, opponent=${rematchOpponentAddr?.slice(0, 10)}`);
-  }).catch(() => {});
+    baselineReady = true;
+    mpLog(`Rematch polling started, baseline roomId=${id}`);
+  }).catch((e) => {
+    baselineReady = true; // allow polling to proceed even on error
+    mpLog(`Rematch baseline error: ${e}`);
+  });
 
   rematchPollingTimer = setInterval(async () => {
     if (!rematchOpponentAddr || !walletAddress) return;
     // If I already created a rematch room, don't show my own offer
     if (rematchMyRoomId) return;
+    // Wait for baseline to be ready
+    if (!baselineReady) return;
 
     try {
       const latestId = await getLatestRoomIdOnChain(networkMode);
       if (latestId <= lastKnownRoomId) return;
 
+      // Only check a reasonable range (max 10 rooms)
+      const startId = Math.max(lastKnownRoomId + 1, latestId - 9);
+
       // Check new rooms
-      for (let id = lastKnownRoomId + 1; id <= latestId; id++) {
+      for (let id = startId; id <= latestId; id++) {
         try {
           const room = await getRoomOnChain(id, networkMode);
           if (room.status !== ROOM_STATUS_WAITING) continue;
 
-          // Check if the room host is my opponent
+          // Check if the room host OR guest is my opponent
           const oppNorm = normalizeAddress(rematchOpponentAddr!);
           const hostNorm = normalizeAddress(room.host);
-          if (hostNorm === oppNorm) {
+          const guestNorm = normalizeAddress(room.guest);
+          if (hostNorm === oppNorm || (guestNorm === oppNorm && room.guest !== "")) {
             // Found opponent's rematch room!
-            mpLog(`Rematch room found: id=${id}, bet=${room.netBet}`);
+            mpLog(`Rematch room found: id=${id}, host=${room.host.slice(0,10)}, bet=${room.betAmount}`);
             showRematchOffer(id, room);
             stopRematchPolling();
             return;
