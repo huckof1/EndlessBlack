@@ -4545,9 +4545,10 @@ async function handleInvite() {
   url.searchParams.set("host_id", hostId);
   multiplayerHost = hostId;
   // QR URL без wallet=luffa — чистый HTTPS для сканера Luffa
-  const qrUrl = new URL(url.toString());
-  qrUrl.searchParams.delete("wallet");
-  const qrUrlStr = qrUrl.toString();
+    const qrUrl = new URL(url.toString());
+    qrUrl.searchParams.delete("wallet");
+    const qrUrlStr = qrUrl.toString();
+    const deepLink = `luffa://connect?url=${encodeURIComponent(qrUrlStr)}`;
 
   // Показать секцию с QR для хоста
   const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
@@ -4627,12 +4628,12 @@ async function handleInvite() {
             // fall through to share/download fallback
           }
         }
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          try {
-            await navigator.share({ files: [file], text: latestUrl });
-            resetInviteShareHint();
-            return;
-          } catch (_) {
+          if (navigator.share && navigator.canShare?.({ files: [file] })) {
+            try {
+              await navigator.share({ files: [file], text: `${deepLink}\n${latestUrl}` });
+              resetInviteShareHint();
+              return;
+            } catch (_) {
             // fall through to fallback
           }
         }
@@ -4648,8 +4649,8 @@ async function handleInvite() {
 
     if (inviteShareHint) {
       const hintText = currentLocale === "ru"
-        ? "Отправьте QR или покажите для сканирования в Luffa"
-        : "Share QR or show to scan in Luffa";
+        ? "Если Luffa установлен — используйте первый deep-link, иначе откройте обычный QR/HTTPS"
+        : "If Luffa is installed use the first deep-link, otherwise open the standard QR/HTTPS";
       inviteShareHint.textContent = hintText;
       inviteShareHint.dataset.defaultText = hintText;
     }
@@ -4658,7 +4659,7 @@ async function handleInvite() {
       inviteShareLink.textContent = currentLocale === "ru" ? "КОПИРОВАТЬ ССЫЛКУ" : "COPY LINK";
       inviteShareLink.onclick = async () => {
         try {
-          await navigator.clipboard.writeText(latestUrl);
+          await navigator.clipboard.writeText(`${deepLink}\n${latestUrl}`);
           showMessage(
             currentLocale === "ru" ? "Ссылка скопирована!" : "Link copied!",
             "success"
