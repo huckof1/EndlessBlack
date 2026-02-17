@@ -4589,12 +4589,6 @@ async function handleInvite() {
           if (isAndroid && navigator.clipboard?.write) {
             try {
               await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-              showMessage(
-                currentLocale === "ru"
-                  ? "QR СКОПИРОВАН! Вставьте в мессенджер"
-                  : "QR COPIED! Paste it in your messenger",
-                "success"
-              );
               return;
             } catch (_) {
               // fall through to share/download fallback
