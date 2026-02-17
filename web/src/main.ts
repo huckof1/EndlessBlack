@@ -5659,6 +5659,12 @@ async function onWalletConnectSuccess() {
   if (pendingInvite) {
     showInviteBanner();
   }
+  // After successful wallet connect, focus the main game viewport (BET/DEAL area).
+  if (!isPlaying && !pendingInvite && !multiplayerRoom && !mpWaitingForGuest) {
+    window.setTimeout(() => {
+      focusGameplayArea();
+    }, 120);
+  }
   window.setTimeout(() => {
     const inviteActive = Boolean(pendingInvite) || (inviteBanner && inviteBanner.style.display !== "none");
     const resumeActive = Boolean(pendingResume);
