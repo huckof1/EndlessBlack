@@ -3188,10 +3188,10 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
       !snapshot.hands?.[meIndex]?.done;
     if (snapshot.pendingTurn && Date.now() < snapshot.pendingTurn.until) {
       showMessage(I18N[currentLocale].msg_turn_wait, "info");
+    } else if (!isMyTurn) {
+      showMessage(I18N[currentLocale].msg_turn_wait, "info");
     } else {
-      if (!isMyTurn) {
-        showMessage(I18N[currentLocale].msg_turn_wait, "info");
-      }
+      showMessage(I18N[currentLocale].msg_your_turn, "info");
     }
   }
   if (!snapshot.hands || snapshot.hands.length < 2) {
