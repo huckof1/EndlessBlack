@@ -244,6 +244,22 @@ type MultiplayerSnapshot = {
   payouts?: number[];
   claimed?: boolean[];
 };
+function createLobbySnapshot(players: string[] = []): MultiplayerSnapshot {
+  const betValue = parseFloat(betInput?.value || "1") || 1;
+  return {
+    players,
+    dealerCards: [],
+    hands: [],
+    deck: [],
+    turnIndex: null,
+    pendingTurn: null,
+    phase: "lobby",
+    bet: betValue,
+    pendingBet: null,
+    pendingBy: null,
+    agreed: false,
+  };
+}
 let multiplayerSnapshot: MultiplayerSnapshot | null = null;
 let lastRenderedMpPhase: MultiplayerSnapshot["phase"] | null = null;
 const mpSessionId = Math.random().toString(36).slice(2, 6);
@@ -377,19 +393,8 @@ const multiplayer = new MultiplayerClient((state) => {
   }
   if (!isRoomHost) return;
   if (!multiplayerSnapshot) {
-    multiplayerSnapshot = {
-      players: multiplayerState?.players || [playerName],
-      dealerCards: [],
-      hands: [],
-      deck: [],
-      turnIndex: null,
-      pendingTurn: null,
-      phase: "lobby",
-      bet: parseFloat(betInput.value) || 1,
-      pendingBet: null,
-      pendingBy: null,
-      agreed: false,
-    };
+    const players = multiplayerState?.players?.length ? multiplayerState.players : [playerName];
+    multiplayerSnapshot = createLobbySnapshot(players);
   }
   if (multiplayerState?.players?.length) {
     const handsStarted = multiplayerSnapshot.hands && multiplayerSnapshot.hands.length > 0;
@@ -403,18 +408,13 @@ const multiplayer = new MultiplayerClient((state) => {
     }
     if (multiplayerSnapshot.phase !== "lobby" && multiplayerSnapshot.phase !== "done") return;
     const bet = Number(event.bet) || 0;
-      if (multiplayerSnapshot.phase === "done") {
-        const bothDone = multiplayerSnapshot.hands.length >= 2 && multiplayerSnapshot.hands.every(h => h.done);
-        if (!bothDone) return;
-        multiplayerSnapshot.phase = "lobby";
-        multiplayerSnapshot.hands = [];
-        multiplayerSnapshot.dealerCards = [];
-      multiplayerSnapshot.turnIndex = null;
-      multiplayerSnapshot.results = undefined;
-      multiplayerSnapshot.payouts = undefined;
-      multiplayerSnapshot.claimed = undefined;
+    if (multiplayerSnapshot.phase === "done") {
+      const bothDone = multiplayerSnapshot.hands.length >= 2 && multiplayerSnapshot.hands.every(h => h.done);
+      if (!bothDone) return;
+      const players = multiplayerState?.players?.length ? multiplayerState.players : multiplayerSnapshot.players;
+      multiplayerSnapshot = createLobbySnapshot(players);
       announceFreshMultiplayerGame(I18N[currentLocale].rematch_waiting);
-      }
+    }
     multiplayerSnapshot.pendingBet = bet;
     multiplayerSnapshot.pendingBy = event.by;
     multiplayerSnapshot.agreed = false;
