@@ -1043,14 +1043,16 @@ function restoreUiStateFromStorage() {
   restoredUiState = parsed;
   if (!parsed.sessionStarted || RELEASE_MODE) return;
 
-  // Проверяем, есть ли активная мультиплеер комната для восстановления
-  // Просто gameActive без multiplayerRoom/chainRoomId — не восстанавливаем
-  const hasActiveMultiplayer = parsed.multiplayerRoom || parsed.chainRoomId;
-  if (!hasActiveMultiplayer) {
-    // Нет активной комнаты — не восстанавливаем сессию, показываем главный экран
+  // Проверяем, есть ли активная комната для восстановления
+  // Восстанавливаем только если есть multiplayerRoom или chainRoomId
+  const hasActiveRoom = parsed.multiplayerRoom || parsed.chainRoomId;
+  
+  if (!hasActiveRoom) {
+    // Нет активной комнаты — показываем главный экран
     return;
   }
 
+  // Есть комната — восстанавливаем сессию
   isApplyingUiState = true;
   isSessionStarted = true;
   if (parsed.multiplayerRoom) multiplayerRoom = parsed.multiplayerRoom;
