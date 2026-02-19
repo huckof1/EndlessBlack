@@ -1035,12 +1035,34 @@ function applySessionLayout() {
   setDarkVeilVisible(!isSessionStarted);
   setShadowBarsVisible(isSessionStarted);
   
-  // Показываем плавающую кнопку звука когда сессия начата (шапка скрыта)
-  if (floatingSoundToggle) {
-    floatingSoundToggle.style.display = isSessionStarted ? "flex" : "none";
+  updateFloatingSoundButton();
+}
+
+// Проверка видимости шапки и показ/скрытие плавающей кнопки звука
+function updateFloatingSoundButton() {
+  if (!floatingSoundToggle) return;
+  
+  const header = document.querySelector('.header') as HTMLElement;
+  if (!header) {
+    floatingSoundToggle.style.display = 'none';
+    return;
   }
+  
+  // Проверяем, видима ли шапка в viewport
+  const headerRect = header.getBoundingClientRect();
+  const headerVisible = headerRect.top >= -headerRect.height;
+  
+  // Показывать кнопку только если шапка НЕ видима И сессия начата
+  floatingSoundToggle.style.display = (isSessionStarted && !headerVisible) ? 'flex' : 'none';
   updateFloatingSoundIcon();
 }
+
+// Слушать скролл для показа/скрытия кнопки
+window.addEventListener('scroll', () => {
+  if (isSessionStarted) {
+    updateFloatingSoundButton();
+  }
+}, { passive: true });
 
 function restoreUiStateFromStorage() {
   let parsed: PersistedUiState | null = null;
