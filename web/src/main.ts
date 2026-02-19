@@ -3850,7 +3850,7 @@ async function showWinEffect(bet: number) {
   addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_win} ${formatEDS(payout - bet)}`);
   showGameResult(payout - bet, "win");
 
-  await delay(2200);
+  await delay(1100);
   winEffect.style.display = "none";
   showMessage(I18N[currentLocale].msg_win, "success");
   updateUI();
@@ -3865,7 +3865,7 @@ async function showLoseEffect(bet: number) {
   addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_lose} ${formatEDS(bet)}`);
   showGameResult(bet, "lose");
 
-  await delay(1800);
+  await delay(900);
   loseEffect.style.display = "none";
   showMessage(I18N[currentLocale].msg_lose, "error");
   updateUI();
