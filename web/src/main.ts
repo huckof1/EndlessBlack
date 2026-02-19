@@ -1030,9 +1030,15 @@ function applySessionLayout() {
   setDarkVeilVisible(!isSessionStarted);
   setShadowBarsVisible(isSessionStarted);
   
-  // Показываем плавающую кнопку звука когда шапка скрыта
+  // Показываем плавающую кнопку звука только когда шапка скрыта
+  // Проверяем фактическую видимость header через getComputedStyle
+  const header = document.querySelector('.header') as HTMLElement;
+  const headerVisible = header && window.getComputedStyle(header).display !== 'none' && 
+                        window.getComputedStyle(header).visibility !== 'hidden';
+  
   if (floatingSoundToggle) {
-    floatingSoundToggle.style.display = isSessionStarted ? "flex" : "none";
+    // Показывать кнопку только если шапка скрыта И сессия начата
+    floatingSoundToggle.style.display = (isSessionStarted && !headerVisible) ? "flex" : "none";
   }
   updateFloatingSoundIcon();
 }
