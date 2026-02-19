@@ -34,6 +34,7 @@ import {
   claimTimeout as claimTimeoutOnChain,
   getRoom as getRoomOnChain,
   getLatestRoomId as getLatestRoomIdOnChain,
+  getPlayerStats,
 } from "./chain";
 import QRCode from "qrcode";
 import { formatEDS, parseEDS, MIN_BET, MAX_BET, SUITS, RANKS, DEMO_MODE, RELEASE_MODE, LS_PUBLIC_KEY, LS_WS_URL } from "./config";
@@ -4097,8 +4098,30 @@ async function syncOnChainHudAfterTx(prevInGame: number, prevBankroll: number) {
 }
 
 async function updateStats() {
-  // All game modes (demo + wallet-connected) now use local game engine
-  const stats = await game.getStats();
+  let stats;
+  
+  // Если подключен кошелек — берем статистику из контракта
+  if (walletAddress) {
+    try {
+      const chainStats = await getPlayerStats(walletAddress, networkMode);
+      stats = {
+        totalGames: chainStats.totalGames,
+        wins: chainStats.wins,
+        losses: chainStats.losses,
+        draws: chainStats.draws,
+        blackjacks: chainStats.blackjacks,
+        totalWon: chainStats.totalWon,
+        totalLost: chainStats.totalLost,
+      };
+    } catch (err) {
+      console.error("Failed to fetch chain stats:", err);
+      // Fallback to local stats
+      stats = await game.getStats();
+    }
+  } else {
+    // Demo mode — локальная статистика
+    stats = await game.getStats();
+  }
 
   if (statGames) statGames.textContent = stats.totalGames.toString();
   if (statWins) statWins.textContent = stats.wins.toString();
