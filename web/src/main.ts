@@ -795,6 +795,8 @@ function renderChainRoom(room: ChainRoom) {
         winnerBannerEl.style.display = "block";
         winnerBannerEl.textContent = currentLocale === "ru" ? "ПОБЕДИТЕЛЬ" : "WINNER";
       }
+      // Подсветка изменения баланса
+      setTimeout(() => highlightBalanceChange(true, room.betAmount), 800);
     } else if (myResult === "draw") {
       showMessage(
         currentLocale === "ru" ? "НИЧЬЯ! Раздаём новые карты..." : "DRAW! Dealing new cards...",
@@ -813,6 +815,8 @@ function renderChainRoom(room: ChainRoom) {
       );
       setMascotState("sad", "\u{1F61E}", currentLocale === "ru" ? "Поражение..." : "You lose...");
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
+      // Подсветка изменения баланса
+      setTimeout(() => highlightBalanceChange(false, room.betAmount), 800);
     }
 
     // Refresh balance
@@ -929,6 +933,27 @@ function pulseDepositButton() {
   void depositBtnHeader.offsetWidth;
   depositBtnHeader.classList.add("wallet-cta-pulse");
   window.setTimeout(() => depositBtnHeader.classList.remove("wallet-cta-pulse"), 3600);
+}
+
+// Скролл к балансу и подмигивание после изменения
+function highlightBalanceChange(isWin: boolean, _amount: number) {
+  // Скролл к секции баланса
+  if (ingameBalanceRow) {
+    ingameBalanceRow.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  
+  // Подмигивание кнопки депозита (рядом с балансом)
+  pulseDepositButton();
+  
+  // Показываем изменение баланса анимацией
+  if (balanceEl) {
+    balanceEl.classList.add("balance-flash");
+    balanceEl.classList.toggle("balance-win", isWin);
+    balanceEl.classList.toggle("balance-lose", !isWin);
+    window.setTimeout(() => {
+      balanceEl.classList.remove("balance-flash", "balance-win", "balance-lose");
+    }, 2000);
+  }
 }
 
 function focusBetArea() {

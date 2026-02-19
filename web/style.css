@@ -2608,3 +2608,33 @@ body.invite-mode .mascot-right {
     padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 }
+
+/* Balance highlight on win/lose */
+.balance-flash {
+  animation: balanceFlash 0.6s ease-out;
+}
+
+.balance-win {
+  color: var(--success);
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+}
+
+.balance-lose {
+  color: var(--error);
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.6);
+}
+
+@keyframes balanceFlash {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
