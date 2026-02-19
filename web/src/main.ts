@@ -2237,8 +2237,8 @@ function init() {
       };
       if (inviteRoom) multiplayerRoom = inviteRoom;
       if (inviteHost) multiplayerHost = inviteHost;
+      // Не показываем gameArea сразу — только после начала сессии
       showInviteBanner();
-      if (gameArea) gameArea.style.display = "block";
     }
     if (!sessionStorage.getItem(inviteKey)) {
       sessionStorage.setItem(inviteKey, "1");
@@ -2255,9 +2255,12 @@ function init() {
     // wallet=luffa оставляем — нужен для автоконнекта
     history.replaceState({}, "", cleanUrl.toString());
   }
+  
+  // Всегда восстанавливаем UI состояние (даже при инвайте)
+  restoreUiStateFromStorage();
+  restoreDemoGameIfNeeded();
+  
   if (!inviteFrom) {
-    restoreUiStateFromStorage();
-    restoreDemoGameIfNeeded();
     const mode = restoredUiState?.scrollMode || "bet";
     window.setTimeout(() => {
       if (mode === "top") {
