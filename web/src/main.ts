@@ -2156,14 +2156,30 @@ function init() {
   // Load name from URL param (QR link) or localStorage
   const urlParams = new URLSearchParams(window.location.search);
   const urlName = urlParams.get("name");
-  const savedName = urlName || localStorage.getItem("playerName");
-  if (savedName) {
-    playerName = savedName.slice(0, 12);
-    playerNameInput.value = playerName;
-    if (nicknameInput) nicknameInput.value = playerName;
+  
+  // Если кошелек подключен — пробуем получить никнейм из localStorage по адресу кошелька
+  if (walletAddress) {
+    const walletNickname = localStorage.getItem("walletNickname_" + walletAddress);
+    if (walletNickname) {
+      playerName = walletNickname.slice(0, 12);
+    } else if (urlName) {
+      playerName = urlName.slice(0, 12);
+    } else {
+      playerName = I18N[currentLocale].player_placeholder;
+    }
+  } else {
+    const savedName = urlName || localStorage.getItem("playerName");
+    playerName = savedName ? savedName.slice(0, 12) : I18N[currentLocale].player_placeholder;
+  }
+  
+  if (playerNameInput) playerNameInput.value = playerName;
+  if (nicknameInput) nicknameInput.value = playerName;
+  
+  // Сохраняем никнейм для кошелька или глобально
+  if (walletAddress) {
+    localStorage.setItem("walletNickname_" + walletAddress, playerName);
+  } else {
     localStorage.setItem("playerName", playerName);
-  } else if (nicknameModal) {
-    nicknameModal.style.display = "flex";
   }
 
   // Load locale/theme
@@ -3134,7 +3150,14 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
 function saveNickname() {
   const name = nicknameInput.value.trim() || I18N[currentLocale].player_placeholder;
   playerName = name.slice(0, 12);
-  localStorage.setItem("playerName", playerName);
+  
+  // Сохраняем никнейм для кошелька или глобально
+  if (walletAddress) {
+    localStorage.setItem("walletNickname_" + walletAddress, playerName);
+  } else {
+    localStorage.setItem("playerName", playerName);
+  }
+  
   playerNameInput.value = playerName;
   if (playerHandNameEl) {
     playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
@@ -5793,8 +5816,43 @@ async function handleClaim() {
 }
 
 // ==================== LEADERBOARD ====================
-function getLeaderboard(): LeaderboardEntry[] {
+
+async function getLeaderboardEntryForAddress(address: string, name: string): Promise<LeaderboardEntry | null> {
+  try {
+    const stats = await getPlayerStats(address, networkMode);
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      name: name || address.slice(0, 8) + '...',
+      wins: stats.wins,
+      losses: stats.losses,
+      profit: (stats.totalWon - stats.totalLost) / 100000000,
+      lastPlayed: Date.now(),
+      dailyWins: stats.wins, // Для ончейн считаем все игры за сегодня
+      dailyLosses: stats.losses,
+      dailyProfit: (stats.totalWon - stats.totalLost) / 100000000,
+      dailyDate: today,
+    };
+  } catch (err) {
+    console.error("Failed to fetch stats for", address, err);
+    return null;
+  }
+}
+
+async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   const today = new Date().toISOString().slice(0, 10);
+  
+  // Если подключен кошелек — показываем только настоящую статистику из контракта
+  if (walletAddress) {
+    // Для демо показываем фейковых игроков, для ончейн — только реальные данные
+    // В будущем можно загружать топ игроков из контракта
+    const myStats = await getLeaderboardEntryForAddress(walletAddress, playerName);
+    if (myStats) {
+      return [myStats];
+    }
+    return [];
+  }
+  
+  // Demo mode — используем локальную статистику
   const saved = localStorage.getItem("leaderboard");
   if (saved) {
     const entries = JSON.parse(saved).map((entry: any) => {
@@ -5870,8 +5928,8 @@ function updateLeaderboardEntry() {
   localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
 }
 
-function renderLeaderboard() {
-  const all = getLeaderboard();
+async function renderLeaderboard() {
+  const all = await getLeaderboard();
   const today = new Date().toISOString().slice(0, 10);
   const isDaily = activeLeaderboardTab === "daily";
 
