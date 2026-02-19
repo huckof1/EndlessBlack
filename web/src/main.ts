@@ -2854,18 +2854,25 @@ function applyMultiplayerHit() {
   if (!hand || hand.done) return;
   hand.cards.push(mpDraw(multiplayerSnapshot.deck));
   const score = mpScore(hand.cards);
-  if (score >= 21) {
+  
+  // Проверяем перебор (>21) — автоматический конец хода
+  if (score > 21) {
     hand.done = true;
-    const nextIndex = mpNextTurn(multiplayerSnapshot, meIndex);
-    if (nextIndex !== null) {
-      const delayMs = 600 + Math.floor(Math.random() * 700);
-      multiplayerSnapshot.turnIndex = null;
-      multiplayerSnapshot.pendingTurn = { nextIndex, until: Date.now() + delayMs };
-    } else {
-      multiplayerSnapshot.turnIndex = null;
-      multiplayerSnapshot.pendingTurn = null;
-    }
   }
+  // При 21 или меньше — игрок продолжает ходить пока не нажмёт STAND
+  
+  // Переход хода к следующему игроку
+  const nextIndex = mpNextTurn(multiplayerSnapshot, meIndex);
+  if (nextIndex !== null) {
+    const delayMs = 600 + Math.floor(Math.random() * 700);
+    multiplayerSnapshot.turnIndex = null;
+    multiplayerSnapshot.pendingTurn = { nextIndex, until: Date.now() + delayMs };
+  } else {
+    multiplayerSnapshot.turnIndex = null;
+    multiplayerSnapshot.pendingTurn = null;
+  }
+  
+  // Игра заканчивается только когда ВСЕ игроки сделали ход (stand или bust)
   if (multiplayerSnapshot.hands.every(h => h.done)) {
     multiplayerSnapshot.phase = "done";
     multiplayerSnapshot.turnIndex = null;
