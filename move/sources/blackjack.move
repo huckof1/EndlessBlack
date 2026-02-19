@@ -1279,8 +1279,8 @@ module pixel_blackjack::blackjack {
         room.result = result;
 
         if (is_draw) {
-            // Ничья — НЕ закрываем комнату, сбрасываем состояние для новой игры
-            // Ставки остаются в bankroll (уже там), просто перезапускаем игру
+            // Draw - do NOT close room, reset state for new game
+            // Bets stay in bankroll, just restart the game
             room.status = ROOM_PLAYING;
             room.host_cards = vector::empty<Card>();
             room.guest_cards = vector::empty<Card>();
@@ -1292,7 +1292,7 @@ module pixel_blackjack::blackjack {
             room.guest_done = false;
             room.last_action_at = timestamp::now_seconds();
 
-            // Раздаём новые карты для следующей игры
+            // Deal new cards for next game
             vector::push_back(&mut room.host_cards, draw_card(room.room_id * 1000, room.deck_index));
             room.deck_index = room.deck_index + 1;
             vector::push_back(&mut room.host_cards, draw_card(room.room_id * 1000, room.deck_index));
@@ -1313,7 +1313,7 @@ module pixel_blackjack::blackjack {
                 winner: @0x0,
             });
         } else {
-            // Не ничья — закрываем комнату и выплачиваем выигрыш
+            // Not a draw - close room and payout winner
             room.status = ROOM_FINISHED;
 
             // Credit payouts to player balances
