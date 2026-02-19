@@ -455,6 +455,46 @@ body[data-theme="light"] {
   }
 }
 
+/* Плавающая кнопка звука (видна всегда) */
+.floating-sound-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(13, 13, 26, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.floating-sound-btn:hover {
+  border-color: var(--secondary);
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 255, 213, 0.3);
+}
+
+.floating-sound-btn:active {
+  transform: scale(0.95);
+}
+
+.floating-sound-btn span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+body[data-theme="light"] .floating-sound-btn {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(40, 40, 40, 0.15);
+}
+
 .header-status {
   display: flex;
   justify-content: center;
