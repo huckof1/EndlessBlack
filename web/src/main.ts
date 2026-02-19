@@ -1231,6 +1231,27 @@ async function restoreChainStateIfNeeded() {
     multiplayerRoom = `chain_${restoredUiState.chainRoomId}`;
     try {
       const room = await getRoomOnChain(restoredUiState.chainRoomId, networkMode);
+      if (room.status === ROOM_STATUS_WAITING && amIHost) {
+        try {
+          await cancelRoomOnChain(restoredUiState.chainRoomId, networkMode);
+          mpLog(`Restored waiting room ${restoredUiState.chainRoomId} cancelled (refund).`);
+          showMessage(
+            currentLocale === "ru"
+              ? "Неактивное приглашение отменено, баланс возвращён."
+              : "Stale invite cancelled, balance refunded.",
+            "info"
+          );
+        } catch (err) {
+          mpLog(`cancel_room error while restoring: ${err}`);
+        }
+        cleanupMultiplayer();
+        chainRoomId = null;
+        mpOnChainMode = false;
+        amIHost = false;
+        multiplayerRoom = null;
+        updateUI();
+        return;
+      }
       chainRoom = room;
       renderChainRoom(room);
       startRoomPolling();
