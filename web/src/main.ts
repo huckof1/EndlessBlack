@@ -2460,16 +2460,16 @@ function init() {
       amIHost = false;
     }
     const inviteKey = `invite_seen_${inviteRoomId || inviteRoom || "no-room"}_${inviteFrom}`;
-    if (!sessionStorage.getItem(inviteKey)) {
     pendingInvite = {
       name: inviteFrom || I18N[currentLocale].player_placeholder,
       mode,
       bet: inviteBet > 0 ? inviteBet : 1,
     };
-      if (inviteRoom) multiplayerRoom = inviteRoom;
-      if (inviteHost) multiplayerHost = inviteHost;
-      showInviteBanner();
-      if (gameArea) gameArea.style.display = "block";
+    if (inviteRoom) multiplayerRoom = inviteRoom;
+    if (inviteHost) multiplayerHost = inviteHost;
+    showInviteBanner();
+    if (gameArea) gameArea.style.display = "block";
+    if (!sessionStorage.getItem(inviteKey)) {
       sessionStorage.setItem(inviteKey, "1");
     }
     // очистить параметры приглашения из URL
