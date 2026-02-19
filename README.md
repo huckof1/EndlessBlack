@@ -39,6 +39,18 @@
 
 ---
 
+## 🎮 Quick Start
+
+**Scan QR code with Luffa app to start playing:**
+
+![QR Code](qr/endless-black-qr.png)
+
+**Or visit:** https://endless-black.vercel.app/
+
+**Don't have Luffa?** Download at https://www.luffa.im/
+
+---
+
 ## Description
 
 **Endless Pixel Blackjack** — Web3 карточная игра с пиксельной графикой на блокчейне Endless:
