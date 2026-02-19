@@ -1628,6 +1628,8 @@ const I18N = {
     wallet_endless_desc: "Web wallet",
     wallet_luffa: "LUFFA WALLET",
     wallet_luffa_desc: "Scan QR code",
+    wallet_recommended: "RECOMMENDED",
+    wallet_coming_soon: "COMING SOON",
     wallet_back: "BACK",
     wallet_connecting: "CONNECTING...",
     wallet_endless_missing: "ENDLESS WALLET NOT FOUND",
@@ -1789,6 +1791,8 @@ const I18N = {
     wallet_endless_desc: "Веб-кошелёк",
     wallet_luffa: "LUFFA WALLET",
     wallet_luffa_desc: "Сканировать QR-код",
+    wallet_recommended: "РЕКОМЕНДУЕМ",
+    wallet_coming_soon: "СКОРО",
     wallet_back: "НАЗАД",
     wallet_connecting: "ПОДКЛЮЧЕНИЕ...",
     wallet_endless_missing: "ENDLESS WALLET НЕ НАЙДЕН",
@@ -2118,9 +2122,8 @@ function init() {
   });
   connectWalletHeader.addEventListener("click", async () => {
     if (walletAddress) {
-      // Fully disconnect current wallet, then allow choosing another.
+      // Сразу отключаем кошелек без модалки
       await handleDisconnectWallet();
-      showWalletPicker();
       return;
     }
     if (!isSessionStarted) {

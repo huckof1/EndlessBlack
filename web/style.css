@@ -1329,6 +1329,70 @@ body[data-demo="true"] .wallet-item--fee {
   color: var(--gray);
 }
 
+/* Recommended wallet highlight */
+.wallet-option-recommended {
+  border-color: var(--success);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.4);
+  animation: recommendedPulse 2s ease-in-out infinite;
+}
+
+.wallet-option-recommended:hover {
+  border-color: var(--success);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
+}
+
+@keyframes recommendedPulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(0, 255, 136, 0.7);
+  }
+}
+
+/* Coming soon wallet */
+.wallet-option-coming-soon {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wallet-option-coming-soon:hover {
+  transform: none;
+  border-color: var(--gold);
+}
+
+/* Wallet badges */
+.wallet-badge {
+  font-size: 7px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-top: 6px;
+  font-family: 'Press Start 2P', cursive;
+  letter-spacing: 0.5px;
+}
+
+.wallet-badge-recommended {
+  background: rgba(0, 255, 136, 0.2);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.wallet-badge-coming {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  animation: comingSoonBlink 2s ease-in-out infinite;
+}
+
+@keyframes comingSoonBlink {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .wallet-connect-status {
   display: flex;
   flex-direction: column;
