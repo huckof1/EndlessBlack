@@ -1079,6 +1079,19 @@ module pixel_blackjack::blackjack {
         let is_guest = player_addr == room.guest;
         assert!(is_host || is_guest, E_NOT_PARTICIPANT);
 
+        // Нельзя делать hit если opponent уже bust - игра фактически окончена
+        if (is_host) {
+            assert!(room.turn == 0, E_NOT_YOUR_TURN);
+            assert!(!room.host_done, E_PLAYER_ALREADY_DONE);
+            // Если guest уже bust, host не должен иметь возможность делать hit
+            assert!(room.guest_score <= BLACKJACK || room.guest_done, E_PLAYER_ALREADY_DONE);
+        } else {
+            assert!(room.turn == 1, E_NOT_YOUR_TURN);
+            assert!(!room.guest_done, E_PLAYER_ALREADY_DONE);
+            // Если host уже bust, guest не должен иметь возможность делать hit
+            assert!(room.host_score <= BLACKJACK || room.host_done, E_PLAYER_ALREADY_DONE);
+        };
+
         if (is_host) {
             assert!(room.turn == 0, E_NOT_YOUR_TURN);
             assert!(!room.host_done, E_PLAYER_ALREADY_DONE);
@@ -1093,8 +1106,26 @@ module pixel_blackjack::blackjack {
                 room_id, player: player_addr, card: new_card, new_score: room.host_score,
             });
 
-            if (room.host_score >= BLACKJACK) {
+            if (room.host_score > BLACKJACK) {
+                // Host bust -> immediately check if we can finish
                 room.host_done = true;
+                if (room.guest_done) {
+                    // Both done -> finalize
+                    finalize_room(room, game_store);
+                } else {
+                    // Guest hasn't played yet -> guest wins automatically, but let them stand to finalize
+                    room.turn = 1;
+                };
+            } else if (room.host_score == BLACKJACK) {
+                // Host has exactly 21
+                room.host_done = true;
+                if (room.guest_done) {
+                    finalize_room(room, game_store);
+                } else {
+                    room.turn = 1;
+                };
+            } else {
+                // Host < 21, continue normally
                 if (room.guest_done) {
                     finalize_room(room, game_store);
                 } else {
@@ -1115,8 +1146,26 @@ module pixel_blackjack::blackjack {
                 room_id, player: player_addr, card: new_card, new_score: room.guest_score,
             });
 
-            if (room.guest_score >= BLACKJACK) {
+            if (room.guest_score > BLACKJACK) {
+                // Guest bust -> immediately check if we can finish
                 room.guest_done = true;
+                if (room.host_done) {
+                    // Both done -> finalize
+                    finalize_room(room, game_store);
+                } else {
+                    // Host hasn't played yet -> host wins automatically, but let them stand to finalize
+                    room.turn = 0;
+                };
+            } else if (room.guest_score == BLACKJACK) {
+                // Guest has exactly 21
+                room.guest_done = true;
+                if (room.host_done) {
+                    finalize_room(room, game_store);
+                } else {
+                    room.turn = 0;
+                };
+            } else {
+                // Guest < 21, continue normally
                 if (room.host_done) {
                     finalize_room(room, game_store);
                 } else {
