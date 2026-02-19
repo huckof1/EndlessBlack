@@ -2224,12 +2224,18 @@ function init() {
       mpWalletAddresses[inviteHost] = inviteWalletAddr;
     }
     // On-chain room ID from URL
+    let room_id_to_use: number | null = null;
     if (inviteRoomId) {
-      chainRoomId = parseInt(inviteRoomId, 10);
-      amIHost = false;
+      // Проверяем, подключен ли кошелек — если нет, игнорируем room_id
+      if (!walletAddress) {
+        console.warn("room_id in URL but wallet not connected, ignoring");
+      } else {
+        room_id_to_use = parseInt(inviteRoomId, 10);
+        amIHost = false;
+      }
     }
-    const inviteKey = `invite_seen_${inviteRoomId || inviteRoom || "no-room"}_${inviteFrom}`;
-    const inviteUniqueKey = `${inviteRoomId || inviteRoom || "no-room"}_${inviteFrom}`;
+    const inviteKey = `invite_seen_${room_id_to_use || inviteRoom || "no-room"}_${inviteFrom}`;
+    const inviteUniqueKey = `${room_id_to_use || inviteRoom || "no-room"}_${inviteFrom}`;
     inviteLinkKey = inviteUniqueKey;
     const inviteUsedKey = getInviteUsedStorageKey(inviteUniqueKey);
     const inviteUsed = Boolean(localStorage.getItem(inviteUsedKey));
@@ -2269,7 +2275,7 @@ function init() {
   // Всегда восстанавливаем UI состояние (даже при инвайте)
   restoreUiStateFromStorage();
   restoreDemoGameIfNeeded();
-  
+
   if (!inviteFrom) {
     const mode = restoredUiState?.scrollMode || "bet";
     window.setTimeout(() => {
