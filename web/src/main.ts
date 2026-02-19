@@ -3889,7 +3889,7 @@ async function showLoseEffect(bet: number) {
   addFeedItem(`${playerName || I18N[currentLocale].player_placeholder} ${I18N[currentLocale].feed_lose} ${formatEDS(bet)}`);
   showGameResult(bet, "lose");
 
-  await delay(900);
+  await delay(1100);
   loseEffect.style.display = "none";
   showMessage(I18N[currentLocale].msg_lose, "error");
   updateUI();
