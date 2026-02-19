@@ -1,6 +1,6 @@
 # Endless Pixel Blackjack v2.0
 
-**Multiplayer Edition** - Web3 карточная игра на блокчейне Endless
+**Multiplayer Edition** - Web3 Card Game on Endless Blockchain
 
 ```
 ╔═══════════════════════════════════════════════════════════════╗
@@ -53,27 +53,27 @@
 
 ## Description
 
-**Endless Pixel Blackjack** — Web3 карточная игра с пиксельной графикой на блокчейне Endless:
+**Endless Pixel Blackjack** is a Web3 card game with pixel graphics on the Endless blockchain:
 
-- Ставки в токенах **EDS**
-- Смарт-контракт на **Move**
-- Статистика игрока на блокчейне
-- Честная генерация карт
-- 8-bit звуковые эффекты
-- Адаптивный дизайн (Web + Mobile)
+- Bet in **EDS** tokens
+- Smart contract in **Move**
+- Player stats on-chain
+- Fair card generation
+- 8-bit sound effects
+- Adaptive design (Web + Mobile)
 
 ---
 
 ## Game Rules
 
-| Правило | Описание |
-|---------|----------|
-| **Цель** | Набрать 21 очко или ближе к 21, чем дилер |
-| **Карты** | 2-10 = номинал, J/Q/K = 10, Туз = 1 или 11 |
-| **Hit** | Взять ещё карту |
-| **Stand** | Остановиться |
-| **Blackjack** | Туз + 10 = моментальная победа (x2.5) |
-| **Bust** | Более 21 очка = проигрыш |
+| Rule | Description |
+|------|-------------|
+| **Goal** | Get 21 points or closer to 21 than the dealer |
+| **Cards** | 2-10 = face value, J/Q/K = 10, Ace = 1 or 11 |
+| **Hit** | Take another card |
+| **Stand** | Hold your hand |
+| **Blackjack** | Ace + 10 = instant win (x2.5) |
+| **Bust** | Over 21 points = loss |
 
 ---
 
