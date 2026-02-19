@@ -798,8 +798,8 @@ function renderChainRoom(room: ChainRoom) {
         winnerBannerEl.style.display = "block";
         winnerBannerEl.textContent = currentLocale === "ru" ? "ПОБЕДИТЕЛЬ" : "WINNER";
       }
-      // Подсветка изменения баланса
-      setTimeout(() => highlightBalanceChange(true, room.betAmount), 800);
+      // Подсветка изменения баланса (быстрее)
+      setTimeout(() => highlightBalanceChange(true, room.betAmount), 200);
     } else if (myResult === "draw") {
       showMessage(
         currentLocale === "ru" ? "НИЧЬЯ!" : "DRAW!",
@@ -807,7 +807,7 @@ function renderChainRoom(room: ChainRoom) {
       );
       setMascotState("thinking", "\u{1F937}", currentLocale === "ru" ? "Ничья!" : "Draw!");
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
-      
+
       // Пауза 2 секунды перед переигрышем
       setTimeout(() => {
         showMessage(
@@ -816,7 +816,7 @@ function renderChainRoom(room: ChainRoom) {
         );
         setMascotState("thinking", "\u{1F3B4}", currentLocale === "ru" ? "Переигрыш!" : "Replay!");
       }, 2000);
-      
+
       // Ничья в on-chain мультиплеере — комната остаётся активной, просто сбрасываем карты
       // Контракт уже сбросил состояние и раздал новые карты
       // Просто продолжаем опрос комнаты
@@ -828,8 +828,8 @@ function renderChainRoom(room: ChainRoom) {
       );
       setMascotState("sad", "\u{1F61E}", currentLocale === "ru" ? "Поражение..." : "You lose...");
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
-      // Подсветка изменения баланса
-      setTimeout(() => highlightBalanceChange(false, room.betAmount), 800);
+      // Подсветка изменения баланса (быстрее)
+      setTimeout(() => highlightBalanceChange(false, room.betAmount), 200);
     }
 
     // Refresh balance
