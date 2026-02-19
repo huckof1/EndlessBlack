@@ -148,8 +148,6 @@ const withdrawModal = document.getElementById("withdraw-modal") as HTMLDivElemen
 const withdrawAmountInput = document.getElementById("withdraw-amount-input") as HTMLInputElement;
 const withdrawModalConfirm = document.getElementById("withdraw-modal-confirm") as HTMLButtonElement;
 const withdrawModalCancel = document.getElementById("withdraw-modal-cancel") as HTMLButtonElement;
-const floatingSoundToggle = document.getElementById("floating-sound-toggle") as HTMLButtonElement;
-const floatingSoundIcon = document.getElementById("floating-sound-icon") as HTMLSpanElement;
 const ingameBalanceRow = document.getElementById("ingame-balance-row") as HTMLDivElement;
 const ingameBalanceEl = document.getElementById("ingame-balance") as HTMLSpanElement;
 const walletModal = document.getElementById("wallet-modal") as HTMLDivElement;
@@ -1034,33 +1032,7 @@ function applySessionLayout() {
   gameArea.style.display = isSessionStarted ? "block" : "none";
   setDarkVeilVisible(!isSessionStarted);
   setShadowBarsVisible(isSessionStarted);
-  
-  updateFloatingSoundButton();
 }
-
-// Проверка видимости шапки и показ/скрытие плавающей кнопки звука
-function updateFloatingSoundButton() {
-  if (!floatingSoundToggle) return;
-  if (!isSessionStarted) {
-    floatingSoundToggle.style.display = 'none';
-    return;
-  }
-  
-  // Проверяем позицию скролла - если проскроллили больше 100px, шапка скрыта
-  const scrolled = window.scrollY || window.pageYOffset;
-  const headerVisible = scrolled < 100;
-  
-  // Показывать кнопку только если шапка НЕ видима
-  floatingSoundToggle.style.display = headerVisible ? 'none' : 'flex';
-  updateFloatingSoundIcon();
-}
-
-// Слушать скролл для показа/скрытия кнопки
-window.addEventListener('scroll', () => {
-  if (isSessionStarted) {
-    updateFloatingSoundButton();
-  }
-}, { passive: true });
 
 function restoreUiStateFromStorage() {
   let parsed: PersistedUiState | null = null;
@@ -1968,7 +1940,6 @@ function init() {
   soundToggle.addEventListener("click", () => {
     const muted = soundManager.toggleMute();
     updateSoundIcon();
-    updateFloatingSoundIcon();
     if (muted) {
       soundManager.setVolume(0, 0);
     } else {
@@ -1980,25 +1951,6 @@ function init() {
       }
     }
   });
-  
-  // Floating sound button (always visible)
-  if (floatingSoundToggle) {
-    floatingSoundToggle.addEventListener("click", () => {
-      const muted = soundManager.toggleMute();
-      updateSoundIcon();
-      updateFloatingSoundIcon();
-      if (muted) {
-        soundManager.setVolume(0, 0);
-      } else {
-        soundManager.setVolume(0.5, 0.3);
-        if (gameMusicActive) {
-          soundManager.startGameMusic();
-        } else {
-          soundManager.startIdleMusic();
-        }
-      }
-    });
-  }
   if (homeBtn) {
     homeBtn.addEventListener("click", () => {
       returnToStartScreen();
@@ -2517,16 +2469,6 @@ function updateSoundIcon() {
   const muted = soundManager.getMuted();
   soundIcon.textContent = muted ? "🔇" : "🔊";
   soundToggle.classList.toggle("muted", muted);
-}
-
-function updateFloatingSoundIcon() {
-  const muted = soundManager.getMuted();
-  if (floatingSoundIcon) {
-    floatingSoundIcon.textContent = muted ? "🔇" : "🔊";
-  }
-  if (floatingSoundToggle) {
-    floatingSoundToggle.classList.toggle("muted", muted);
-  }
 }
 
 function toggleTheme() {
