@@ -1079,19 +1079,6 @@ module pixel_blackjack::blackjack {
         let is_guest = player_addr == room.guest;
         assert!(is_host || is_guest, E_NOT_PARTICIPANT);
 
-        // Нельзя делать hit если opponent уже bust - игра фактически окончена
-        if (is_host) {
-            assert!(room.turn == 0, E_NOT_YOUR_TURN);
-            assert!(!room.host_done, E_PLAYER_ALREADY_DONE);
-            // Если guest уже bust, host не должен иметь возможность делать hit
-            assert!(room.guest_score <= BLACKJACK || room.guest_done, E_PLAYER_ALREADY_DONE);
-        } else {
-            assert!(room.turn == 1, E_NOT_YOUR_TURN);
-            assert!(!room.guest_done, E_PLAYER_ALREADY_DONE);
-            // Если host уже bust, guest не должен иметь возможность делать hit
-            assert!(room.host_score <= BLACKJACK || room.host_done, E_PLAYER_ALREADY_DONE);
-        };
-
         if (is_host) {
             assert!(room.turn == 0, E_NOT_YOUR_TURN);
             assert!(!room.host_done, E_PLAYER_ALREADY_DONE);
@@ -1107,13 +1094,13 @@ module pixel_blackjack::blackjack {
             });
 
             if (room.host_score > BLACKJACK) {
-                // Host bust -> immediately check if we can finish
+                // Host bust -> guest can still play (may also bust for a draw)
                 room.host_done = true;
                 if (room.guest_done) {
                     // Both done -> finalize
                     finalize_room(room, game_store);
                 } else {
-                    // Guest hasn't played yet -> guest wins automatically, but let them stand to finalize
+                    // Guest still playing -> their turn
                     room.turn = 1;
                 };
             } else if (room.host_score == BLACKJACK) {
@@ -1147,13 +1134,13 @@ module pixel_blackjack::blackjack {
             });
 
             if (room.guest_score > BLACKJACK) {
-                // Guest bust -> immediately check if we can finish
+                // Guest bust -> host can still play (may also bust for a draw)
                 room.guest_done = true;
                 if (room.host_done) {
                     // Both done -> finalize
                     finalize_room(room, game_store);
                 } else {
-                    // Host hasn't played yet -> host wins automatically, but let them stand to finalize
+                    // Host still playing -> their turn
                     room.turn = 0;
                 };
             } else if (room.guest_score == BLACKJACK) {
