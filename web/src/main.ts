@@ -112,6 +112,7 @@ const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement
 const endGameBtn = document.getElementById("end-game-btn") as HTMLButtonElement;
 const gameResultAmount = document.getElementById("game-result-amount") as HTMLSpanElement;
 const rematchBtn = document.getElementById("rematch-btn") as HTMLButtonElement;
+const REMATCH_ENABLED = false;
 const leaveGameBtn = document.getElementById("leave-game-btn") as HTMLButtonElement;
 const themeToggle = document.getElementById("theme-toggle") as HTMLButtonElement;
 const themeIcon = document.getElementById("theme-icon") as HTMLSpanElement;
@@ -320,6 +321,7 @@ function startIdleMusic() {
   }
 }
 function sendRematchProposal(value: number) {
+  if (!REMATCH_ENABLED) return;
   announceFreshMultiplayerGame(I18N[currentLocale].rematch_waiting);
   multiplayer.proposeBet(value);
   if (rematchRetryTimer) {
@@ -569,8 +571,8 @@ function startRoomPolling() {
           mpLog(`Room ${chainRoomId}: ended with status=${room.status} result=${room.result}`);
           stopRoomPolling();
           // Start rematch polling for FINISHED/TIMEOUT (not CANCELLED)
-          if (room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) {
-            startRematchPolling();
+        if (room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT) {
+            if (REMATCH_ENABLED) startRematchPolling();
           }
         }
       }
@@ -594,6 +596,7 @@ function stopRoomPolling() {
 
 // ==================== REMATCH POLLING ====================
 function startRematchPolling() {
+  if (!REMATCH_ENABLED) return;
   stopRematchPolling();
   if (!walletAddress || !chainRoom) {
     mpLog(`Rematch polling skipped: wallet=${!!walletAddress} chainRoom=${!!chainRoom}`);
@@ -679,6 +682,7 @@ function stopRematchPolling() {
 }
 
 async function findOpponentRematchRoom(maxLookback = 20): Promise<{ id: number; room: ChainRoom } | null> {
+  if (!REMATCH_ENABLED) return null;
   if (!rematchOpponentAddr) return null;
   const oppNorm = normalizeAddress(rematchOpponentAddr);
   const latestId = await getLatestRoomIdOnChain(networkMode);
@@ -703,9 +707,10 @@ async function findOpponentRematchRoom(maxLookback = 20): Promise<{ id: number; 
 }
 
 function showRematchOffer(roomId: number, room: ChainRoom) {
+  if (!REMATCH_ENABLED) return;
   const existing = document.getElementById("rematch-banner");
   if (existing) existing.remove();
-  const betEds = formatEDS(room.netBet);
+  const betEds = formatEDS(room.betAmount);
   const banner = document.createElement("div");
   banner.id = "rematch-banner";
   banner.className = "invite-banner";
@@ -736,21 +741,22 @@ function showRematchOffer(roomId: number, room: ChainRoom) {
     await acceptRematchRoom(roomId);
   });
 
-  document.getElementById("rematch-decline-btn")?.addEventListener("click", () => {
-    banner.remove();
-    rematchMyRoomId = null;
-    showMessage(
-      currentLocale === "ru"
-        ? "Реванш отклонён. Вы можете предложить новый реванш или выйти из игры."
-        : "Rematch declined. You can offer a new rematch or leave the game.",
-      "info"
-    );
-    // Keep session alive; continue listening for future rematch offers.
-    startRematchPolling();
-  });
+    document.getElementById("rematch-decline-btn")?.addEventListener("click", () => {
+      banner.remove();
+      rematchMyRoomId = null;
+      showMessage(
+        currentLocale === "ru"
+          ? "Реванш отклонён. Вы можете предложить новый реванш или выйти из игры."
+          : "Rematch declined. You can offer a new rematch or leave the game.",
+        "info"
+      );
+      // Keep session alive; continue listening for future rematch offers.
+      if (REMATCH_ENABLED) startRematchPolling();
+    });
 }
 
 async function acceptRematchRoom(roomId: number) {
+  if (!REMATCH_ENABLED) return;
   showMessage(
     currentLocale === "ru" ? "ВХОД В КОМНАТУ..." : "JOINING ROOM...",
     "info"
@@ -960,7 +966,7 @@ function renderChainRoom(room: ChainRoom) {
       myResult = "lose";
     }
 
-    const betEds = formatEDS(room.netBet);
+    const betEds = formatEDS(room.betAmount);
     if (myResult === "win") {
       showMessage(
         currentLocale === "ru" ? `ПОБЕДА! +${betEds}` : `YOU WIN! +${betEds}`,
@@ -2105,29 +2111,33 @@ function init() {
     });
   }
   if (rematchBtn) {
-    rematchBtn.addEventListener("click", () => {
-      if (mpOnChainMode && chainRoom && walletAddress) {
-        // On-chain rematch: show bet modal, then create new room
+    if (REMATCH_ENABLED) {
+      rematchBtn.addEventListener("click", () => {
+        if (mpOnChainMode && chainRoom && walletAddress) {
+          // On-chain rematch: show bet modal, then create new room
+          if (inviteModal) {
+            rematchModalActive = true;
+            if (inviteModalTitle) inviteModalTitle.textContent = I18N[currentLocale].rematch_modal_title;
+            if (inviteModalText) inviteModalText.textContent = I18N[currentLocale].rematch_modal_text;
+            if (inviteBetConfirm) inviteBetConfirm.textContent = I18N[currentLocale].rematch_modal_send;
+            const prevBet = chainRoom.betAmount ? formatEDS(chainRoom.betAmount) : (betInput.value || "1");
+            inviteBetInput.value = prevBet.toString();
+            inviteModal.style.display = "flex";
+          }
+          return;
+        }
         if (inviteModal) {
           rematchModalActive = true;
           if (inviteModalTitle) inviteModalTitle.textContent = I18N[currentLocale].rematch_modal_title;
           if (inviteModalText) inviteModalText.textContent = I18N[currentLocale].rematch_modal_text;
           if (inviteBetConfirm) inviteBetConfirm.textContent = I18N[currentLocale].rematch_modal_send;
-          const prevBet = chainRoom.netBet ? formatEDS(chainRoom.netBet) : (betInput.value || "1");
-          inviteBetInput.value = prevBet.toString();
+          inviteBetInput.value = betInput.value || "1";
           inviteModal.style.display = "flex";
         }
-        return;
-      }
-      if (inviteModal) {
-        rematchModalActive = true;
-        if (inviteModalTitle) inviteModalTitle.textContent = I18N[currentLocale].rematch_modal_title;
-        if (inviteModalText) inviteModalText.textContent = I18N[currentLocale].rematch_modal_text;
-        if (inviteBetConfirm) inviteBetConfirm.textContent = I18N[currentLocale].rematch_modal_send;
-        inviteBetInput.value = betInput.value || "1";
-        inviteModal.style.display = "flex";
-      }
-    });
+      });
+    } else {
+      rematchBtn.style.display = "none";
+    }
   }
   if (leaveGameBtn) {
     leaveGameBtn.addEventListener("click", () => {
@@ -3082,6 +3092,7 @@ async function mpCreditOnChainPayouts(snapshot: MultiplayerSnapshot) {
 }
 
 function mpIsRematch(snapshot: MultiplayerSnapshot) {
+  if (!REMATCH_ENABLED) return false;
   if (snapshot.hands.length < 2) return false;
   const scores = snapshot.hands.map(h => mpScore(h.cards));
   const busts = scores.map(s => s > 21);
@@ -3091,6 +3102,7 @@ function mpIsRematch(snapshot: MultiplayerSnapshot) {
 }
 
 function mpStartRematch(snapshot: MultiplayerSnapshot) {
+  if (!REMATCH_ENABLED) return;
   announceFreshMultiplayerGame();
   const deck = snapshot.deck.length ? snapshot.deck : mpCreateDeck();
   snapshot.hands = snapshot.players.map(() => ({ cards: [mpDraw(deck), mpDraw(deck)], done: false }));
@@ -3127,7 +3139,7 @@ function applyMultiplayerHit() {
     multiplayerSnapshot.turnIndex = null;
     multiplayerSnapshot.pendingTurn = null;
     mpFinalizeResults(multiplayerSnapshot);
-    if (isRoomHost && mpIsRematch(multiplayerSnapshot)) {
+    if (REMATCH_ENABLED && isRoomHost && mpIsRematch(multiplayerSnapshot)) {
       mpStartRematch(multiplayerSnapshot);
       multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
       renderMultiplayerSnapshot(multiplayerSnapshot);
@@ -3171,13 +3183,13 @@ function applyMultiplayerStand() {
     multiplayerSnapshot.turnIndex = null;
     multiplayerSnapshot.pendingTurn = null;
     mpFinalizeResults(multiplayerSnapshot);
-    if (isRoomHost && mpIsRematch(multiplayerSnapshot)) {
-      mpStartRematch(multiplayerSnapshot);
-      multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
-      renderMultiplayerSnapshot(multiplayerSnapshot);
-      showMessage(I18N[currentLocale].msg_rematch, "info");
-      return;
-    }
+      if (REMATCH_ENABLED && isRoomHost && mpIsRematch(multiplayerSnapshot)) {
+        mpStartRematch(multiplayerSnapshot);
+        multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
+        renderMultiplayerSnapshot(multiplayerSnapshot);
+        showMessage(I18N[currentLocale].msg_rematch, "info");
+        return;
+      }
   }
   multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
   renderMultiplayerSnapshot(multiplayerSnapshot);
@@ -3327,7 +3339,9 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
   isPlaying = snapshot.phase !== "done" && snapshot.phase !== "lobby";
   showDebugState("snapshot");
   if (snapshot.phase === "done") {
-    showMessage(currentLocale === "ru" ? "ПРЕДЛОЖИ СТАВКУ ДЛЯ РЕВАНША" : "PROPOSE A BET FOR REMATCH", "info");
+    if (REMATCH_ENABLED) {
+      showMessage(currentLocale === "ru" ? "ПРЕДЛОЖИ СТАВКУ ДЛЯ РЕВАНША" : "PROPOSE A BET FOR REMATCH", "info");
+    }
     const meIndex = players.findIndex(p => p === getMpName());
     const computed =
       snapshot.results && snapshot.payouts
@@ -3377,8 +3391,8 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
         }
       }
     } else if (result === 0) {
-      showMessage(I18N[currentLocale].msg_rematch, "info");
-      setMascotState("thinking", "🤷", I18N[currentLocale].msg_rematch);
+      showMessage(I18N[currentLocale].msg_draw, "info");
+      setMascotState("thinking", "🤷", I18N[currentLocale].msg_draw);
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
     } else {
       showMessage(I18N[currentLocale].msg_lose, "error");
@@ -5083,13 +5097,17 @@ function updateUI() {
     endGameBtn.textContent = currentLocale === "ru" ? "ЗАВЕРШИТЬ" : "END GAME";
   }
   if (rematchBtn) {
-    const showRematch = Boolean(multiplayerRoom && (
-      multiplayerSnapshot?.phase === "done" ||
-      (mpOnChainMode && chainRoom && (chainRoom.status === ROOM_STATUS_FINISHED || chainRoom.status === ROOM_STATUS_TIMEOUT))
-    ));
-    rematchBtn.style.display = showRematch ? "inline-flex" : "none";
-    if (showRematch) {
-      rematchBtn.textContent = I18N[currentLocale].rematch;
+    if (!REMATCH_ENABLED) {
+      rematchBtn.style.display = "none";
+    } else {
+      const showRematch = Boolean(multiplayerRoom && (
+        multiplayerSnapshot?.phase === "done" ||
+        (mpOnChainMode && chainRoom && (chainRoom.status === ROOM_STATUS_FINISHED || chainRoom.status === ROOM_STATUS_TIMEOUT))
+      ));
+      rematchBtn.style.display = showRematch ? "inline-flex" : "none";
+      if (showRematch) {
+        rematchBtn.textContent = I18N[currentLocale].rematch;
+      }
     }
   }
   if (leaveGameBtn) {
