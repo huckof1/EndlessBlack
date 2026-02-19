@@ -1,4 +1,6 @@
-# Endless Pixel Blackjack
+# Endless Pixel Blackjack v2.0
+
+**Multiplayer Edition** - Web3 карточная игра на блокчейне Endless
 
 ```
 ╔═══════════════════════════════════════════════════════════════╗

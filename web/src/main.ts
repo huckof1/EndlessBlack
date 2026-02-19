@@ -165,10 +165,6 @@ const walletPickerBack = document.getElementById("wallet-picker-back") as HTMLBu
 const walletLuffaQrSection = document.getElementById("wallet-luffa-qr-section") as HTMLDivElement;
 const walletLuffaQr = document.getElementById("wallet-luffa-qr") as HTMLDivElement;
 const walletLuffaQrHint = document.getElementById("wallet-luffa-qr-hint") as HTMLDivElement;
-const devOverlay = document.getElementById("dev-overlay") as HTMLDivElement;
-const devOverlayKeys = document.getElementById("dev-overlay-keys") as HTMLPreElement;
-const devOverlayClose = document.getElementById("dev-overlay-close") as HTMLButtonElement;
-const devOverlayOpen = document.getElementById("dev-overlay-open") as HTMLButtonElement;
 const nicknameModal = document.getElementById("nickname-modal") as HTMLDivElement;
 const nicknameInput = document.getElementById("nickname-input") as HTMLInputElement;
 const nicknameSave = document.getElementById("nickname-save") as HTMLButtonElement;
@@ -1502,21 +1498,6 @@ function returnToStartScreen() {
   window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 }
 
-function showDevOverlay(keys: string[]) {
-  if (!devOverlay || !devOverlayKeys) return;
-  devOverlayKeys.textContent = keys.length ? keys.join(", ") : "no keys found";
-  devOverlay.style.display = "flex";
-}
-
-function openLuffaDeepLink() {
-  const url = window.location.href;
-  const deepLink = `luffa://connect?${new URLSearchParams({ url }).toString()}`;
-  window.location.href = deepLink;
-  setTimeout(() => {
-    window.location.href = "https://www.luffa.im/";
-  }, 700);
-}
-
 // ==================== LEADERBOARD DATA ====================
 interface LeaderboardEntry {
   name: string;
@@ -2098,23 +2079,6 @@ function init() {
   if (walletPickerBack) {
     walletPickerBack.addEventListener("click", showWalletPicker);
   }
-  if (devOverlayClose) {
-    devOverlayClose.addEventListener("click", () => {
-      if (devOverlay) devOverlay.style.display = "none";
-    });
-  }
-  if (devOverlayOpen) {
-    devOverlayOpen.addEventListener("click", () => {
-      openLuffaDeepLink();
-    });
-  }
-  window.addEventListener("wallet-debug-keys", (event) => {
-    const keys = (event as CustomEvent<string[]>).detail || [];
-    showDevOverlay(keys);
-    if (!keys.length) {
-      openLuffaDeepLink();
-    }
-  });
   requestAutoConnectInLuffa();
   nicknameSave.addEventListener("click", saveNickname);
   nicknameInput.addEventListener("keypress", (e) => {
