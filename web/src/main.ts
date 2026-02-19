@@ -4663,6 +4663,37 @@ async function handleInviteAccept() {
     return;
   }
   if (isOnChainInvite && chainRoomId && walletAddress) {
+    // Проверяем статус комнаты перед присоединением
+    mpLog(`Checking room ${chainRoomId} status before join...`);
+    try {
+      const roomToCheck = await getRoomOnChain(chainRoomId, networkMode);
+      if (roomToCheck.status === ROOM_STATUS_FINISHED || roomToCheck.status === ROOM_STATUS_TIMEOUT || roomToCheck.status === ROOM_STATUS_CANCELLED) {
+        mpLog(`Room ${chainRoomId} already finished (status=${roomToCheck.status})`);
+        showMessage(
+          currentLocale === "ru"
+            ? "❌ Эта игра уже завершена. Запросите новую ссылку."
+            : "❌ This game already finished. Request a new link.",
+          "error"
+        );
+        setMascotState("sad", "\u{1F61E}", currentLocale === "ru" ? "Игра окончена" : "Game over");
+        markInviteUsed();
+        return;
+      }
+      if (roomToCheck.status === ROOM_STATUS_PLAYING && roomToCheck.guest !== "@0x0" && roomToCheck.guest !== walletAddress) {
+        mpLog(`Room ${chainRoomId} already has guest`);
+        showMessage(
+          currentLocale === "ru"
+            ? "❌ В этой комнате уже есть игрок"
+            : "❌ This room already has a player",
+          "error"
+        );
+        markInviteUsed();
+        return;
+      }
+    } catch (err) {
+      mpLog(`Error checking room status: ${err}`);
+    }
+    
     showMessage(
       currentLocale === "ru" ? "ВХОД В КОМНАТУ..." : "JOINING ROOM...",
       "info"
