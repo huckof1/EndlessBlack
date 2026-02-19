@@ -2195,13 +2195,10 @@ function init() {
     // On-chain room ID from URL
     let room_id_to_use: number | null = null;
     if (inviteRoomId) {
-      // Проверяем, подключен ли кошелек — если нет, игнорируем room_id
-      if (!walletAddress) {
-        console.warn("room_id in URL but wallet not connected, ignoring");
-      } else {
-        room_id_to_use = parseInt(inviteRoomId, 10);
-        amIHost = false;
-      }
+      // Сохраняем room_id даже если кошелёк ещё не подключен
+      room_id_to_use = parseInt(inviteRoomId, 10);
+      chainRoomId = room_id_to_use;
+      amIHost = false;
     }
     const inviteKey = `invite_seen_${room_id_to_use || inviteRoom || "no-room"}_${inviteFrom}`;
     const inviteUniqueKey = `${room_id_to_use || inviteRoom || "no-room"}_${inviteFrom}`;
@@ -4298,7 +4295,27 @@ async function handleInvite() {
     );
     try {
       await createRoomOnChain(betOctas, networkMode);
-      const roomId = await getLatestRoomIdOnChain(networkMode);
+      
+      // Ждём пока комната появится в блокчейне (до 5 секунд)
+      let roomId = 0;
+      let attempts = 0;
+      while (attempts < 10) {
+        roomId = await getLatestRoomIdOnChain(networkMode);
+        if (roomId > 0) {
+          // Проверяем что комната действительно существует
+          const room = await getRoomOnChain(roomId, networkMode);
+          if (room && room.roomId === roomId) {
+            break;
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+      
+      if (roomId === 0) {
+        throw new Error("Room ID not found after 5 seconds");
+      }
+      
       chainRoomId = roomId;
       amIHost = true;
       isRoomHost = true;
