@@ -5213,6 +5213,8 @@ async function handleForfeitReceived(byName: string) {
 // handleConnectWallet removed — was unused
 
 async function handleDisconnectWallet() {
+  const oldWalletAddress = walletAddress;
+  
   try {
     await disconnectWallet();
   } catch (err) {
@@ -5222,6 +5224,11 @@ async function handleDisconnectWallet() {
   isContractOwner = false;
   chainGameId = 0;
   chainGame = null;
+  chainRoomId = null;
+  multiplayerRoom = null;
+  mpOnChainMode = false;
+  isRoomHost = false;
+  amIHost = false;
   isPlaying = false;
   pendingResume = null;
   inGameBalance = 0;
@@ -5229,6 +5236,13 @@ async function handleDisconnectWallet() {
   setWalletStatus(false);
   if (walletAddressEl) walletAddressEl.textContent = "—";
   resetCurrentGameState();
+  
+  // Очищаем localStorage чтобы сессия не восстанавливалась
+  localStorage.removeItem(UI_STATE_KEY);
+  if (oldWalletAddress) {
+    localStorage.removeItem("walletNickname_" + oldWalletAddress);
+  }
+  
   returnToStartScreen();
   showMessage(
     currentLocale === "ru"
