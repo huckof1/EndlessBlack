@@ -1255,57 +1255,94 @@ module pixel_blackjack::blackjack {
 
     /// Internal: finalize room when both players are done
     fun finalize_room(room: &mut Room, game_store: &mut GameStore) {
-        room.status = ROOM_FINISHED;
-
         let host_bust = room.host_score > BLACKJACK;
         let guest_bust = room.guest_score > BLACKJACK;
 
-        let (result, host_payout, guest_payout) = if (host_bust && guest_bust) {
+        let (result, host_payout, guest_payout, is_draw) = if (host_bust && guest_bust) {
             // Both bust -> draw, return net_bet each
-            (3u8, room.net_bet, room.net_bet)
+            (3u8, room.net_bet, room.net_bet, true)
         } else if (host_bust) {
             // Host bust -> guest wins
-            (2u8, 0u128, room.net_bet * 2)
+            (2u8, 0u128, room.net_bet * 2, false)
         } else if (guest_bust) {
             // Guest bust -> host wins
-            (1u8, room.net_bet * 2, 0u128)
+            (1u8, room.net_bet * 2, 0u128, false)
         } else if (room.host_score > room.guest_score) {
-            (1u8, room.net_bet * 2, 0u128)
+            (1u8, room.net_bet * 2, 0u128, false)
         } else if (room.guest_score > room.host_score) {
-            (2u8, 0u128, room.net_bet * 2)
+            (2u8, 0u128, room.net_bet * 2, false)
         } else {
-            // Draw
-            (3u8, room.net_bet, room.net_bet)
+            // Draw - DO NOT payout, keep bets in bankroll for next round
+            (3u8, 0u128, 0u128, true)
         };
 
         room.result = result;
 
-        // Credit payouts to player balances
-        if (host_payout > 0) {
-            if (simple_map::contains_key(&game_store.player_balances, &room.host)) {
-                let balance = simple_map::borrow_mut(&mut game_store.player_balances, &room.host);
-                *balance = *balance + host_payout;
-            } else {
-                simple_map::add(&mut game_store.player_balances, room.host, host_payout);
-            };
-        };
-        if (guest_payout > 0) {
-            if (simple_map::contains_key(&game_store.player_balances, &room.guest)) {
-                let balance = simple_map::borrow_mut(&mut game_store.player_balances, &room.guest);
-                *balance = *balance + guest_payout;
-            } else {
-                simple_map::add(&mut game_store.player_balances, room.guest, guest_payout);
-            };
-        };
+        if (is_draw) {
+            // Ничья — НЕ закрываем комнату, сбрасываем состояние для новой игры
+            // Ставки остаются в bankroll (уже там), просто перезапускаем игру
+            room.status = ROOM_PLAYING;
+            room.host_cards = vector::empty<Card>();
+            room.guest_cards = vector::empty<Card>();
+            room.host_score = 0;
+            room.guest_score = 0;
+            room.deck_index = 0;
+            room.turn = 0;
+            room.host_done = false;
+            room.guest_done = false;
+            room.last_action_at = timestamp::now_seconds();
 
-        let winner = if (result == 1) { room.host } else if (result == 2) { room.guest } else { @0x0 };
-        event::emit(RoomFinished {
-            room_id: room.room_id,
-            result,
-            host_score: room.host_score,
-            guest_score: room.guest_score,
-            winner,
-        });
+            // Раздаём новые карты для следующей игры
+            vector::push_back(&mut room.host_cards, draw_card(room.room_id * 1000, room.deck_index));
+            room.deck_index = room.deck_index + 1;
+            vector::push_back(&mut room.host_cards, draw_card(room.room_id * 1000, room.deck_index));
+            room.deck_index = room.deck_index + 1;
+            vector::push_back(&mut room.guest_cards, draw_card(room.room_id * 1000, room.deck_index));
+            room.deck_index = room.deck_index + 1;
+            vector::push_back(&mut room.guest_cards, draw_card(room.room_id * 1000, room.deck_index));
+            room.deck_index = room.deck_index + 1;
+
+            room.host_score = calculate_score(&room.host_cards);
+            room.guest_score = calculate_score(&room.guest_cards);
+
+            event::emit(RoomFinished {
+                room_id: room.room_id,
+                result,
+                host_score: room.host_score,
+                guest_score: room.guest_score,
+                winner: @0x0,
+            });
+        } else {
+            // Не ничья — закрываем комнату и выплачиваем выигрыш
+            room.status = ROOM_FINISHED;
+
+            // Credit payouts to player balances
+            if (host_payout > 0) {
+                if (simple_map::contains_key(&game_store.player_balances, &room.host)) {
+                    let balance = simple_map::borrow_mut(&mut game_store.player_balances, &room.host);
+                    *balance = *balance + host_payout;
+                } else {
+                    simple_map::add(&mut game_store.player_balances, room.host, host_payout);
+                };
+            };
+            if (guest_payout > 0) {
+                if (simple_map::contains_key(&game_store.player_balances, &room.guest)) {
+                    let balance = simple_map::borrow_mut(&mut game_store.player_balances, &room.guest);
+                    *balance = *balance + guest_payout;
+                } else {
+                    simple_map::add(&mut game_store.player_balances, room.guest, guest_payout);
+                };
+            };
+
+            let winner = if (result == 1) { room.host } else if (result == 2) { room.guest } else { @0x0 };
+            event::emit(RoomFinished {
+                room_id: room.room_id,
+                result,
+                host_score: room.host_score,
+                guest_score: room.guest_score,
+                winner,
+            });
+        };
     }
 
     /// Find room by ID
