@@ -304,6 +304,8 @@ function startIdleMusic() {
   }
 }
 function sendRematchProposal(value: number) {
+  prepareRematchUI();
+  showMessage(I18N[currentLocale].rematch_waiting, "info");
   multiplayer.proposeBet(value);
   if (rematchRetryTimer) {
     window.clearTimeout(rematchRetryTimer);
@@ -412,6 +414,7 @@ const multiplayer = new MultiplayerClient((state) => {
       multiplayerSnapshot.results = undefined;
       multiplayerSnapshot.payouts = undefined;
       multiplayerSnapshot.claimed = undefined;
+      prepareRematchUI();
     }
     multiplayerSnapshot.pendingBet = bet;
     multiplayerSnapshot.pendingBy = event.by;
@@ -2915,6 +2918,29 @@ function refreshHintsLocale() {
   }
 }
 
+function prepareRematchUI() {
+  hasGameResult = false;
+  hideGameResult();
+  if (playerCardsEl) playerCardsEl.innerHTML = "";
+  if (opponentCardsEl) opponentCardsEl.innerHTML = "";
+  if (dealerCardsEl) dealerCardsEl.innerHTML = "";
+  if (playerScoreEl) playerScoreEl.textContent = "-";
+  if (opponentScoreEl) opponentScoreEl.textContent = "-";
+  if (dealerScoreEl) dealerScoreEl.textContent = "-";
+  if (winnerBannerEl) winnerBannerEl.style.display = "none";
+  if (betOffer) betOffer.style.display = "none";
+  if (scoreHint) scoreHint.style.display = "none";
+  if (softBadge) softBadge.style.display = "none";
+  currentPlayerCards = [];
+  prevHandInfo = null;
+  isPlaying = false;
+  setTurn(null);
+  if (turnIndicator) {
+    turnIndicator.style.display = "none";
+    turnIndicator.textContent = "";
+  }
+}
+
 function mpDraw(deck: { suit: number; rank: number }[]) {
   if (deck.length === 0) {
     deck.push(...mpCreateDeck());
@@ -3037,6 +3063,7 @@ function mpIsRematch(snapshot: MultiplayerSnapshot) {
 }
 
 function mpStartRematch(snapshot: MultiplayerSnapshot) {
+  prepareRematchUI();
   const deck = snapshot.deck.length ? snapshot.deck : mpCreateDeck();
   snapshot.hands = snapshot.players.map(() => ({ cards: [mpDraw(deck), mpDraw(deck)], done: false }));
   snapshot.deck = deck;
@@ -3206,6 +3233,18 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
       } else {
         betOffer.style.display = "none";
       }
+    }
+    if (snapshot.pendingBet && snapshot.pendingBy) {
+      if (snapshot.pendingBy === getMpName()) {
+        showMessage(I18N[currentLocale].rematch_waiting, "info");
+      } else {
+        const betText = Number(snapshot.pendingBet).toFixed(2);
+        showMessage(
+          `${I18N[currentLocale].rematch_offer} · ${I18N[currentLocale].rematch_bet_label} ${betText} EDS`,
+          "info"
+        );
+      }
+      setTurn(null);
     }
     return;
   }
