@@ -950,23 +950,28 @@ function pulseDepositButton() {
 
 // Скролл к балансу и подмигивание после изменения
 function highlightBalanceChange(isWin: boolean, _amount: number) {
-  // Скролл к секции баланса
+  // Скролл к балансу (верхняя область с кнопками)
   if (ingameBalanceRow) {
     ingameBalanceRow.scrollIntoView({ behavior: "smooth", block: "center" });
   }
   
   // Подмигивание кнопки депозита (рядом с балансом)
   pulseDepositButton();
-  
+
   // Показываем изменение баланса анимацией
   if (balanceEl) {
     balanceEl.classList.add("balance-flash");
     balanceEl.classList.toggle("balance-win", isWin);
     balanceEl.classList.toggle("balance-lose", !isWin);
-    window.setTimeout(() => {
-      balanceEl.classList.remove("balance-flash", "balance-win", "balance-lose");
-    }, 2000);
   }
+  
+  // Через 2 секунды возвращаем обратно к столу
+  window.setTimeout(() => {
+    if (balanceEl) {
+      balanceEl.classList.remove("balance-flash", "balance-win", "balance-lose");
+    }
+    focusGameplayArea();
+  }, 2000);
 }
 
 function focusBetArea() {
