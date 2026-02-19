@@ -3022,13 +3022,9 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
   const myHand = snapshot.hands[meIndex] || { cards: [] };
   const oppHand = snapshot.hands[oppIndex] || { cards: [] };
   myHand.cards.forEach(card => playerCardsEl.appendChild(renderCard(card)));
-  if (multiplayerRoom && snapshot.phase === "player") {
-    for (let i = 0; i < oppHand.cards.length; i++) {
-      opponentCardsEl.appendChild(renderCardBack());
-    }
-  } else {
-    oppHand.cards.forEach(card => opponentCardsEl.appendChild(renderCard(card)));
-  }
+  
+  // Показываем карты оппонента лицом вверх (честная игра)
+  oppHand.cards.forEach(card => opponentCardsEl.appendChild(renderCard(card)));
 
   dealerScoreEl.textContent = multiplayerRoom
     ? "-"
