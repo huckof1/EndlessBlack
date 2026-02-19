@@ -799,11 +799,21 @@ function renderChainRoom(room: ChainRoom) {
       setTimeout(() => highlightBalanceChange(true, room.betAmount), 800);
     } else if (myResult === "draw") {
       showMessage(
-        currentLocale === "ru" ? "НИЧЬЯ! Раздаём новые карты..." : "DRAW! Dealing new cards...",
+        currentLocale === "ru" ? "НИЧЬЯ!" : "DRAW!",
         "info"
       );
-      setMascotState("thinking", "\u{1F937}", currentLocale === "ru" ? "Ничья! Играем дальше" : "Draw! Play again");
+      setMascotState("thinking", "\u{1F937}", currentLocale === "ru" ? "Ничья!" : "Draw!");
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
+      
+      // Пауза 2 секунды перед переигрышем
+      setTimeout(() => {
+        showMessage(
+          currentLocale === "ru" ? "⚠️ ПЕРЕИГРЫШ! Раздаём новые карты..." : "⚠️ REPLAY! Dealing new cards...",
+          "info"
+        );
+        setMascotState("thinking", "\u{1F3B4}", currentLocale === "ru" ? "Переигрыш!" : "Replay!");
+      }, 2000);
+      
       // Ничья в on-chain мультиплеере — комната остаётся активной, просто сбрасываем карты
       // Контракт уже сбросил состояние и раздал новые карты
       // Просто продолжаем опрос комнаты
