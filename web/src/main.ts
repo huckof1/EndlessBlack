@@ -304,8 +304,7 @@ function startIdleMusic() {
   }
 }
 function sendRematchProposal(value: number) {
-  prepareRematchUI();
-  showMessage(I18N[currentLocale].rematch_waiting, "info");
+  announceFreshMultiplayerGame(I18N[currentLocale].rematch_waiting);
   multiplayer.proposeBet(value);
   if (rematchRetryTimer) {
     window.clearTimeout(rematchRetryTimer);
@@ -404,18 +403,18 @@ const multiplayer = new MultiplayerClient((state) => {
     }
     if (multiplayerSnapshot.phase !== "lobby" && multiplayerSnapshot.phase !== "done") return;
     const bet = Number(event.bet) || 0;
-    if (multiplayerSnapshot.phase === "done") {
-      const bothDone = multiplayerSnapshot.hands.length >= 2 && multiplayerSnapshot.hands.every(h => h.done);
-      if (!bothDone) return;
-      multiplayerSnapshot.phase = "lobby";
-      multiplayerSnapshot.hands = [];
-      multiplayerSnapshot.dealerCards = [];
+      if (multiplayerSnapshot.phase === "done") {
+        const bothDone = multiplayerSnapshot.hands.length >= 2 && multiplayerSnapshot.hands.every(h => h.done);
+        if (!bothDone) return;
+        multiplayerSnapshot.phase = "lobby";
+        multiplayerSnapshot.hands = [];
+        multiplayerSnapshot.dealerCards = [];
       multiplayerSnapshot.turnIndex = null;
       multiplayerSnapshot.results = undefined;
       multiplayerSnapshot.payouts = undefined;
       multiplayerSnapshot.claimed = undefined;
-      prepareRematchUI();
-    }
+      announceFreshMultiplayerGame(I18N[currentLocale].rematch_waiting);
+      }
     multiplayerSnapshot.pendingBet = bet;
     multiplayerSnapshot.pendingBy = event.by;
     multiplayerSnapshot.agreed = false;
@@ -2962,6 +2961,14 @@ function prepareRematchUI() {
   }
 }
 
+function announceFreshMultiplayerGame(message?: string) {
+  prepareRematchUI();
+  setMascotState("idle", "👍", I18N[currentLocale].mascot_idle);
+  const text = message
+    ?? (currentLocale === "ru" ? "ЖДЁМ ОППОНЕНТА..." : "WAITING FOR OPPONENT...");
+  showMessage(text, "info");
+}
+
 function mpDraw(deck: { suit: number; rank: number }[]) {
   if (deck.length === 0) {
     deck.push(...mpCreateDeck());
@@ -3084,7 +3091,7 @@ function mpIsRematch(snapshot: MultiplayerSnapshot) {
 }
 
 function mpStartRematch(snapshot: MultiplayerSnapshot) {
-  prepareRematchUI();
+  announceFreshMultiplayerGame();
   const deck = snapshot.deck.length ? snapshot.deck : mpCreateDeck();
   snapshot.hands = snapshot.players.map(() => ({ cards: [mpDraw(deck), mpDraw(deck)], done: false }));
   snapshot.deck = deck;
