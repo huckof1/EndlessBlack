@@ -51,6 +51,25 @@
 
 ---
 
+## 👥 PvP Invitation
+
+**To play with a friend:**
+
+1. Click **"INVITE TO GAME"** in the app
+2. Enter your bet amount
+3. Click **"SEND INVITE"**
+4. Download the QR code and send it to your friend
+5. Your friend scans the QR with Luffa app
+6. Game starts when both players are ready!
+
+**The invitation QR contains:**
+- Your username
+- Bet amount
+- Room ID
+- Game mode (testnet/mainnet)
+
+---
+
 ## Description
 
 **Endless Pixel Blackjack** is a Web3 card game with pixel graphics on the Endless blockchain:

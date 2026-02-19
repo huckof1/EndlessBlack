@@ -1214,6 +1214,10 @@ export async function claimTimeout(roomId: number, networkMode?: "testnet" | "ma
   return await submitEntryFunction("claim_timeout", [roomId], networkMode);
 }
 
+export async function leaveRoom(roomId: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("leave_room", [roomId], networkMode);
+}
+
 export async function getRoom(roomId: number, networkMode?: "testnet" | "mainnet"): Promise<ChainRoom> {
   const data = await viewAny("get_room", [roomId], networkMode);
   return {

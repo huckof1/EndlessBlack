@@ -32,6 +32,7 @@ import {
   roomStand as roomStandOnChain,
   cancelRoom as cancelRoomOnChain,
   claimTimeout as claimTimeoutOnChain,
+  leaveRoom as leaveRoomOnChain,
   getRoom as getRoomOnChain,
   getLatestRoomId as getLatestRoomIdOnChain,
   getPlayerStats,
@@ -5101,14 +5102,23 @@ function finishActiveRoom() {
 async function handleLeaveGame() {
   if (!multiplayerRoom) return;
 
-  // On-chain room: cancel if waiting, otherwise just leave (opponent can claim timeout)
+  // On-chain room: cancel if waiting, leave if playing (get refund)
   if (chainRoomId && mpOnChainMode && walletAddress) {
     if (chainRoom && chainRoom.status === ROOM_STATUS_WAITING && amIHost) {
       try {
         await cancelRoomOnChain(chainRoomId, networkMode);
-        mpLog(`Room ${chainRoomId} cancelled`);
+        mpLog(`Room ${chainRoomId} cancelled - bet refunded`);
       } catch (err) {
         mpLog(`cancel_room error: ${err}`);
+      }
+    } else if (chainRoom && chainRoom.status === ROOM_STATUS_PLAYING) {
+      // Leave room and get refund (if haven't made a move)
+      try {
+        await leaveRoomOnChain(chainRoomId, networkMode);
+        mpLog(`Room ${chainRoomId} left - bet refunded`);
+      } catch (err) {
+        mpLog(`leave_room error: ${err}`);
+        // If leave fails (already made move), opponent can claim timeout
       }
     }
     // If game is in progress, the opponent can claim timeout after 5 min

@@ -1289,6 +1289,46 @@ module pixel_blackjack::blackjack {
         event::emit(RoomTimeoutEvent { room_id, claimer: player_addr });
     }
 
+    /// Leave a room and get refund (if game hasn't finished)
+    public entry fun leave_room(
+        player: &signer,
+        room_id: u64,
+    ) acquires GameStore, RoomStore {
+        let player_addr = signer::address_of(player);
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow_mut(&mut room_store.rooms, room_idx);
+
+        assert!(room.status == ROOM_PLAYING, E_ROOM_NOT_PLAYING);
+        let is_host = player_addr == room.host;
+        let is_guest = player_addr == room.guest;
+        assert!(is_host || is_guest, E_NOT_PARTICIPANT);
+
+        // Can only leave if you haven't made a move yet (not done)
+        let can_leave = if (is_host) { !room.host_done } else { !room.guest_done };
+        assert!(can_leave, E_PLAYER_ALREADY_DONE);
+
+        // Refund full bet to player
+        let refund = room.bet_amount;
+        if (simple_map::contains_key(&game_store.player_balances, &player_addr)) {
+            let balance = simple_map::borrow_mut(&mut game_store.player_balances, &player_addr);
+            *balance = *balance + refund;
+        } else {
+            simple_map::add(&mut game_store.player_balances, player_addr, refund);
+        };
+
+        // Mark player as done so opponent can claim timeout
+        if (is_host) {
+            room.host_done = true;
+        } else {
+            room.guest_done = true;
+        };
+
+        event::emit(RoomCancelled { room_id, host: player_addr });
+    }
+
     /// Internal: finalize room when both players are done
     fun finalize_room(room: &mut Room, game_store: &mut GameStore) {
         let host_bust = room.host_score > BLACKJACK;
