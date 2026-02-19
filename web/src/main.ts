@@ -2734,6 +2734,30 @@ function mpFinalizeResults(snapshot: MultiplayerSnapshot) {
     scheduleDrawContinuation(snapshot);
     return;
   }
+  
+  // Показываем уведомления о победе/поражении в мультиплеере
+  const meIndex = snapshot.players.findIndex(p => p === getMpName());
+  if (meIndex !== -1 && snapshot.results[meIndex] !== undefined) {
+    const myResult = snapshot.results[meIndex];
+    const betEds = formatEDS(snapshot.bet);
+    
+    if (myResult === 1) {
+      // Победа
+      showMessage(
+        currentLocale === "ru" ? `ПОБЕДА! +${betEds}` : `YOU WIN! +${betEds}`,
+        "success"
+      );
+      setMascotState("excited", "\u{1F929}", currentLocale === "ru" ? "ПОБЕДА!" : "YOU WIN!");
+    } else if (myResult === -1) {
+      // Поражение
+      showMessage(
+        currentLocale === "ru" ? `ПОРАЖЕНИЕ -${betEds}` : `YOU LOSE -${betEds}`,
+        "error"
+      );
+      setMascotState("sad", "\u{1F61E}", currentLocale === "ru" ? "Поражение..." : "You lose...");
+    }
+  }
+  
   // Trigger on-chain payouts (fire-and-forget)
   if (mpOnChainMode && mpBetsDeducted && isRoomHost) {
     mpCreditOnChainPayouts(snapshot).catch(err => {
