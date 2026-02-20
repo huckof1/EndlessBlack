@@ -682,7 +682,6 @@ function renderChainRoom(room: ChainRoom) {
   const myScore = myIdx === 0 ? room.hostScore : room.guestScore;
   const oppScore = oppIdx === 0 ? room.hostScore : room.guestScore;
   const myDone = myIdx === 0 ? room.hostDone : room.guestDone;
-  const oppDone = oppIdx === 0 ? room.hostDone : room.guestDone;
 
   // Show opponent name in dealer label
   const oppAddr = oppIdx === 0 ? room.host : room.guest;
@@ -690,22 +689,18 @@ function renderChainRoom(room: ChainRoom) {
   if (dealerNameEl) dealerNameEl.textContent = oppAddr.slice(0, 8) + "...";
 
   // Render MY cards at bottom (player area) - only add new cards, no flicker
-  const showOppCards = room.status !== ROOM_STATUS_PLAYING || oppDone;
+  const showOppCards = true;  // Всегда показываем карты оппонента (честная игра)
   lastRenderedMyCardCount = renderCardsIfChanged(playerCardsEl, myCards, lastRenderedMyCardCount, false);
 
-  // Render OPPONENT cards at top (dealer area) - hidden during play unless opp is done
+  // Render OPPONENT cards at top (dealer area) - always face up
   if (showOppCards !== lastRenderedOppDone || oppCards.length !== lastRenderedOppCardCount) {
-    lastRenderedOppCardCount = renderCardsIfChanged(dealerCardsEl, oppCards, lastRenderedOppCardCount, !showOppCards);
+    lastRenderedOppCardCount = renderCardsIfChanged(dealerCardsEl, oppCards, lastRenderedOppCardCount, false);
     lastRenderedOppDone = showOppCards;
   }
 
   // Scores
   playerScoreEl.textContent = myScore.toString();
-  if (!showOppCards) {
-    dealerScoreEl.textContent = oppCards.length + " cards";
-  } else {
-    dealerScoreEl.textContent = oppScore.toString();
-  }
+  dealerScoreEl.textContent = oppScore.toString();
 
   // Update player hints
   updatePlayerHints(myCards);
