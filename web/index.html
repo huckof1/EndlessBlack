@@ -50,6 +50,7 @@
         <button id="deposit-btn-header" class="sound-btn sound-btn-wide" style="display:none">DEPOSIT</button>
         <button id="withdraw-btn-header" class="sound-btn sound-btn-wide" style="display:none">WITHDRAW</button>
         <button id="fund-bank-header" class="sound-btn sound-btn-wide" style="display:none">FUND BANK</button>
+        <button id="withdraw-fees-header" class="sound-btn sound-btn-wide" style="display:none">WITHDRAW FEES</button>
         <button id="init-rooms-btn" class="sound-btn sound-btn-wide" style="display:none">INIT ROOMS</button>
         <button id="faucet-btn" class="sound-btn sound-btn-wide" style="display:none">GET EDS</button>
         <button id="change-login-header" class="sound-btn sound-btn-wide" data-i18n="change_login">CHANGE LOGIN</button>
@@ -254,6 +255,10 @@
           <span class="label" data-i18n="bankroll">BANKROLL:</span>
           <span id="bankroll">0.00 EDS</span>
         </div>
+        <div class="wallet-item" id="treasury-row" style="display:none">
+          <span class="label">TREASURY:</span>
+          <span id="treasury">0.00 EDS</span>
+        </div>
         <div class="wallet-item">
           <span class="label" data-i18n="bet_fee">BET FEE:</span>
           <span id="bet-fee">0.00 EDS</span>
@@ -325,6 +330,24 @@
         <div class="modal-actions">
           <button id="fund-modal-confirm" class="btn btn-small" style="background: #28a745;">OK</button>
           <button id="fund-modal-cancel" class="btn btn-small">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="withdraw-fees-modal" class="modal" style="display: none;">
+      <div class="modal-content wallet-picker-content">
+        <div class="modal-title">WITHDRAW FEES</div>
+        <div style="padding: 16px; text-align: center;">
+          <label style="color: #ccc; font-size: 14px; display: block; margin-bottom: 8px;">EDS:</label>
+          <input id="withdraw-fees-amount-input" type="number" min="0.1" step="0.1" value="0" style="
+            width: 120px; padding: 8px 12px; font-size: 18px; text-align: center;
+            background: #1a1a2e; color: #fff; border: 2px solid #ffd700;
+            border-radius: 8px; outline: none; font-family: inherit;
+          " />
+        </div>
+        <div class="modal-actions">
+          <button id="withdraw-fees-modal-confirm" class="btn btn-small" style="background: #28a745;">OK</button>
+          <button id="withdraw-fees-modal-cancel" class="btn btn-small">CANCEL</button>
         </div>
       </div>
     </div>

@@ -16,6 +16,7 @@ import {
   disconnectWallet,
   requestFaucet,
   fundBankroll,
+  withdrawFees,
   deposit as depositOnChain,
   withdraw as withdrawOnChain,
   getPlayerBalance as getPlayerBalanceOnChain,
@@ -149,6 +150,13 @@ const fundModal = document.getElementById("fund-modal") as HTMLDivElement;
 const fundAmountInput = document.getElementById("fund-amount-input") as HTMLInputElement;
 const fundModalConfirm = document.getElementById("fund-modal-confirm") as HTMLButtonElement;
 const fundModalCancel = document.getElementById("fund-modal-cancel") as HTMLButtonElement;
+const treasuryRow = document.getElementById("treasury-row") as HTMLDivElement;
+const treasuryEl = document.getElementById("treasury") as HTMLSpanElement;
+const withdrawFeesHeader = document.getElementById("withdraw-fees-header") as HTMLButtonElement;
+const withdrawFeesModal = document.getElementById("withdraw-fees-modal") as HTMLDivElement;
+const withdrawFeesAmountInput = document.getElementById("withdraw-fees-amount-input") as HTMLInputElement;
+const withdrawFeesModalConfirm = document.getElementById("withdraw-fees-modal-confirm") as HTMLButtonElement;
+const withdrawFeesModalCancel = document.getElementById("withdraw-fees-modal-cancel") as HTMLButtonElement;
 const depositBtnHeader = document.getElementById("deposit-btn-header") as HTMLButtonElement;
 const withdrawBtnHeader = document.getElementById("withdraw-btn-header") as HTMLButtonElement;
 const depositModal = document.getElementById("deposit-modal") as HTMLDivElement;
@@ -2104,6 +2112,19 @@ function init() {
   if (fundModalCancel) {
     fundModalCancel.addEventListener("click", () => {
       if (fundModal) fundModal.style.display = "none";
+    });
+  }
+
+  // Withdraw fees button - owner only
+  if (withdrawFeesHeader) {
+    withdrawFeesHeader.addEventListener("click", () => handleWithdrawFees());
+  }
+  if (withdrawFeesModalConfirm) {
+    withdrawFeesModalConfirm.addEventListener("click", () => executeWithdrawFees());
+  }
+  if (withdrawFeesModalCancel) {
+    withdrawFeesModalCancel.addEventListener("click", () => {
+      if (withdrawFeesModal) withdrawFeesModal.style.display = "none";
     });
   }
 
@@ -4211,6 +4232,7 @@ async function updateBank() {
     currentBankrollOctas = info.bankroll;
     bankrollEl.textContent = formatEDS(currentBankrollOctas);
     if (betFeeEl) betFeeEl.textContent = formatEDS(0);
+    if (treasuryEl) treasuryEl.textContent = formatEDS(info.treasury);
     currentFeeBps = info.feeBps;
     feeEl.textContent = (currentFeeBps / 100).toFixed(2) + "%";
     updateFeeFromBet();
@@ -5061,6 +5083,12 @@ function updateUI() {
     fundBankHeader.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
     fundBankHeader.textContent = I18N[currentLocale].fund_bank;
   }
+  if (withdrawFeesHeader) {
+    withdrawFeesHeader.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
+  }
+  if (treasuryRow) {
+    treasuryRow.style.display = (walletAddress && isContractOwner) ? "flex" : "none";
+  }
   const initRoomsBtn = document.getElementById("init-rooms-btn") as HTMLButtonElement;
   if (initRoomsBtn) {
     initRoomsBtn.style.display = (walletAddress && isContractOwner) ? "inline-flex" : "none";
@@ -5545,6 +5573,56 @@ async function executeFundBankroll() {
     );
   } finally {
     if (fundBankHeader) fundBankHeader.disabled = false;
+  }
+}
+
+// ==================== WITHDRAW FEES (owner) ====================
+
+function handleWithdrawFees() {
+  if (!walletAddress) return;
+  if (withdrawFeesModal) {
+    // Pre-fill with current treasury amount
+    const currentText = treasuryEl?.textContent || "0";
+    const edsVal = parseFloat(currentText.replace(/[^0-9.]/g, "")) || 0;
+    if (withdrawFeesAmountInput) withdrawFeesAmountInput.value = edsVal.toFixed(2);
+    withdrawFeesModal.style.display = "flex";
+  }
+}
+
+async function executeWithdrawFees() {
+  if (!walletAddress) return;
+  const edsAmount = parseFloat(withdrawFeesAmountInput?.value || "0");
+  if (isNaN(edsAmount) || edsAmount <= 0) return;
+  const octas = Math.floor(edsAmount * 100000000);
+  if (withdrawFeesModal) withdrawFeesModal.style.display = "none";
+  try {
+    if (withdrawFeesHeader) withdrawFeesHeader.disabled = true;
+    showMessage(
+      currentLocale === "ru"
+        ? "Вывод комиссий... Подтвердите в кошельке."
+        : "Withdrawing fees... Confirm in wallet.",
+      "info"
+    );
+    await withdrawFees(octas, walletAddress, networkMode);
+    await updateBank();
+    await updateBalance();
+    showMessage(
+      currentLocale === "ru"
+        ? `Комиссии ${edsAmount.toFixed(2)} EDS выведены!`
+        : `Fees ${edsAmount.toFixed(2)} EDS withdrawn!`,
+      "success"
+    );
+  } catch (err: any) {
+    console.error("Withdraw fees failed:", err);
+    const errMsg = err?.message || err?.toString?.() || String(err);
+    showMessage(
+      currentLocale === "ru"
+        ? `Ошибка вывода комиссий: ${errMsg}`
+        : `Withdraw fees error: ${errMsg}`,
+      "error"
+    );
+  } finally {
+    if (withdrawFeesHeader) withdrawFeesHeader.disabled = false;
   }
 }
 
