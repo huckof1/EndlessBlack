@@ -114,6 +114,16 @@ const continueBtn = document.getElementById("continue-btn") as HTMLButtonElement
 const endGameBtn = document.getElementById("end-game-btn") as HTMLButtonElement;
 const gameResultAmount = document.getElementById("game-result-amount") as HTMLSpanElement;
 const leaveGameBtn = document.getElementById("leave-game-btn") as HTMLButtonElement;
+const rematchPanel = document.getElementById("rematch-panel") as HTMLDivElement;
+const rematchStatus = document.getElementById("rematch-status") as HTMLDivElement;
+const rematchActions = document.getElementById("rematch-actions") as HTMLDivElement;
+const rematchBetInput = document.getElementById("rematch-bet") as HTMLInputElement;
+const rematchProposeBtn = document.getElementById("rematch-propose-btn") as HTMLButtonElement;
+const rematchLeaveBtn = document.getElementById("rematch-leave-btn") as HTMLButtonElement;
+const rematchOffer = document.getElementById("rematch-offer") as HTMLDivElement;
+const rematchOfferText = document.getElementById("rematch-offer-text") as HTMLDivElement;
+const rematchAcceptBtn = document.getElementById("rematch-accept-btn") as HTMLButtonElement;
+const rematchDeclineBtn = document.getElementById("rematch-decline-btn") as HTMLButtonElement;
 const themeToggle = document.getElementById("theme-toggle") as HTMLButtonElement;
 const themeIcon = document.getElementById("theme-icon") as HTMLSpanElement;
 const langToggle = document.getElementById("lang-toggle") as HTMLButtonElement;
@@ -415,6 +425,22 @@ const multiplayer = new MultiplayerClient((state) => {
     handleForfeitReceived(event.by as string);
     return;
   }
+  // реванш: выход из комнаты — обрабатывается всеми игроками
+  if (event.type === "game:rematch_leave") {
+    if (event.by !== getMpName()) {
+      hideRematchPanel();
+      showMessage(
+        currentLocale === "ru" ? "Оппонент вышел из игры" : "Opponent left the game",
+        "info"
+      );
+      setTimeout(() => {
+        multiplayer.disconnect();
+        cleanupMultiplayer();
+        returnToStartScreen();
+      }, 2000);
+    }
+    return;
+  }
   if (!isRoomHost) return;
   if (!multiplayerSnapshot) {
     const players = multiplayerState?.players?.length ? multiplayerState.players : [playerName];
@@ -462,6 +488,7 @@ const multiplayer = new MultiplayerClient((state) => {
     }
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
     showDebugState("bet_accept");
+    hideRematchPanel();
     // Скрыть секцию приглашения
     mpWaitingForGuest = false;
     const shareEl = document.getElementById("invite-share");
@@ -488,11 +515,15 @@ const multiplayer = new MultiplayerClient((state) => {
     if (shareDecl) shareDecl.style.display = "none";
     showMessage(
       currentLocale === "ru"
-        ? "ИГРОК ОТКЛОНИЛ ПРИГЛАШЕНИЕ"
-        : "PLAYER DECLINED THE INVITE",
+        ? "СТАВКА ОТКЛОНЕНА"
+        : "BET DECLINED",
       "error"
     );
     playSound("lose");
+    // Show rematch panel again so both can propose new bet
+    if (multiplayerRoom && multiplayerSnapshot.phase === "lobby") {
+      showRematchPanel(multiplayerSnapshot.bet || 1);
+    }
   }
   if (event.type === "game:hit") {
     applyMultiplayerHit();
@@ -1952,6 +1983,42 @@ function init() {
       }
     });
   }
+  // Rematch panel buttons
+  if (rematchProposeBtn) {
+    rematchProposeBtn.addEventListener("click", () => {
+      const bet = parseFloat(rematchBetInput.value) || 1;
+      multiplayer.proposeBet(bet);
+      rematchProposeBtn.disabled = true;
+      rematchStatus.textContent = currentLocale === "ru"
+        ? "Ожидание ответа оппонента..."
+        : "Waiting for opponent...";
+      rematchActions.style.display = "none";
+    });
+  }
+  if (rematchLeaveBtn) {
+    rematchLeaveBtn.addEventListener("click", () => {
+      multiplayer.rematchLeave();
+      hideRematchPanel();
+      multiplayer.disconnect();
+      cleanupMultiplayer();
+      returnToStartScreen();
+    });
+  }
+  if (rematchAcceptBtn) {
+    rematchAcceptBtn.addEventListener("click", () => {
+      multiplayer.acceptBet();
+      hideRematchPanel();
+    });
+  }
+  if (rematchDeclineBtn) {
+    rematchDeclineBtn.addEventListener("click", () => {
+      multiplayer.declineBet();
+      rematchOffer.style.display = "none";
+      rematchActions.style.display = "flex";
+      rematchProposeBtn.disabled = false;
+      rematchStatus.textContent = "";
+    });
+  }
   // Claim timeout button (on-chain rooms)
   const claimTimeoutBtnInit = document.getElementById("claim-timeout-btn") as HTMLButtonElement;
   if (claimTimeoutBtnInit) {
@@ -2851,24 +2918,23 @@ function applyMultiplayerHit() {
   hand.cards.push(mpDraw(multiplayerSnapshot.deck));
   const score = mpScore(hand.cards);
   
-  // Проверяем перебор (>21) — автоматический конец хода
-  if (score > 21) {
+  // Перебор (>21) или ровно 21 — автоматический конец хода
+  if (score > 21 || score === 21) {
     hand.done = true;
+    // Переход хода к следующему игроку (только при bust/21)
+    const nextIndex = mpNextTurn(multiplayerSnapshot, meIndex);
+    if (nextIndex !== null) {
+      const delayMs = 600 + Math.floor(Math.random() * 700);
+      multiplayerSnapshot.turnIndex = null;
+      multiplayerSnapshot.pendingTurn = { nextIndex, until: Date.now() + delayMs };
+    } else {
+      multiplayerSnapshot.turnIndex = null;
+      multiplayerSnapshot.pendingTurn = null;
+    }
   }
-  // При 21 или меньше — игрок продолжает ходить пока не нажмёт STAND
-  
-  // Переход хода к следующему игроку
-  const nextIndex = mpNextTurn(multiplayerSnapshot, meIndex);
-  if (nextIndex !== null) {
-    const delayMs = 600 + Math.floor(Math.random() * 700);
-    multiplayerSnapshot.turnIndex = null;
-    multiplayerSnapshot.pendingTurn = { nextIndex, until: Date.now() + delayMs };
-  } else {
-    multiplayerSnapshot.turnIndex = null;
-    multiplayerSnapshot.pendingTurn = null;
-  }
-  
-  // Игра заканчивается только когда ВСЕ игроки сделали ход (stand или bust)
+  // При < 21 — игрок продолжает ходить, ход НЕ переходит
+
+  // Игра заканчивается когда ВСЕ игроки завершили (stand или bust)
   if (multiplayerSnapshot.hands.every(h => h.done)) {
     multiplayerSnapshot.phase = "done";
     multiplayerSnapshot.turnIndex = null;
@@ -2964,6 +3030,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     startGameMusic();
   }
   if (snapshot.phase === "player" && prevPhase !== "player") {
+    hideRematchPanel();
     focusGameplayArea();
   }
 
@@ -2983,6 +3050,48 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     }
   }
   if (!snapshot.hands || snapshot.hands.length < 2) {
+    // Rematch flow: lobby with pendingBet after a done phase (or rematch panel already visible)
+    const rematchPanelVisible = rematchPanel && rematchPanel.style.display !== "none";
+    const isRematchFlow = multiplayerRoom && snapshot.phase === "lobby" && snapshot.pendingBet && (prevPhase === "done" || rematchPanelVisible);
+    if (isRematchFlow && snapshot.pendingBy && snapshot.pendingBy !== getMpName()) {
+      // Opponent proposed rematch — show in rematch panel
+      if (betOffer) betOffer.style.display = "none";
+      if (rematchPanel) rematchPanel.style.display = "flex";
+      rematchActions.style.display = "none";
+      rematchOffer.style.display = "flex";
+      const betText = Number(snapshot.pendingBet).toFixed(2);
+      rematchOfferText.textContent = currentLocale === "ru"
+        ? `${displayName(snapshot.pendingBy)} предлагает реванш: ${betText} EDS`
+        : `${displayName(snapshot.pendingBy)} offers rematch: ${betText} EDS`;
+      rematchStatus.textContent = "";
+      showMessage(
+        currentLocale === "ru"
+          ? `${displayName(snapshot.pendingBy)} предлагает реванш: ${betText} EDS`
+          : `${displayName(snapshot.pendingBy)} offers rematch: ${betText} EDS`,
+        "info"
+      );
+      setTurn(null);
+      return;
+    }
+    if (isRematchFlow && snapshot.pendingBy === getMpName()) {
+      // We proposed rematch — show waiting status
+      if (betOffer) betOffer.style.display = "none";
+      if (rematchPanel) rematchPanel.style.display = "flex";
+      rematchActions.style.display = "none";
+      rematchOffer.style.display = "none";
+      rematchStatus.textContent = currentLocale === "ru"
+        ? "Ожидание ответа оппонента..."
+        : "Waiting for opponent...";
+      showMessage(
+        currentLocale === "ru"
+          ? "Ожидание ответа оппонента..."
+          : "Waiting for opponent...",
+        "info"
+      );
+      setTurn(null);
+      return;
+    }
+    // Normal lobby bet offer (not rematch)
     if (betOffer && betOfferText) {
       if (snapshot.pendingBet && snapshot.pendingBy && snapshot.pendingBy !== getMpName()) {
         betOffer.style.display = "block";
@@ -3035,10 +3144,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
       ? "?"
       : mpScore(snapshot.dealerCards).toString();
   playerScoreEl.textContent = mpScore(myHand.cards).toString();
-  opponentScoreEl.textContent =
-    multiplayerRoom && snapshot.phase === "player"
-      ? oppHand.cards.length.toString()
-      : mpScore(oppHand.cards).toString();
+  opponentScoreEl.textContent = mpScore(oppHand.cards).toString();
 
   if (snapshot.bet && betInput) {
     betInput.value = snapshot.bet.toString();
@@ -3107,16 +3213,27 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
           localStorage.setItem("mpPayoutBucket", "0");
         }
       }
-      finishActiveRoom();
+      if (multiplayerRoom) {
+        showRematchPanel(snapshot.bet);
+      } else {
+        finishActiveRoom();
+      }
     } else if (result === 0) {
       showMessage(I18N[currentLocale].msg_draw, "info");
       setMascotState("thinking", "🤷", I18N[currentLocale].msg_draw);
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
+      if (multiplayerRoom) {
+        showRematchPanel(snapshot.bet);
+      }
     } else {
       showMessage(I18N[currentLocale].msg_lose, "error");
       setMascotState("sad", "😞", I18N[currentLocale].msg_lose);
       if (winnerBannerEl) winnerBannerEl.style.display = "none";
-      finishActiveRoom();
+      if (multiplayerRoom) {
+        showRematchPanel(snapshot.bet);
+      } else {
+        finishActiveRoom();
+      }
     }
     const winners = computed.results
       .map((r, i) => (r === 1 ? players[i] : null))
@@ -5039,6 +5156,7 @@ function cleanupMultiplayer() {
   if (winnerBannerEl) winnerBannerEl.style.display = "none";
   if (betOffer) betOffer.style.display = "none";
   if (turnIndicator) turnIndicator.style.display = "none";
+  hideRematchPanel();
   if (dealerHandEl) {
     dealerHandEl.style.display = "flex";
     const dealerNameEl = dealerHandEl.querySelector(".hand-name") as HTMLSpanElement;
@@ -5079,6 +5197,25 @@ function markInviteUsed() {
     localStorage.setItem(getInviteUsedStorageKey(inviteLinkKey), "1");
   }
   hideInviteShareSection();
+}
+
+function showRematchPanel(lastBet: number) {
+  if (!rematchPanel) return;
+  rematchPanel.style.display = "flex";
+  rematchBetInput.value = lastBet.toString();
+  rematchStatus.textContent = "";
+  rematchActions.style.display = "flex";
+  rematchOffer.style.display = "none";
+  rematchProposeBtn.disabled = false;
+  rematchProposeBtn.textContent = currentLocale === "ru" ? "РЕВАНШ" : "REMATCH";
+  rematchLeaveBtn.textContent = currentLocale === "ru" ? "ВЫЙТИ" : "EXIT";
+  rematchAcceptBtn.textContent = currentLocale === "ru" ? "ПРИНЯТЬ" : "ACCEPT";
+  rematchDeclineBtn.textContent = currentLocale === "ru" ? "ОТКЛОНИТЬ" : "DECLINE";
+}
+
+function hideRematchPanel() {
+  if (rematchPanel) rematchPanel.style.display = "none";
+  if (rematchOffer) rematchOffer.style.display = "none";
 }
 
 function finishActiveRoom() {

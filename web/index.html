@@ -152,6 +152,21 @@
       <!-- Сообщение -->
       <div id="message" class="message" data-i18n="msg_place_bet">PLACE YOUR BET AND LET THE DEALER DEAL!</div>
       <div id="winner-banner" class="winner-banner" style="display: none;"></div>
+      <div id="rematch-panel" class="invite-banner" style="display:none; flex-direction: column; gap: 8px; margin-top: 8px;">
+        <div id="rematch-status" style="font-size: 14px; color: #ffd700; text-align: center;"></div>
+        <div id="rematch-actions" style="display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap;">
+          <input id="rematch-bet" type="number" class="input" style="width: 80px; text-align: center; font-size: 14px;" />
+          <button id="rematch-propose-btn" class="btn btn-success btn-small">REMATCH</button>
+          <button id="rematch-leave-btn" class="btn btn-small">EXIT</button>
+        </div>
+        <div id="rematch-offer" class="invite-banner" style="display:none; margin-top: 4px;">
+          <div id="rematch-offer-text" class="invite-text"></div>
+          <div class="invite-actions">
+            <button id="rematch-accept-btn" class="btn btn-success btn-small">ACCEPT</button>
+            <button id="rematch-decline-btn" class="btn btn-small">DECLINE</button>
+          </div>
+        </div>
+      </div>
       <!-- mp-debug removed -->
       <div id="turn-indicator" class="turn-indicator" style="display: none;"></div>
       <div id="tx-status" class="tx-status" style="display: none;"></div>

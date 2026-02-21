@@ -36,6 +36,7 @@ type HitEvent = { type: "game:hit"; by: string };
 type StandEvent = { type: "game:stand"; by: string };
 type WalletInfoEvent = { type: "game:wallet_info"; by: string; address: string };
 type ForfeitEvent = { type: "game:forfeit"; by: string };
+type RematchLeaveEvent = { type: "game:rematch_leave"; by: string };
 
 type GameEvent =
   | JoinEvent
@@ -49,7 +50,8 @@ type GameEvent =
   | HitEvent
   | StandEvent
   | WalletInfoEvent
-  | ForfeitEvent;
+  | ForfeitEvent
+  | RematchLeaveEvent;
 
 const NTFY_BASE = "https://ntfy.sh";
 const NTFY_WS = "wss://ntfy.sh";
@@ -168,6 +170,10 @@ export class MultiplayerClient {
 
   forfeit() {
     this.sendEvent({ type: "game:forfeit", by: this.name } satisfies ForfeitEvent);
+  }
+
+  rematchLeave() {
+    this.sendEvent({ type: "game:rematch_leave", by: this.name } satisfies RematchLeaveEvent);
   }
 
   disconnect() {
