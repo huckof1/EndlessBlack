@@ -1112,12 +1112,8 @@ module pixel_blackjack::blackjack {
                     room.turn = 1;
                 };
             } else {
-                // Host < 21, continue normally
-                if (room.guest_done) {
-                    finalize_room(room, game_store);
-                } else {
-                    room.turn = 1;
-                };
+                // Host < 21: host continues turn until stand / bust / 21
+                room.turn = 0;
             };
         } else {
             assert!(room.turn == 1, E_NOT_YOUR_TURN);
@@ -1152,12 +1148,8 @@ module pixel_blackjack::blackjack {
                     room.turn = 0;
                 };
             } else {
-                // Guest < 21, continue normally
-                if (room.host_done) {
-                    finalize_room(room, game_store);
-                } else {
-                    room.turn = 0;
-                };
+                // Guest < 21: guest continues turn until stand / bust / 21
+                room.turn = 1;
             };
         };
     }
