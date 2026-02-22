@@ -3890,7 +3890,8 @@ async function handleHit() {
       setTurn(null);
       if (!isDemoActive() && walletAddress) {
         game.recordOnChainResult(2, gameState.betAmount, 0);
-        await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
+        // Do not block lose effect on network sync.
+        void syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
       }
       await showLoseEffect(gameState.betAmount);
     } else if (gameState.playerScore === 21) {
@@ -4006,14 +4007,16 @@ async function handleStand() {
     const result = gameState.result;
     const bet = gameState.betAmount;
 
-    // Credit payout for wins/draws (on-chain only)
+    // Credit payout / sync (on-chain only) in background to avoid delaying result effects.
+    let postResultSync: Promise<void> | null = null;
     if (!isDemoActive() && walletAddress && gameState.payoutDue > 0) {
-      debugLogLine(`PAYOUT credit: ${gameState.payoutDue} octas (result=${result})`);
-      await creditPayout(walletAddress, gameState.payoutDue, networkMode);
-      await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
+      postResultSync = (async () => {
+        debugLogLine(`PAYOUT credit: ${gameState.payoutDue} octas (result=${result})`);
+        await creditPayout(walletAddress, gameState.payoutDue, networkMode);
+        await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
+      })();
     } else if (!isDemoActive() && walletAddress) {
-      // Loss — just refresh balances
-      await syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
+      postResultSync = syncOnChainHudAfterTx(prevInGameBalance, prevBankroll);
     }
 
     // Record on-chain result in local stats for leaderboard
@@ -4042,6 +4045,9 @@ async function handleStand() {
       endGame();
     } else if (result === 4) {
       await showBlackjackEffect(bet);
+    }
+    if (postResultSync) {
+      void postResultSync.catch((e) => debugLogLine(`POST-RESULT sync error: ${e}`));
     }
   } catch (error) {
     playSound("lose");
