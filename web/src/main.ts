@@ -563,6 +563,9 @@ type PersistedUiState = {
   isRoomHost: boolean;
   amIHost: boolean;
   scrollMode: "top" | "bet" | "table";
+  pendingInvite: { name: string; mode: "demo" | "testnet" | "mainnet"; bet: number } | null;
+  inviteLinkKey: string | null;
+  mpWaitingForGuest: boolean;
 };
 const UI_STATE_KEY = "pixelBlackjackUiStateV1";
 const UI_STATE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -869,7 +872,11 @@ function renderChainRoom(room: ChainRoom) {
     setTimeout(() => {
       focusGameplayArea();
     }, 500);
-    finishActiveRoom();
+    // Show rematch panel instead of returning to start screen
+    const betEdsNum = parseFloat(formatEDS(room.betAmount)) || 1;
+    setTimeout(() => {
+      showRematchPanel(betEdsNum);
+    }, 1500);
   }
 
   if (room.status === ROOM_STATUS_CANCELLED) {
@@ -1050,6 +1057,9 @@ function saveUiState() {
       isRoomHost: Boolean(isRoomHost),
       amIHost: Boolean(amIHost),
       scrollMode: getScrollModeForPersist(),
+      pendingInvite: pendingInvite ? { name: pendingInvite.name, mode: pendingInvite.mode, bet: pendingInvite.bet } : null,
+      inviteLinkKey: inviteLinkKey ?? null,
+      mpWaitingForGuest: Boolean(mpWaitingForGuest),
     };
     localStorage.setItem(UI_STATE_KEY, JSON.stringify(state));
   } catch {
@@ -1079,10 +1089,9 @@ function restoreUiStateFromStorage() {
   restoredUiState = parsed;
   if (!parsed.sessionStarted || RELEASE_MODE) return;
 
-  // Проверяем, есть ли активная комната для восстановления
-  // Восстанавливаем только если есть multiplayerRoom или chainRoomId
-  const hasActiveRoom = parsed.multiplayerRoom || parsed.chainRoomId;
-  
+  // Проверяем, есть ли активная комната или инвайт для восстановления
+  const hasActiveRoom = parsed.multiplayerRoom || parsed.chainRoomId || parsed.pendingInvite;
+
   if (!hasActiveRoom) {
     // Нет активной комнаты — показываем главный экран
     return;
@@ -1097,6 +1106,17 @@ function restoreUiStateFromStorage() {
   mpOnChainMode = Boolean(parsed.mpOnChainMode);
   isRoomHost = Boolean(parsed.isRoomHost);
   amIHost = Boolean(parsed.amIHost);
+  mpWaitingForGuest = Boolean(parsed.mpWaitingForGuest);
+  if (parsed.inviteLinkKey) inviteLinkKey = parsed.inviteLinkKey;
+  if (parsed.pendingInvite) {
+    // Check if invite was already used before restoring
+    if (inviteLinkKey && localStorage.getItem(`invite_used_${inviteLinkKey}`)) {
+      inviteAlreadyUsed = true;
+    } else {
+      pendingInvite = parsed.pendingInvite;
+      invitedByLink = true;
+    }
+  }
   hasGameResult = Boolean(parsed.hasGameResult);
   isPlaying = false;
   applySessionLayout();
@@ -1139,25 +1159,19 @@ async function restoreChainStateIfNeeded() {
     multiplayerRoom = `chain_${restoredUiState.chainRoomId}`;
     try {
       const room = await getRoomOnChain(restoredUiState.chainRoomId, networkMode);
-      if (room.status === ROOM_STATUS_WAITING && amIHost) {
-        try {
-          await cancelRoomOnChain(restoredUiState.chainRoomId, networkMode);
-          mpLog(`Restored waiting room ${restoredUiState.chainRoomId} cancelled (refund).`);
-          showMessage(
-            currentLocale === "ru"
-              ? "Неактивное приглашение отменено, баланс возвращён."
-              : "Stale invite cancelled, balance refunded.",
-            "info"
-          );
-        } catch (err) {
-          mpLog(`cancel_room error while restoring: ${err}`);
-        }
-        cleanupMultiplayer();
-        chainRoomId = null;
-        mpOnChainMode = false;
-        amIHost = false;
-        multiplayerRoom = null;
-        updateUI();
+      if (room.status === ROOM_STATUS_WAITING) {
+        // Restore waiting room — host continues waiting for guest
+        chainRoom = room;
+        mpWaitingForGuest = amIHost;
+        renderChainRoom(room);
+        startRoomPolling();
+        showMessage(
+          currentLocale === "ru"
+            ? "ОЖИДАНИЕ ГОСТЯ ВОССТАНОВЛЕНО"
+            : "WAITING FOR GUEST RESTORED",
+          "info"
+        );
+        saveUiState();
         return;
       }
       chainRoom = room;
@@ -1993,23 +2007,46 @@ function init() {
   }
   // Rematch panel buttons
   if (rematchProposeBtn) {
-    rematchProposeBtn.addEventListener("click", () => {
+    rematchProposeBtn.addEventListener("click", async () => {
       const bet = parseFloat(rematchBetInput.value) || 1;
-      multiplayer.proposeBet(bet);
-      rematchProposeBtn.disabled = true;
-      rematchStatus.textContent = currentLocale === "ru"
-        ? "Ожидание ответа оппонента..."
-        : "Waiting for opponent...";
-      rematchActions.style.display = "none";
+      if (mpOnChainMode && walletAddress) {
+        // On-chain rematch: cleanup old room, create new one with same bet
+        hideRematchPanel();
+        stopRoomPolling();
+        chainRoomId = null;
+        chainRoom = null;
+        lastRenderedChainRoomStatus = null;
+        chainRoomResultShown = false;
+        multiplayerRoom = null;
+        amIHost = false;
+        isRoomHost = false;
+        mpWaitingForGuest = false;
+        betInput.value = bet.toString();
+        await handleInvite();
+      } else {
+        multiplayer.proposeBet(bet);
+        rematchProposeBtn.disabled = true;
+        rematchStatus.textContent = currentLocale === "ru"
+          ? "Ожидание ответа оппонента..."
+          : "Waiting for opponent...";
+        rematchActions.style.display = "none";
+      }
     });
   }
   if (rematchLeaveBtn) {
     rematchLeaveBtn.addEventListener("click", () => {
-      multiplayer.rematchLeave();
-      hideRematchPanel();
-      multiplayer.disconnect();
-      cleanupMultiplayer();
-      returnToStartScreen();
+      if (mpOnChainMode) {
+        hideRematchPanel();
+        stopRoomPolling();
+        cleanupMultiplayer();
+        returnToStartScreen();
+      } else {
+        multiplayer.rematchLeave();
+        hideRematchPanel();
+        multiplayer.disconnect();
+        cleanupMultiplayer();
+        returnToStartScreen();
+      }
     });
   }
   if (rematchAcceptBtn) {
@@ -2325,6 +2362,11 @@ function init() {
   // Всегда восстанавливаем UI состояние (даже при инвайте)
   restoreUiStateFromStorage();
   restoreDemoGameIfNeeded();
+
+  // Если инвайт восстановлен из localStorage (не из URL) — показать баннер
+  if (!inviteFrom && pendingInvite) {
+    showInviteBanner();
+  }
 
   if (!inviteFrom) {
     const mode = restoredUiState?.scrollMode || "bet";
@@ -4750,6 +4792,7 @@ function buildInviteQrUrl(): string {
 function handleInviteDecline() {
   pendingInvite = null;
   invitedByLink = false;
+  inviteLinkKey = null;
   if (inviteBanner) inviteBanner.style.display = "none";
   const luffaQr = document.getElementById("luffa-qr-screen");
   if (luffaQr) luffaQr.style.display = "none";
@@ -4762,6 +4805,7 @@ function handleInviteDecline() {
     playerHandNameEl.textContent = playerName || I18N[currentLocale].you;
   }
   showMessage(I18N[currentLocale].msg_place_bet, "info");
+  saveUiState();
   updateUI();
 }
 
@@ -4971,9 +5015,11 @@ async function handleInviteAccept() {
   if (luffaQrOverlay) luffaQrOverlay.style.display = "none";
   pendingInvite = null;
   invitedByLink = false;
+  inviteLinkKey = null;
   betMinus.disabled = false;
   betPlus.disabled = false;
   betInput.disabled = false;
+  saveUiState();
   document.body.classList.remove("invite-mode");
   if (mascot) mascot.style.display = multiplayerRoom ? "none" : "flex";
   updateUI();
@@ -5909,6 +5955,7 @@ async function tryLuffaAutoConnect() {
 
 async function handleEndlessWalletConnect() {
   if (!walletModal) return;
+  console.log("[wallet] Endless button clicked");
   setPreferredWalletType("web3");
   if (walletAddress) {
     await handleDisconnectWallet();
@@ -5920,6 +5967,7 @@ async function handleEndlessWalletConnect() {
   if (walletQrContainer) walletQrContainer.style.display = "none";
   if (walletInstallLink) walletInstallLink.style.display = "none";
   if (walletStatusText) {
+    walletStatusText.style.whiteSpace = "pre-line";
     walletStatusText.textContent = I18N[currentLocale].wallet_connecting;
   }
   if (walletPickerTitle) {
@@ -5931,13 +5979,21 @@ async function handleEndlessWalletConnect() {
     walletAddress = await connectWallet(networkMode);
     await onWalletConnectSuccess();
   } catch (err: any) {
+    console.warn("Endless web3 connect failed:", err);
     try {
       walletAddress = await connectEndlessExtension(networkMode);
       await onWalletConnectSuccess();
       return;
-    } catch {
+    } catch (extErr: any) {
+      console.warn("Endless extension connect failed:", extErr);
+      const web3Msg = String(err?.message || err || "unknown web3 error");
+      const extMsg = String(extErr?.message || extErr || "unknown extension error");
       if (walletStatusText) {
-        walletStatusText.textContent = I18N[currentLocale].wallet_endless_install;
+        walletStatusText.style.whiteSpace = "pre-line";
+        walletStatusText.textContent =
+          currentLocale === "ru"
+            ? `Ошибка подключения:\nWeb3: ${web3Msg}\nExtension: ${extMsg}`
+            : `Connect error:\nWeb3: ${web3Msg}\nExtension: ${extMsg}`;
       }
       if (walletPickerTitle) {
         walletPickerTitle.textContent = I18N[currentLocale].wallet_endless_missing;

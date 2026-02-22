@@ -64,6 +64,18 @@ function toNumber(value: any): number {
 function extractAddress(data: any): string | null {
   if (!data) return null;
   if (typeof data === "string") return data;
+  // Endless SDK may return AccountAddress object in args.account.
+  // Prefer explicit string fields first, then try object's toString().
+  if (typeof data === "object") {
+    const asAny = data as any;
+    if (typeof asAny.toString === "function") {
+      const text = String(asAny.toString());
+      if (text && text !== "[object Object]") {
+        if (text.startsWith("0x")) return text;
+        if (/^[1-9A-HJ-NP-Za-km-z]{20,}$/.test(text)) return text;
+      }
+    }
+  }
   const direct =
     data.address ||
     data.account ||
@@ -257,8 +269,25 @@ export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<strin
   // Force wallet to testnet
   sdk.changeNetwork({ network: mode === "mainnet" ? Network.MAINNET : Network.TESTNET });
   const res = await sdk.connect();
-  if (res.status === UserResponseStatus.APPROVED) {
-    const addr = extractAddress(res.args);
+  const statusText = String((res as any)?.status ?? "");
+  const isApproved =
+    (res as any)?.status === UserResponseStatus.APPROVED ||
+    statusText.toUpperCase() === "APPROVED";
+  if (isApproved) {
+    let addr = extractAddress((res as any)?.args ?? res);
+    // Some SDK versions return sparse connect payload; try explicit account query.
+    if (!addr && typeof (sdk as any).getAccount === "function") {
+      try {
+        const accountRes = await (sdk as any).getAccount();
+        addr = extractAddress((accountRes as any)?.args ?? accountRes);
+      } catch {
+        // ignore and continue with other fallbacks
+      }
+    }
+    // Last resort: SDK may keep current address on instance.
+    if (!addr) {
+      addr = extractAddress((sdk as any).accountAddress);
+    }
     if (addr) {
       connectedAddress = addr;
       activeWalletType = "web3";
@@ -266,7 +295,8 @@ export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<strin
     }
     throw new Error("Wallet returned empty address");
   }
-  throw new Error("Connection rejected by user");
+  const reason = (res as any)?.message || statusText || "rejected";
+  throw new Error(`WEB3_CONNECT_REJECTED: ${reason}`);
 }
 
 /** Connect via Endless browser extension (window.endless) */
@@ -291,10 +321,12 @@ export async function connectEndlessExtension(_mode?: "testnet" | "mainnet"): Pr
         return account.address;
       }
     }
-  } catch {
-    // fall through
+  } catch (err: any) {
+    const reason = err?.message || String(err || "");
+    throw new Error(`ENDLESS_CONNECT_FAILED: ${reason}`);
   }
-  throw new Error("ENDLESS_CONNECT_FAILED");
+  // fall through
+  throw new Error("ENDLESS_CONNECT_FAILED: unknown");
 }
 
 /** Connect via Luffa SDK (inside Luffa app) */
