@@ -4482,6 +4482,24 @@ function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: 
   return canvas;
 }
 
+async function createSharpQrCanvas(text: string, minDisplaySize = 200): Promise<HTMLCanvasElement> {
+  // Pick integer module scale to avoid "crooked"/blurred QR on desktop.
+  const qrModel = QRCode.create(text, { errorCorrectionLevel: "M" });
+  const modules = qrModel.modules.size || 29;
+  const scale = Math.max(4, Math.floor(minDisplaySize / modules));
+  const pixelSize = modules * scale;
+  const canvas = await QRCode.toCanvas(text, {
+    width: pixelSize,
+    margin: 2,
+    errorCorrectionLevel: "M",
+    color: { dark: "#000000", light: "#ffffff" },
+  });
+  canvas.style.width = `${pixelSize}px`;
+  canvas.style.height = `${pixelSize}px`;
+  canvas.style.imageRendering = "pixelated";
+  return canvas;
+}
+
 async function handleInvite() {
   const name = playerName || I18N[currentLocale].player_placeholder;
   if (!isSessionStarted) {
@@ -4612,11 +4630,7 @@ async function handleInvite() {
     inviteShareQr.innerHTML = "";
 
     // На экране — простой QR без текста
-    QRCode.toCanvas(qrUrlStr, {
-      width: 200,
-      margin: 2,
-      color: { dark: "#000000", light: "#ffffff" },
-    }).then((qrCanvas: HTMLCanvasElement) => {
+    createSharpQrCanvas(qrUrlStr, 200).then((qrCanvas: HTMLCanvasElement) => {
       inviteShareQr.appendChild(qrCanvas);
     }).catch(() => {
       inviteShareQr.textContent = qrUrlStr;
