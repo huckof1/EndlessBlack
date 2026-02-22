@@ -697,6 +697,9 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
     dataFallback?: any
   ) {
     if (!web3Sdk) throw new Error("Web3 SDK is not initialized");
+    const isWalletClosed = (res: any) =>
+      String(res?.status || "").toLowerCase() === String(UserResponseStatus.REJECTED).toLowerCase() &&
+      String(res?.message || "").toLowerCase().includes("wallet closed");
     let settled = false;
     const signPromise = web3Sdk.signAndSubmitTransaction({ payload: payloadToSend }).then((v: any) => {
       settled = true;
@@ -720,7 +723,30 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       setTimeout(() => reject(new Error("WEB3_TX_TIMEOUT")), 20000)
     );
     try {
-      return await Promise.race([signPromise, timeoutPromise]);
+      const firstRes = await Promise.race([signPromise, timeoutPromise]);
+      if (isWalletClosed(firstRes)) {
+        dbg?.(`Web3 SDK wallet closed; retrying once (${op})`);
+        try {
+          await web3Sdk.connect();
+        } catch {
+          // continue with retry flow
+        }
+        try {
+          const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+          if (openFn) {
+            const maybe = openFn();
+            Promise.resolve(maybe).catch(() => undefined);
+          }
+        } catch {
+          // ignore
+        }
+        const retryRes = await web3Sdk.signAndSubmitTransaction({ payload: payloadToSend });
+        if (!isWalletClosed(retryRes)) return retryRes;
+        const retryAny = retryRes as any;
+        throw new Error(`Rejected: ${retryAny?.message || retryAny?.status || "Wallet closed"}`);
+      } else {
+        return firstRes;
+      }
     } catch (e: any) {
       if (e?.message === "WEB3_TX_TIMEOUT" && dataFallback) {
         dbg?.(`Web3 SDK timeout; retry with data payload (${op})`);
