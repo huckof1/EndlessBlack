@@ -4482,15 +4482,16 @@ function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: 
   return canvas;
 }
 
-async function createSharpQrCanvas(text: string, minDisplaySize = 200): Promise<HTMLCanvasElement> {
-  // Pick integer module scale to avoid "crooked"/blurred QR on desktop.
+async function createSharpQrCanvas(text: string, minDisplaySize = 260): Promise<HTMLCanvasElement> {
+  // Pick integer module scale with larger module size for reliable phone scanning from desktop.
   const qrModel = QRCode.create(text, { errorCorrectionLevel: "M" });
   const modules = qrModel.modules.size || 29;
-  const scale = Math.max(4, Math.floor(minDisplaySize / modules));
+  const modulePx = window.innerWidth <= 520 ? 7 : 8;
+  const scale = Math.max(modulePx, Math.floor(minDisplaySize / modules));
   const pixelSize = modules * scale;
   const canvas = await QRCode.toCanvas(text, {
     width: pixelSize,
-    margin: 2,
+    margin: 4,
     errorCorrectionLevel: "M",
     color: { dark: "#000000", light: "#ffffff" },
   });
@@ -4591,8 +4592,15 @@ async function handleInvite() {
     }
   }
 
-  // Build invite URL
-  const url = new URL(window.location.href);
+  // Build invite URL from clean base (no stale params from current page state)
+  let inviteBase: string;
+  const loc = window.location;
+  if (loc.hostname === "localhost" || loc.hostname === "127.0.0.1") {
+    inviteBase = (window as any).__LUFFA_QR_URL || "https://huckof1.github.io/EndlessBlack/";
+  } else {
+    inviteBase = loc.origin + loc.pathname;
+  }
+  const url = new URL(inviteBase);
   url.searchParams.set("invite", name);
   url.searchParams.set("bet", betValue.toString());
   const mode = walletAddress ? "testnet" : "demo";
@@ -4630,7 +4638,7 @@ async function handleInvite() {
     inviteShareQr.innerHTML = "";
 
     // На экране — простой QR без текста
-    createSharpQrCanvas(qrUrlStr, 200).then((qrCanvas: HTMLCanvasElement) => {
+    createSharpQrCanvas(qrUrlStr, 280).then((qrCanvas: HTMLCanvasElement) => {
       inviteShareQr.appendChild(qrCanvas);
     }).catch(() => {
       inviteShareQr.textContent = qrUrlStr;
