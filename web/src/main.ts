@@ -3680,13 +3680,8 @@ async function handleStartGame() {
   const isWalletReconnectError = (msg: string) => {
     const m = (msg || "").toLowerCase();
     return (
-      m.includes("wallet closed") ||
-      m.includes("wallet sdk error") ||
       m.includes("wallet is not connected") ||
-      m.includes("endless extension not available") ||
-      m.includes("web3_tx_timeout") ||
-      m.includes("wallet_picker_required") ||
-      m.includes("rejected")
+      m.includes("wallet_picker_required")
     );
   };
 

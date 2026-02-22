@@ -720,7 +720,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
       }
     }, 1200);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("WEB3_TX_TIMEOUT")), 20000)
+      setTimeout(() => reject(new Error("WEB3_TX_TIMEOUT")), 120000)
     );
     try {
       const firstRes = await Promise.race([signPromise, timeoutPromise]);
@@ -769,7 +769,7 @@ async function submitEntryFunction(functionName: string, args: any[], mode?: "te
           }
         }, 1200);
         const dataTimeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("WEB3_TX_TIMEOUT_DATA")), 15000)
+          setTimeout(() => reject(new Error("WEB3_TX_TIMEOUT_DATA")), 90000)
         );
         return await Promise.race([dataPromise, dataTimeout]);
       }
