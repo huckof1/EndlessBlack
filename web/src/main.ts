@@ -3677,6 +3677,18 @@ async function handleStartGame() {
   const prevInGameBalance = inGameBalance;
   const prevBankroll = currentBankrollOctas;
   const prevChainGameId = Math.max(0, chainGameId || 0);
+  const isWalletReconnectError = (msg: string) => {
+    const m = (msg || "").toLowerCase();
+    return (
+      m.includes("wallet closed") ||
+      m.includes("wallet sdk error") ||
+      m.includes("wallet is not connected") ||
+      m.includes("endless extension not available") ||
+      m.includes("web3_tx_timeout") ||
+      m.includes("wallet_picker_required") ||
+      m.includes("rejected")
+    );
+  };
 
   // Check balance before starting
   debugLogLine(`DEAL check: isDemoActive=${isDemoActive()}, walletAddress=${!!walletAddress}, inGameBalance=${inGameBalance}, betAmount=${betAmount}`);
@@ -3711,7 +3723,33 @@ async function handleStartGame() {
     if (!isDemoActive() && walletAddress) {
       // ON-CHAIN: start_game deducts bet, adds to bankroll/treasury
       debugLogLine(`DEAL on-chain: bet=${betAmount}`);
-      await startGameOnChain(betAmount, networkMode);
+      let started = false;
+      let startErr: any = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          await startGameOnChain(betAmount, networkMode);
+          started = true;
+          break;
+        } catch (err: any) {
+          startErr = err;
+          const msg = String(err?.message || err || "");
+          debugLogLine(`DEAL start_game attempt ${attempt} error: ${msg}`);
+          if (attempt === 1 && isWalletReconnectError(msg)) {
+            showMessage(
+              currentLocale === "ru"
+                ? "Переподключаю кошелёк..."
+                : "Reconnecting wallet...",
+              "info"
+            );
+            await connectWalletFlow(false);
+            continue;
+          }
+          break;
+        }
+      }
+      if (!started) {
+        throw startErr || new Error("start_game_failed");
+      }
       chainGameId = await waitForLatestGameId(walletAddress, prevChainGameId, networkMode);
       chainGame = await getGame(chainGameId, networkMode);
       debugLogLine(`DEAL on-chain OK: gameId=${chainGameId}, score=${chainGame.playerScore}`);
@@ -3759,7 +3797,8 @@ async function handleStartGame() {
       showMessage(I18N[currentLocale].msg_insufficient, "error");
       setMascotState("sad", "💸", currentLocale === "ru" ? "Не хватает средств!" : "Not enough funds!");
     } else {
-      showMessage(I18N[currentLocale].msg_failed_start, "error");
+      const detail = errMsg ? ` (${errMsg})` : "";
+      showMessage(`${I18N[currentLocale].msg_failed_start}${detail}`, "error");
       setMascotState("sad", "😢", I18N[currentLocale].msg_try_again);
     }
     startBtn.disabled = false;
