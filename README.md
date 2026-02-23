@@ -129,6 +129,11 @@ GenGame/
 
 ### 1. Deploy Smart Contract
 
+> ### macOS Note (project rule)
+> On this project we do **not** use local `endless` CLI on macOS (binary compatibility issues).
+> Contract deployment is done **manually via GitHub Actions** (`.github/workflows/deploy-contract.yml`).
+> Use workflow dispatch and confirm with input: `deploy`.
+
 ```bash
 cd move
 
