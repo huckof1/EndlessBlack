@@ -580,6 +580,44 @@ const multiplayer = new MultiplayerClient((state) => {
     }
   }
   if (event.type === "game:bet_decline") {
+    const isInviteDeclineOnChainHost =
+      mpOnChainMode &&
+      amIHost &&
+      mpWaitingForGuest &&
+      Boolean(chainRoomId) &&
+      (chainRoom?.status === ROOM_STATUS_WAITING || !chainRoom);
+    if (isInviteDeclineOnChainHost) {
+      if (inviteDeclineHandling) return;
+      inviteDeclineHandling = true;
+      mpWaitingForGuest = false;
+      hideInviteShareSection();
+      (async () => {
+        let refunded = false;
+        try {
+          if (chainRoomId) {
+            await cancelRoomOnChain(chainRoomId, networkMode);
+            refunded = true;
+          }
+        } catch (err) {
+          mpLog(`cancel_room on decline error: ${err}`);
+        }
+        await updateInGameBalance().catch(() => {});
+        cleanupMultiplayer();
+        showMessage(
+          currentLocale === "ru"
+            ? refunded
+              ? "ОППОНЕНТ ОТКАЗАЛСЯ ОТ ИГРЫ. СТАВКА ВОЗВРАЩЕНА."
+              : "ОППОНЕНТ ОТКАЗАЛСЯ ОТ ИГРЫ."
+            : refunded
+              ? "OPPONENT DECLINED THE GAME. BET REFUNDED."
+              : "OPPONENT DECLINED THE GAME.",
+          refunded ? "info" : "error"
+        );
+        inviteDeclineHandling = false;
+        updateUI();
+      })();
+      return;
+    }
     multiplayerSnapshot.pendingBet = null;
     multiplayerSnapshot.pendingBy = null;
     multiplayerSnapshot.agreed = false;
@@ -614,6 +652,7 @@ let pendingInviteAutoAccept = false;
 let mpWalletAddresses: Record<string, string> = {};
 let inviteDirectMode = false; // true when invite link is opened in direct (non-QR) mode
 let inviteWalletPromptShown = false;
+let inviteDeclineHandling = false;
 let mpBetsDeducted = false;
 let mpOnChainMode = false;
 let mpWaitingForGuest = false;
@@ -4848,6 +4887,13 @@ async function handleInvite() {
       mpLog(`Room created: id=${roomId}, bet=${betOctas}`);
       await updateInGameBalance();
 
+      // Subscribe host to invite-room events (guest accept/decline notifications).
+      if (LS_PUBLIC_KEY && isSessionStarted) {
+        if (!mpNameFrozen) mpNameFrozen = getMpName();
+        multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, multiplayerRoom, getMpName(), getMpName());
+        updateMpDebug("invite");
+      }
+
       // Start polling
       startRoomPolling();
     } catch (err) {
@@ -5189,6 +5235,11 @@ function buildInviteQrUrl(): string {
 }
 
 function handleInviteDecline() {
+  const declinedInvite = pendingInvite;
+  const roomOnDecline = multiplayerRoom;
+  if (declinedInvite && roomOnDecline) {
+    void notifyInviteDeclined(roomOnDecline, getMpName());
+  }
   pendingInvite = null;
   inviteWalletPromptShown = false;
   invitedByLink = false;
@@ -5667,6 +5718,23 @@ function hideInviteShareSection() {
   if (inviteShareCleanup) inviteShareCleanup.style.display = "none";
   const luffaQrScreen = document.getElementById("luffa-qr-screen");
   if (luffaQrScreen) luffaQrScreen.style.display = "none";
+}
+
+async function notifyInviteDeclined(room: string, by: string) {
+  if (!room) return;
+  try {
+    const body = JSON.stringify({
+      __from: `decline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      payload: { type: "game:bet_decline", by },
+    });
+    await fetch(`https://ntfy.sh/pxbj-${room}`, {
+      method: "POST",
+      body,
+      headers: { "Content-Type": "text/plain" },
+    });
+  } catch (err) {
+    mpLog(`notify decline failed: ${err}`);
+  }
 }
 
 async function promptDepositForRematch(requiredOctas: number) {
