@@ -4668,7 +4668,16 @@ function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: 
   const linkFont = "11px Arial, sans-serif";
   const lineGap = 6;
   const topTextH = 18 + lineGap + 14 + lineGap + 16 + lineGap + 8;
-  const bottomTextH = 12 + 8 + 11 + 4 + 11 + 10;
+  const maxLinkCharsPerLine = 42;
+  const linkLines: string[] = [];
+  let rest = inviteUrl;
+  while (rest.length > maxLinkCharsPerLine && linkLines.length < 2) {
+    linkLines.push(rest.slice(0, maxLinkCharsPerLine));
+    rest = rest.slice(maxLinkCharsPerLine);
+  }
+  linkLines.push(rest);
+  const linkLinesToRender = linkLines.slice(0, 3);
+  const bottomTextH = 12 + 8 + 11 + 4 + (11 * linkLinesToRender.length) + 10;
   const height = pad + topTextH + qrSize + lineGap + bottomTextH + pad;
 
   const canvas = document.createElement("canvas");
@@ -4712,14 +4721,19 @@ function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: 
   ctx.fillText(hint, width / 2, y + 10);
   y += 12 + 8;
 
-  // Ссылка под QR — если нет LUFFA, человек может открыть вручную
-  const shortUrl = inviteUrl.length > 56 ? `${inviteUrl.slice(0, 53)}...` : inviteUrl;
+  // Полная ссылка под QR — если нет LUFFA, человек может открыть вручную.
   ctx.fillStyle = "#ffd700";
   ctx.font = linkFont;
   ctx.fillText(linkLabel, width / 2, y + 10);
   y += 11 + 4;
   ctx.fillStyle = "#cfd8ff";
-  ctx.fillText(shortUrl, width / 2, y + 10);
+  let i = 0;
+  const n = linkLinesToRender.length;
+  while (i < n) {
+    ctx.fillText(linkLinesToRender[i], width / 2, y + 10);
+    y += 11;
+    i = i + 1;
+  }
 
   return canvas;
 }
