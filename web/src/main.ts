@@ -4905,12 +4905,15 @@ async function handleInvite() {
     // Кнопка ОТПРАВИТЬ — при отправке создаём составную картинку с текстом
     if (inviteShareCopy) {
       inviteShareCopy.textContent = currentLocale === "ru"
-        ? "ОТПРАВИТЬ QR"
-        : "SHARE QR";
+        ? "ОТПРАВИТЬ QR + ССЫЛКУ"
+        : "SHARE QR + LINK";
       inviteShareCopy.onclick = async () => {
         const plainQr = inviteShareQr.querySelector("canvas");
         if (!plainQr) return;
         const composite = buildInviteQrImage(plainQr, name, betValue);
+        const shareText = currentLocale === "ru"
+          ? `${name} приглашает в Endless Pixel Blackjack. Ставка: ${betValue} EDS`
+          : `${name} invites you to Endless Pixel Blackjack. Bet: ${betValue} EDS`;
         composite.toBlob(async (blob) => {
           if (!blob) return;
         const file = new File([blob], "invite-qr.png", { type: "image/png" });
@@ -4927,18 +4930,30 @@ async function handleInvite() {
         }
         if (navigator.share && navigator.canShare?.({ files: [file] })) {
           try {
-            await navigator.share({ files: [file] });
+            await navigator.share({
+              files: [file],
+              text: `${shareText}\n${qrUrlStr}`,
+              url: qrUrlStr,
+            });
             resetInviteShareHint();
             return;
           } catch (_) {
             // fall through to fallback
           }
         }
+        // Fallback: copy plain invite link to clipboard so user can paste it with QR manually
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(qrUrlStr);
+          }
+        } catch {
+          // ignore clipboard failures
+        }
         latestInviteBlob = blob;
         showFallbackQrHint(
           currentLocale === "ru"
-            ? "QR СОХРАНЁН — отправьте файл вручную"
-            : "QR SAVED — send the file manually"
+            ? `QR сохранён, ссылка скопирована: ${qrUrlStr}`
+            : `QR saved, link copied: ${qrUrlStr}`
         );
         }, "image/png");
       };
