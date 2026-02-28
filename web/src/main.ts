@@ -28,6 +28,7 @@ import {
   type ChainGame,
   type ChainRoom,
   createRoom as createRoomOnChain,
+  reopenRoom as reopenRoomOnChain,
   joinRoom as joinRoomOnChain,
   roomHit as roomHitOnChain,
   roomStand as roomStandOnChain,
@@ -388,7 +389,9 @@ const multiplayer = new MultiplayerClient((state) => {
       isRoomHost &&
       state.players.length >= 2
     ) {
-      handleStartGame();
+      if (!(mpOnChainMode && chainRematchWsConnected)) {
+        handleStartGame();
+      }
     }
     return;
   }
@@ -434,6 +437,56 @@ const multiplayer = new MultiplayerClient((state) => {
     return;
   }
   // реванш: выход из комнаты — обрабатывается всеми игроками
+  // on-chain rematch: guest receives roomId from host
+  if (event.type === "game:chain_room_ready") {
+    if (event.by !== getMpName() && !amIHost) {
+      const newRoomId = event.roomId as number;
+      mpLog(`chain_room_ready received: roomId=${newRoomId}`);
+      hideRematchPanel();
+      showMessage(
+        currentLocale === "ru" ? "ПОДКЛЮЧЕНИЕ К НОВОЙ КОМНАТЕ..." : "JOINING NEW ROOM...",
+        "info"
+      );
+      // Keep rematch WS connected: stay in one negotiation room across rounds.
+      chainRematchCreating = false;
+      // Setup new room state
+      chainRoomId = newRoomId;
+      chainRoom = null;
+      lastRenderedChainRoomStatus = null;
+      chainRoomResultShown = false;
+      amIHost = false;
+      isRoomHost = false;
+      mpOnChainMode = true;
+      multiplayerRoom = `chain_${newRoomId}`;
+      mpBetsDeducted = false;
+      // Join the on-chain room
+      (async () => {
+        try {
+          await joinRoomOnChain(newRoomId, networkMode);
+          mpLog(`Rematch joinRoom(${newRoomId}) success`);
+          startRoomPolling();
+          await updateInGameBalance();
+          showMessage(
+            currentLocale === "ru" ? "РЕВАНШ НАЧИНАЕТСЯ!" : "REMATCH STARTING!",
+            "success"
+          );
+          playSound("chip");
+          saveUiState();
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          mpLog(`Rematch joinRoom error: ${errMsg}`);
+          showMessage(
+            currentLocale === "ru"
+              ? `ОШИБКА ВХОДА В КОМНАТУ: ${errMsg}`
+              : `ROOM JOIN ERROR: ${errMsg}`,
+            "error"
+          );
+          cleanupMultiplayer();
+        }
+      })();
+    }
+    return;
+  }
   if (event.type === "game:rematch_leave") {
     if (event.by !== getMpName()) {
       hideRematchPanel();
@@ -443,6 +496,8 @@ const multiplayer = new MultiplayerClient((state) => {
       );
       setTimeout(() => {
         multiplayer.disconnect();
+        chainRematchWsConnected = false;
+        chainRematchCreating = false;
         cleanupMultiplayer();
         returnToStartScreen();
       }, 2000);
@@ -465,6 +520,12 @@ const multiplayer = new MultiplayerClient((state) => {
       return;
     }
     if (multiplayerSnapshot.phase !== "lobby" && multiplayerSnapshot.phase !== "done") return;
+    // First rematch offer wins until it is accepted/declined.
+    if (multiplayerSnapshot.pendingBet && multiplayerSnapshot.pendingBy) {
+      multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
+      renderMultiplayerSnapshot(multiplayerSnapshot);
+      return;
+    }
     const bet = Number(event.bet) || 0;
     if (multiplayerSnapshot.phase === "done") {
       const bothDone = multiplayerSnapshot.hands.length >= 2 && multiplayerSnapshot.hands.every(h => h.done);
@@ -509,7 +570,12 @@ const multiplayer = new MultiplayerClient((state) => {
     );
     playSound("chip");
     if (multiplayerSnapshot.phase === "lobby" && multiplayerSnapshot.players.length >= 2) {
-      handleStartGame();
+      if (mpOnChainMode && chainRematchWsConnected) {
+        // On-chain rematch: room creation is handled in renderMultiplayerSnapshot
+        mpLog("bet_accept: on-chain rematch — deferring to renderMultiplayerSnapshot for room creation");
+      } else {
+        handleStartGame();
+      }
     }
   }
   if (event.type === "game:bet_decline") {
@@ -587,6 +653,10 @@ const ROOM_STATUS_CANCELLED = 3;
 const ROOM_STATUS_TIMEOUT = 4;
 // Room result: 0=in progress, 1=host win, 2=guest win, 3=draw
 let amIHost = false; // true if I'm the room host
+let chainRematchCreating = false; // prevent double room creation during rematch
+let chainRematchWsConnected = false; // WS connected for rematch coordination
+let rematchWsRoom: string | null = null; // stable WS room for rematch negotiation
+let rematchRoomAnchorId: number | null = null; // first chain room id in current pvp session
 
 function startRoomPolling() {
   stopRoomPolling();
@@ -652,6 +722,20 @@ function stopRoomPolling() {
   }
 }
 
+function ensureRematchWsConnected() {
+  if (!chainRoomId || !LS_PUBLIC_KEY) return;
+  if (!rematchRoomAnchorId) rematchRoomAnchorId = chainRoomId;
+  const room = `rematch_chain_${rematchRoomAnchorId}`;
+  if (chainRematchWsConnected && rematchWsRoom === room) return;
+  const name = getMpName();
+  const host = amIHost ? name : (multiplayerHost || name);
+  multiplayer.connect(LS_WS_URL, LS_PUBLIC_KEY, room, name, host);
+  chainRematchWsConnected = true;
+  rematchWsRoom = room;
+  isRoomHost = amIHost;
+  mpLog(`Rematch WS connected: room=${room} isHost=${amIHost}`);
+}
+
 function getMyTurnIndex(): number {
   // host = 0, guest = 1
   return amIHost ? 0 : 1;
@@ -671,25 +755,40 @@ let lastRenderedOppCardCount = 0;
 let lastRenderedOppDone = false;
 let chainRoomResultShown = false;
 
-function renderCardsIfChanged(container: HTMLElement, cards: { suit: number; rank: number }[], prevCount: number, hidden: boolean): number {
-  if (cards.length === prevCount && container.children.length === cards.length) return prevCount;
+function isCardHidden(hidden: boolean | "first-open", index: number): boolean {
+  if (hidden === true) return true;
+  if (hidden === "first-open" && index > 0) return true;
+  return false;
+}
+
+function renderCardsIfChanged(container: HTMLElement, cards: { suit: number; rank: number }[], prevCount: number, hidden: boolean | "first-open"): number {
+  // "first-open" = first card face-up, rest face-down (like dealer in classic blackjack)
+  const hasBackCards = !!container.querySelector(".card-back");
+  const modeChanged = (hidden === false && hasBackCards) ||
+    (hidden === "first-open" && cards.length > 0 && container.children.length === cards.length &&
+      !hasBackCards && cards.length > 1);
+
+  if (!modeChanged && cards.length === prevCount && container.children.length === cards.length) return prevCount;
+
+  // Full redraw when switching visibility mode
+  if (modeChanged) {
+    container.innerHTML = "";
+    cards.forEach((card, i) => {
+      const el = isCardHidden(hidden, i) ? renderCardBack() : renderCard(card);
+      el.style.animation = "none";
+      container.appendChild(el);
+    });
+    return cards.length;
+  }
+
   // Only append new cards (don't clear existing)
   while (container.children.length > cards.length) {
     container.removeChild(container.lastChild!);
   }
   for (let i = container.children.length; i < cards.length; i++) {
-    const el = hidden ? renderCardBack() : renderCard(cards[i]);
+    const el = isCardHidden(hidden, i) ? renderCardBack() : renderCard(cards[i]);
     el.style.animation = i >= prevCount ? "dealCard 0.35s ease-out" : "none";
     container.appendChild(el);
-  }
-  // If switching from hidden to shown (opponent done), replace all
-  if (!hidden && prevCount === cards.length && container.querySelector(".card-back")) {
-    container.innerHTML = "";
-    cards.forEach(card => {
-      const el = renderCard(card);
-      el.style.animation = "none";
-      container.appendChild(el);
-    });
   }
   return cards.length;
 }
@@ -730,19 +829,23 @@ function renderChainRoom(room: ChainRoom) {
   const dealerNameEl = dealerHandEl?.querySelector(".hand-name") as HTMLSpanElement;
   if (dealerNameEl) dealerNameEl.textContent = oppAddr.slice(0, 8) + "...";
 
-  // Render MY cards at bottom (player area) - only add new cards, no flicker
-  const showOppCards = true;  // Всегда показываем карты оппонента (честная игра)
+  // Render MY cards at bottom (player area) - always face up
   lastRenderedMyCardCount = renderCardsIfChanged(playerCardsEl, myCards, lastRenderedMyCardCount, false);
 
-  // Render OPPONENT cards at top (dealer area) - always face up
-  if (showOppCards !== lastRenderedOppDone || oppCards.length !== lastRenderedOppCardCount) {
-    lastRenderedOppCardCount = renderCardsIfChanged(dealerCardsEl, oppCards, lastRenderedOppCardCount, false);
-    lastRenderedOppDone = showOppCards;
+  // Render OPPONENT cards at top (dealer area)
+  // During play: first card open, rest face-down (classic blackjack rules)
+  // When finished: all cards revealed
+  const gameOver = room.status === ROOM_STATUS_FINISHED || room.status === ROOM_STATUS_TIMEOUT;
+  const oppVisibility: boolean | "first-open" = gameOver ? false : "first-open";
+  const oppDoneFlag = gameOver; // track whether we're in "revealed" mode
+  if (oppDoneFlag !== lastRenderedOppDone || oppCards.length !== lastRenderedOppCardCount) {
+    lastRenderedOppCardCount = renderCardsIfChanged(dealerCardsEl, oppCards, lastRenderedOppCardCount, oppVisibility);
+    lastRenderedOppDone = oppDoneFlag;
   }
 
-  // Scores
+  // Scores: show opponent score only when game is over
   playerScoreEl.textContent = myScore.toString();
-  dealerScoreEl.textContent = oppScore.toString();
+  dealerScoreEl.textContent = gameOver ? oppScore.toString() : "?";
 
   // Update player hints
   updatePlayerHints(myCards);
@@ -875,6 +978,8 @@ function renderChainRoom(room: ChainRoom) {
     // Show rematch panel instead of returning to start screen
     const betEdsNum = parseFloat(formatEDS(room.betAmount)) || 1;
     setTimeout(() => {
+      // Keep players in one rematch negotiation room across rounds.
+      ensureRematchWsConnected();
       showRematchPanel(betEdsNum);
     }, 1500);
   }
@@ -2009,20 +2114,33 @@ function init() {
   if (rematchProposeBtn) {
     rematchProposeBtn.addEventListener("click", async () => {
       const bet = parseFloat(rematchBetInput.value) || 1;
+      if (!Number.isFinite(bet) || bet < 0.1) {
+        showMessage(
+          currentLocale === "ru" ? "Некорректная ставка реванша." : "Invalid rematch bet.",
+          "error"
+        );
+        return;
+      }
       if (mpOnChainMode && walletAddress) {
-        // On-chain rematch: cleanup old room, create new one with same bet
-        hideRematchPanel();
-        stopRoomPolling();
-        chainRoomId = null;
-        chainRoom = null;
-        lastRenderedChainRoomStatus = null;
-        chainRoomResultShown = false;
-        multiplayerRoom = null;
-        amIHost = false;
-        isRoomHost = false;
-        mpWaitingForGuest = false;
-        betInput.value = bet.toString();
-        await handleInvite();
+        // On-chain rematch via WS coordination
+        // Check balance first
+        await updateInGameBalance();
+        const betOctas = parseEDS(bet.toString());
+        if (inGameBalance < betOctas) {
+          showMessage(
+            currentLocale === "ru"
+              ? `Недостаточно баланса для ставки ${bet} EDS. Пополните баланс.`
+              : `Insufficient balance for ${bet} EDS bet. Please deposit.`,
+            "error"
+          );
+          return;
+        }
+        multiplayer.proposeBet(bet);
+        rematchProposeBtn.disabled = true;
+        rematchStatus.textContent = currentLocale === "ru"
+          ? "Ожидание ответа оппонента..."
+          : "Waiting for opponent...";
+        rematchActions.style.display = "none";
       } else {
         multiplayer.proposeBet(bet);
         rematchProposeBtn.disabled = true;
@@ -2036,7 +2154,10 @@ function init() {
   if (rematchLeaveBtn) {
     rematchLeaveBtn.addEventListener("click", () => {
       if (mpOnChainMode) {
+        multiplayer.rematchLeave();
         hideRematchPanel();
+        multiplayer.disconnect();
+        chainRematchWsConnected = false;
         stopRoomPolling();
         cleanupMultiplayer();
         returnToStartScreen();
@@ -2050,7 +2171,20 @@ function init() {
     });
   }
   if (rematchAcceptBtn) {
-    rematchAcceptBtn.addEventListener("click", () => {
+    rematchAcceptBtn.addEventListener("click", async () => {
+      if (mpOnChainMode && walletAddress && multiplayerSnapshot?.pendingBet) {
+        const betOctas = parseEDS(multiplayerSnapshot.pendingBet.toString());
+        await updateInGameBalance();
+        if (inGameBalance < betOctas) {
+          showMessage(
+            currentLocale === "ru"
+              ? `Недостаточно баланса для ставки ${multiplayerSnapshot.pendingBet} EDS. Пополните баланс.`
+              : `Insufficient balance for ${multiplayerSnapshot.pendingBet} EDS bet. Please deposit.`,
+            "error"
+          );
+          return;
+        }
+      }
       multiplayer.acceptBet();
       hideRematchPanel();
     });
@@ -3086,8 +3220,64 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     snapshot.players.length >= 2 &&
     !snapshot.pendingBet
   ) {
-    showDebugState("auto_start_render");
-    handleStartGame();
+    if (mpOnChainMode && walletAddress && chainRematchWsConnected) {
+      // On-chain rematch: host reopens the same room_id and notifies guest via WS
+      if (!chainRematchCreating) {
+        chainRematchCreating = true;
+        showDebugState("chain_rematch_create");
+        const bet = snapshot.bet || 1;
+        const betOctas = parseEDS(bet.toString());
+        mpLog(`Rematch: reopening room ${chainRoomId} with bet=${bet} EDS (${betOctas} octas)`);
+        showMessage(
+          currentLocale === "ru" ? "ПОДГОТОВКА РЕВАНША..." : "PREPARING REMATCH...",
+          "info"
+        );
+        hideRematchPanel();
+        (async () => {
+          try {
+            if (!chainRoomId) throw new Error("Room ID is missing");
+            const reopenedRoomId = chainRoomId;
+            await reopenRoomOnChain(reopenedRoomId, betOctas, networkMode);
+            mpLog(`Rematch room reopened: id=${reopenedRoomId}`);
+            // Send roomId to guest via WS (same room id)
+            multiplayer.sendChainRoomReady(reopenedRoomId);
+            // Setup host state for reopened room
+            setTimeout(() => {
+              chainRoomId = reopenedRoomId;
+              chainRoom = null;
+              lastRenderedChainRoomStatus = null;
+              chainRoomResultShown = false;
+              amIHost = true;
+              isRoomHost = true;
+              mpOnChainMode = true;
+              multiplayerRoom = `chain_${reopenedRoomId}`;
+              mpBetsDeducted = false;
+              chainRematchCreating = false;
+              startRoomPolling();
+              updateInGameBalance();
+              saveUiState();
+              showMessage(
+                currentLocale === "ru" ? "ОЖИДАНИЕ ОППОНЕНТА..." : "WAITING FOR OPPONENT...",
+                "info"
+              );
+            }, 500); // small delay to let WS message reach guest
+          } catch (err) {
+            chainRematchCreating = false;
+            const errMsg = err instanceof Error ? err.message : String(err);
+            mpLog(`Rematch create_room error: ${errMsg}`);
+            showMessage(
+              currentLocale === "ru"
+                ? `ОШИБКА СОЗДАНИЯ КОМНАТЫ: ${errMsg}`
+                : `ROOM CREATION ERROR: ${errMsg}`,
+              "error"
+            );
+          }
+        })();
+      }
+    } else {
+      showDebugState("auto_start_render");
+      handleStartGame();
+    }
   }
   if (snapshot.phase === "player" && !gameMusicActive) {
     startGameMusic();
@@ -3113,6 +3303,10 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     }
   }
   if (!snapshot.hands || snapshot.hands.length < 2) {
+    const hasPendingRematch = Boolean(snapshot.pendingBet && snapshot.pendingBy);
+    if (rematchPanel && rematchPanel.style.display !== "none") {
+      rematchProposeBtn.disabled = hasPendingRematch;
+    }
     // Rematch flow: lobby with pendingBet after a done phase (or rematch panel already visible)
     const rematchPanelVisible = rematchPanel && rematchPanel.style.display !== "none";
     const isRematchFlow = multiplayerRoom && snapshot.phase === "lobby" && snapshot.pendingBet && (prevPhase === "done" || rematchPanelVisible);
@@ -3127,6 +3321,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
         ? `${displayName(snapshot.pendingBy)} предлагает реванш: ${betText} EDS`
         : `${displayName(snapshot.pendingBy)} offers rematch: ${betText} EDS`;
       rematchStatus.textContent = "";
+      rematchProposeBtn.disabled = true;
       showMessage(
         currentLocale === "ru"
           ? `${displayName(snapshot.pendingBy)} предлагает реванш: ${betText} EDS`
@@ -3145,6 +3340,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
       rematchStatus.textContent = currentLocale === "ru"
         ? "Ожидание ответа оппонента..."
         : "Waiting for opponent...";
+      rematchProposeBtn.disabled = true;
       showMessage(
         currentLocale === "ru"
           ? "Ожидание ответа оппонента..."
@@ -5283,11 +5479,15 @@ function cleanupMultiplayer() {
   chainRoom = null;
   lastRenderedChainRoomStatus = null;
   amIHost = false;
+  chainRematchCreating = false;
+  chainRematchWsConnected = false;
   lastRenderedMyCardCount = 0;
   lastRenderedOppCardCount = 0;
   lastRenderedOppDone = false;
   chainRoomResultShown = false;
   isPlaying = false;
+  rematchWsRoom = null;
+  rematchRoomAnchorId = null;
   if (opponentHandEl) opponentHandEl.style.display = "none";
   if (winnerBannerEl) winnerBannerEl.style.display = "none";
   if (betOffer) betOffer.style.display = "none";
@@ -5337,8 +5537,13 @@ function markInviteUsed() {
 
 function showRematchPanel(lastBet: number) {
   if (!rematchPanel) return;
+  const keepTypedBet = rematchPanel.style.display !== "none"
+    && Number.isFinite(parseFloat(rematchBetInput.value))
+    && parseFloat(rematchBetInput.value) > 0;
   rematchPanel.style.display = "flex";
-  rematchBetInput.value = lastBet.toString();
+  if (!keepTypedBet) rematchBetInput.value = lastBet.toString();
+  rematchBetInput.min = "0.1";
+  rematchBetInput.step = "0.1";
   rematchStatus.textContent = "";
   rematchActions.style.display = "flex";
   rematchOffer.style.display = "none";

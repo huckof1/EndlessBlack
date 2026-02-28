@@ -268,35 +268,82 @@ export async function connectWallet(mode?: "testnet" | "mainnet"): Promise<strin
   const sdk = getWeb3Sdk(mode);
   // Force wallet to testnet
   sdk.changeNetwork({ network: mode === "mainnet" ? Network.MAINNET : Network.TESTNET });
-  const res = await sdk.connect();
-  const statusText = String((res as any)?.status ?? "");
-  const isApproved =
-    (res as any)?.status === UserResponseStatus.APPROVED ||
-    statusText.toUpperCase() === "APPROVED";
-  if (isApproved) {
-    let addr = extractAddress((res as any)?.args ?? res);
-    // Some SDK versions return sparse connect payload; try explicit account query.
-    if (!addr && typeof (sdk as any).getAccount === "function") {
-      try {
-        const accountRes = await (sdk as any).getAccount();
-        addr = extractAddress((accountRes as any)?.args ?? accountRes);
-      } catch {
-        // ignore and continue with other fallbacks
+  // Web wallet iframe can be slow to initialize; retry once automatically.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    let res: any;
+    try {
+      const connectPromise = sdk.connect();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("WEB3_CONNECT_TIMEOUT")), 30000)
+      );
+      res = await Promise.race([connectPromise, timeoutPromise]);
+    } catch (err: any) {
+      const msg = String(err?.message || err || "");
+      const retryable = msg.includes("WEB3_CONNECT_TIMEOUT") || msg.toLowerCase().includes("wallet closed");
+      if (retryable && attempt < 2) {
+        try {
+          const openFn = (sdk as any).open as (() => Promise<any> | void) | undefined;
+          if (openFn) {
+            const maybe = openFn();
+            Promise.resolve(maybe).catch(() => undefined);
+          }
+        } catch {
+          // ignore
+        }
+        await new Promise((r) => setTimeout(r, 450));
+        continue;
       }
+      throw err;
     }
-    // Last resort: SDK may keep current address on instance.
-    if (!addr) {
-      addr = extractAddress((sdk as any).accountAddress);
+
+    const statusText = String((res as any)?.status ?? "");
+    const isApproved =
+      (res as any)?.status === UserResponseStatus.APPROVED ||
+      statusText.toUpperCase() === "APPROVED";
+    if (isApproved) {
+      let addr = extractAddress((res as any)?.args ?? res);
+      // Some SDK versions return sparse connect payload; try explicit account query.
+      if (!addr && typeof (sdk as any).getAccount === "function") {
+        try {
+          const accountRes = await (sdk as any).getAccount();
+          addr = extractAddress((accountRes as any)?.args ?? accountRes);
+        } catch {
+          // ignore and continue with other fallbacks
+        }
+      }
+      // Last resort: SDK may keep current address on instance.
+      if (!addr) {
+        addr = extractAddress((sdk as any).accountAddress);
+      }
+      if (addr) {
+        connectedAddress = addr;
+        activeWalletType = "web3";
+        return addr;
+      }
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+      throw new Error("Wallet returned empty address");
     }
-    if (addr) {
-      connectedAddress = addr;
-      activeWalletType = "web3";
-      return addr;
+    const reason = String((res as any)?.message || statusText || "rejected");
+    const retryable = reason.toLowerCase().includes("wallet closed");
+    if (retryable && attempt < 2) {
+      try {
+        const openFn = (sdk as any).open as (() => Promise<any> | void) | undefined;
+        if (openFn) {
+          const maybe = openFn();
+          Promise.resolve(maybe).catch(() => undefined);
+        }
+      } catch {
+        // ignore
+      }
+      await new Promise((r) => setTimeout(r, 450));
+      continue;
     }
-    throw new Error("Wallet returned empty address");
+    throw new Error(`WEB3_CONNECT_REJECTED: ${reason}`);
   }
-  const reason = (res as any)?.message || statusText || "rejected";
-  throw new Error(`WEB3_CONNECT_REJECTED: ${reason}`);
+  throw new Error("WEB3_CONNECT_REJECTED: unknown");
 }
 
 /** Connect via Endless browser extension (window.endless) */
@@ -1038,13 +1085,39 @@ export async function requestFaucet(address: string, mode?: "testnet" | "mainnet
   }
 
   if (activeWalletType === "web3" && web3Sdk) {
-    const res = await web3Sdk.signAndSubmitTransaction({ payload });
+    const isWalletClosed = (res: any) =>
+      String(res?.status || "").toLowerCase() === String(UserResponseStatus.REJECTED).toLowerCase() &&
+      String(res?.message || "").toLowerCase().includes("wallet closed");
+    let settled = false;
+    const signPromise = web3Sdk.signAndSubmitTransaction({ payload }).then((v: any) => {
+      settled = true;
+      return v;
+    });
+    setTimeout(() => {
+      if (settled || !web3Sdk) return;
+      try {
+        const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
+        if (openFn) {
+          const maybe = openFn();
+          Promise.resolve(maybe).catch(() => undefined);
+        }
+      } catch {
+        // ignore
+      }
+    }, 1200);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("WEB3_FAUCET_TIMEOUT")), 120000)
+    );
+    const firstRes: any = await Promise.race([signPromise, timeoutPromise]);
+    const res = isWalletClosed(firstRes)
+      ? await web3Sdk.signAndSubmitTransaction({ payload })
+      : firstRes;
     if (res.status === UserResponseStatus.APPROVED) {
       const endless = await getEndless(mode);
       await endless.waitForTransaction({ transactionHash: res.args.hash });
       return res.args;
     }
-    throw new Error("Transaction rejected by user");
+    throw new Error(String(res?.message || "Transaction rejected by user"));
   }
 
   const sdk = getLuffaSdk(mode);
@@ -1259,6 +1332,10 @@ export type ChainRoom = {
 
 export async function createRoom(betAmount: number, networkMode?: "testnet" | "mainnet") {
   return await submitEntryFunction("create_room", [BigInt(betAmount)], networkMode);
+}
+
+export async function reopenRoom(roomId: number, betAmount: number, networkMode?: "testnet" | "mainnet") {
+  return await submitEntryFunction("reopen_room", [roomId, BigInt(betAmount)], networkMode);
 }
 
 export async function joinRoom(roomId: number, networkMode?: "testnet" | "mainnet") {

@@ -60,6 +60,8 @@ module pixel_blackjack::blackjack {
     const E_ROOM_ALREADY_FINISHED: u64 = 108;
     /// Not a participant
     const E_NOT_PARTICIPANT: u64 = 109;
+    /// Room cannot be reopened in current status
+    const E_ROOM_CANNOT_REOPEN: u64 = 110;
 
     // ====================  ====================
 
@@ -266,6 +268,13 @@ module pixel_blackjack::blackjack {
     struct RoomJoined has drop, store {
         room_id: u64,
         guest: address,
+    }
+
+    #[event]
+    struct RoomReopened has drop, store {
+        room_id: u64,
+        host: address,
+        bet_amount: u128,
     }
 
     #[event]
@@ -1010,6 +1019,12 @@ module pixel_blackjack::blackjack {
 
         assert!(room.status == ROOM_WAITING, E_ROOM_NOT_WAITING);
         assert!(guest_addr != room.host, E_CANNOT_JOIN_OWN_ROOM);
+        // Initial room: guest is @0x0. Rematch reopen: only the same guest can rejoin.
+        if (room.guest == @0x0) {
+            room.guest = guest_addr;
+        } else {
+            assert!(room.guest == guest_addr, E_NOT_PARTICIPANT);
+        };
 
         // Check and deduct guest balance
         assert!(simple_map::contains_key(&game_store.player_balances, &guest_addr), E_INSUFFICIENT_BALANCE);
@@ -1020,7 +1035,6 @@ module pixel_blackjack::blackjack {
         *guest_balance = *guest_balance - room.bet_amount;
         game_store.treasury = game_store.treasury + fee_amount;
 
-        room.guest = guest_addr;
         room.status = ROOM_PLAYING;
 
         // Deal initial cards: 2 for host, 2 for guest
@@ -1059,6 +1073,58 @@ module pixel_blackjack::blackjack {
         };
 
         event::emit(RoomJoined { room_id, guest: guest_addr });
+    }
+
+    /// Host reopens a finished room for rematch in the same room_id.
+    /// Host stake is locked now, guest stake is locked when guest calls join_room.
+    public entry fun reopen_room(
+        host: &signer,
+        room_id: u64,
+        bet_amount: u128,
+    ) acquires GameStore, RoomStore {
+        let host_addr = signer::address_of(host);
+        assert!(bet_amount >= MIN_BET, E_INVALID_BET);
+        assert!(bet_amount <= MAX_BET, E_INVALID_BET);
+
+        let game_store = borrow_global_mut<GameStore>(@pixel_blackjack);
+        let room_store = borrow_global_mut<RoomStore>(@pixel_blackjack);
+        let room_idx = find_room_index(&room_store.rooms, room_id);
+        let room = vector::borrow_mut(&mut room_store.rooms, room_idx);
+
+        assert!(room.host == host_addr, E_NOT_HOST);
+        assert!(room.guest != @0x0, E_NOT_PARTICIPANT);
+        assert!(
+            room.status == ROOM_FINISHED || room.status == ROOM_TIMEOUT || room.status == ROOM_CANCELLED,
+            E_ROOM_CANNOT_REOPEN
+        );
+
+        assert!(simple_map::contains_key(&game_store.player_balances, &host_addr), E_INSUFFICIENT_BALANCE);
+        let host_balance = simple_map::borrow_mut(&mut game_store.player_balances, &host_addr);
+        assert!(*host_balance >= bet_amount, E_INSUFFICIENT_BALANCE);
+
+        let fee_amount = bet_amount * game_store.fee_bps / 10000;
+        assert!(fee_amount < bet_amount, E_INVALID_FEE);
+        let net_bet = bet_amount - fee_amount;
+
+        *host_balance = *host_balance - bet_amount;
+        game_store.treasury = game_store.treasury + fee_amount;
+
+        room.bet_amount = bet_amount;
+        room.net_bet = net_bet;
+        room.fee_amount = fee_amount;
+        room.status = ROOM_WAITING;
+        room.host_cards = vector::empty();
+        room.guest_cards = vector::empty();
+        room.host_score = 0;
+        room.guest_score = 0;
+        room.deck_index = 0;
+        room.turn = 0;
+        room.host_done = false;
+        room.guest_done = false;
+        room.result = 0;
+        room.last_action_at = timestamp::now_seconds();
+
+        event::emit(RoomReopened { room_id, host: host_addr, bet_amount });
     }
 
     /// Player takes a card (hit)
