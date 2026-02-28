@@ -613,6 +613,7 @@ let isRoomHost = false;
 let pendingInviteAutoAccept = false;
 let mpWalletAddresses: Record<string, string> = {};
 let inviteDirectMode = false; // true when invite link is opened in direct (non-QR) mode
+let inviteWalletPromptShown = false;
 let mpBetsDeducted = false;
 let mpOnChainMode = false;
 let mpWaitingForGuest = false;
@@ -2455,7 +2456,12 @@ function init() {
   const packedInvite = params.get("inv");
   if (packedInvite) {
     try {
-      const parsed = JSON.parse(decodeURIComponent(packedInvite)) as Record<string, string>;
+      let parsed: Record<string, string> | null = null;
+      try {
+        parsed = JSON.parse(packedInvite) as Record<string, string>;
+      } catch {
+        parsed = JSON.parse(decodeURIComponent(packedInvite)) as Record<string, string>;
+      }
       inviteFrom = parsed.invite || inviteFrom;
       inviteMode = (parsed.mode || inviteMode || "").toLowerCase();
       inviteBet = parseFloat(parsed.bet || `${inviteBet || 0}`);
@@ -2495,6 +2501,7 @@ function init() {
         "info"
       );
     } else {
+      inviteWalletPromptShown = false;
       pendingInvite = {
         name: inviteFrom || I18N[currentLocale].player_placeholder,
         mode,
@@ -2504,6 +2511,7 @@ function init() {
       if (inviteHost) multiplayerHost = inviteHost;
       // Не показываем gameArea сразу — только после начала сессии
       showInviteBanner();
+      promptWalletForPendingInvite();
     }
     if (!sessionStorage.getItem(inviteKey)) {
       sessionStorage.setItem(inviteKey, "1");
@@ -2530,6 +2538,7 @@ function init() {
   // Если инвайт восстановлен из localStorage (не из URL) — показать баннер
   if (!inviteFrom && pendingInvite) {
     showInviteBanner();
+    promptWalletForPendingInvite();
   }
 
   if (!inviteFrom) {
@@ -4898,7 +4907,8 @@ async function handleInvite() {
   const qrUrl = new URL(url.toString());
   qrUrl.searchParams.delete("wallet");
   const qrUrlStr = qrUrl.toString();
-  // Direct invite URL for users without Luffa: one compact `inv` param.
+  // Direct invite URL for users without Luffa:
+  // keep explicit params for reliability, and compact `inv` as fallback.
   const directInvitePayload = {
     invite: name,
     bet: betValue.toString(),
@@ -4910,7 +4920,15 @@ async function handleInvite() {
     direct: "1",
   };
   const directUrl = new URL(inviteBase);
-  directUrl.searchParams.set("inv", encodeURIComponent(JSON.stringify(directInvitePayload)));
+  directUrl.searchParams.set("invite", name);
+  directUrl.searchParams.set("bet", betValue.toString());
+  directUrl.searchParams.set("mode", mode);
+  if (multiplayerRoom) directUrl.searchParams.set("room", multiplayerRoom);
+  if (chainRoomId) directUrl.searchParams.set("room_id", chainRoomId.toString());
+  directUrl.searchParams.set("host_id", hostId);
+  if (walletAddress) directUrl.searchParams.set("wallet_addr", walletAddress);
+  directUrl.searchParams.set("direct", "1");
+  directUrl.searchParams.set("inv", JSON.stringify(directInvitePayload));
   const inviteDirectUrlStr = directUrl.toString();
 
   // Показать секцию с QR для хоста
@@ -5129,6 +5147,20 @@ function showInviteBanner() {
   }
 }
 
+function promptWalletForPendingInvite() {
+  if (!pendingInvite || walletAddress || isWalletConnecting || inviteWalletPromptShown) return;
+  const isOnChainInvite = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
+  if (!isOnChainInvite) return;
+  inviteWalletPromptShown = true;
+  showMessage(
+    currentLocale === "ru"
+      ? "ПОДКЛЮЧИТЕ КОШЕЛЁК, ЧТОБЫ ПРИНЯТЬ ИЛИ ОТКЛОНИТЬ ПРИГЛАШЕНИЕ."
+      : "CONNECT WALLET TO ACCEPT OR DECLINE THE INVITE.",
+    "info"
+  );
+  showWalletPicker();
+}
+
 function buildInviteQrUrl(): string {
   // Полный URL текущей страницы + invite params + wallet=luffa
   let base: string;
@@ -5158,6 +5190,7 @@ function buildInviteQrUrl(): string {
 
 function handleInviteDecline() {
   pendingInvite = null;
+  inviteWalletPromptShown = false;
   invitedByLink = false;
   inviteLinkKey = null;
   if (inviteBanner) inviteBanner.style.display = "none";
@@ -5381,6 +5414,7 @@ async function handleInviteAccept() {
   const luffaQrOverlay = document.getElementById("luffa-qr-screen");
   if (luffaQrOverlay) luffaQrOverlay.style.display = "none";
   pendingInvite = null;
+  inviteWalletPromptShown = false;
   invitedByLink = false;
   inviteLinkKey = null;
   betMinus.disabled = false;
