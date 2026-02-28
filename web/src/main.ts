@@ -2127,7 +2127,8 @@ function init() {
   // Rematch panel buttons
   if (rematchProposeBtn) {
     rematchProposeBtn.addEventListener("click", async () => {
-      const bet = parseFloat(rematchBetInput.value) || 1;
+      const parsed = parseEdsInputValue(rematchBetInput.value);
+      const bet = Number.isFinite(parsed) && parsed > 0 ? parsed : getSuggestedRematchBet(1);
       if (!Number.isFinite(bet) || bet < 0.1) {
         showMessage(
           currentLocale === "ru" ? "Некорректная ставка реванша." : "Invalid rematch bet.",
@@ -2135,6 +2136,7 @@ function init() {
         );
         return;
       }
+      rematchBetInput.value = (Math.round(bet * 10) / 10).toString();
       if (mpOnChainMode && walletAddress) {
         // On-chain rematch via WS coordination
         // Check balance first
@@ -3664,6 +3666,22 @@ function updateBetLimitsUI() {
   }
   betInput.min = (minOctas / 100000000).toString();
   betInput.max = (maxOctas / 100000000).toString();
+}
+
+function parseEdsInputValue(raw: string): number {
+  const normalized = (raw || "").trim().replace(",", ".");
+  const value = Number.parseFloat(normalized);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+function getSuggestedRematchBet(lastBet: number): number {
+  const { minOctas, maxOctas } = getBetLimits();
+  const minEds = minOctas / 100000000;
+  const maxEds = maxOctas / 100000000;
+  if (maxEds <= 0) return 0.1;
+  const preferred = Number.isFinite(lastBet) && lastBet > 0 ? lastBet : 1;
+  const clamped = Math.max(minEds || 0.1, Math.min(maxEds, preferred));
+  return Math.round(clamped * 10) / 10;
 }
 
 // ==================== BET ====================
@@ -5573,13 +5591,17 @@ function markInviteUsed() {
 
 function showRematchPanel(lastBet: number) {
   if (!rematchPanel) return;
+  const typed = parseEdsInputValue(rematchBetInput.value);
   const keepTypedBet = rematchPanel.style.display !== "none"
-    && Number.isFinite(parseFloat(rematchBetInput.value))
-    && parseFloat(rematchBetInput.value) > 0;
+    && Number.isFinite(typed)
+    && typed > 0;
+  const suggested = getSuggestedRematchBet(lastBet);
   rematchPanel.style.display = "flex";
-  if (!keepTypedBet) rematchBetInput.value = lastBet.toString();
+  if (!keepTypedBet) rematchBetInput.value = suggested.toString();
   rematchBetInput.min = "0.1";
   rematchBetInput.step = "0.1";
+  const { maxOctas } = getBetLimits();
+  rematchBetInput.max = ((maxOctas > 0 ? maxOctas : MAX_BET) / 100000000).toString();
   rematchStatus.textContent = "";
   rematchActions.style.display = "flex";
   rematchOffer.style.display = "none";
