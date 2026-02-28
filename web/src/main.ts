@@ -2444,14 +2444,30 @@ function init() {
   // Sound sliders removed; toggle only.
 
   const params = new URLSearchParams(window.location.search);
-  const inviteFrom = params.get("invite");
-  const inviteMode = (params.get("mode") || "").toLowerCase();
-  const inviteBet = parseFloat(params.get("bet") || "0");
-  const inviteRoom = params.get("room");
-  const inviteHost = params.get("host_id");
-  const inviteWalletAddr = params.get("wallet_addr");
-  const inviteRoomId = params.get("room_id");
+  let inviteFrom = params.get("invite");
+  let inviteMode = (params.get("mode") || "").toLowerCase();
+  let inviteBet = parseFloat(params.get("bet") || "0");
+  let inviteRoom = params.get("room");
+  let inviteHost = params.get("host_id");
+  let inviteWalletAddr = params.get("wallet_addr");
+  let inviteRoomId = params.get("room_id");
   inviteDirectMode = params.get("direct") === "1";
+  const packedInvite = params.get("inv");
+  if (packedInvite) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(packedInvite)) as Record<string, string>;
+      inviteFrom = parsed.invite || inviteFrom;
+      inviteMode = (parsed.mode || inviteMode || "").toLowerCase();
+      inviteBet = parseFloat(parsed.bet || `${inviteBet || 0}`);
+      inviteRoom = parsed.room || inviteRoom;
+      inviteHost = parsed.host_id || inviteHost;
+      inviteWalletAddr = parsed.wallet_addr || inviteWalletAddr;
+      inviteRoomId = parsed.room_id || inviteRoomId;
+      inviteDirectMode = parsed.direct === "1" || inviteDirectMode;
+    } catch {
+      // keep legacy query params
+    }
+  }
   if (inviteFrom) {
     invitedByLink = true;
     const mode: "demo" | "testnet" | "mainnet" =
@@ -2502,6 +2518,7 @@ function init() {
     cleanUrl.searchParams.delete("host_id");
     cleanUrl.searchParams.delete("wallet_addr");
     cleanUrl.searchParams.delete("direct");
+    cleanUrl.searchParams.delete("inv");
     // wallet=luffa оставляем — нужен для автоконнекта
     history.replaceState({}, "", cleanUrl.toString());
   }
@@ -4881,9 +4898,19 @@ async function handleInvite() {
   const qrUrl = new URL(url.toString());
   qrUrl.searchParams.delete("wallet");
   const qrUrlStr = qrUrl.toString();
-  // Direct invite URL for users without Luffa: open game invite screen, not QR overlay.
-  const directUrl = new URL(qrUrlStr);
-  directUrl.searchParams.set("direct", "1");
+  // Direct invite URL for users without Luffa: one compact `inv` param.
+  const directInvitePayload = {
+    invite: name,
+    bet: betValue.toString(),
+    mode,
+    room: multiplayerRoom || "",
+    room_id: chainRoomId ? chainRoomId.toString() : "",
+    host_id: hostId,
+    wallet_addr: walletAddress || "",
+    direct: "1",
+  };
+  const directUrl = new URL(inviteBase);
+  directUrl.searchParams.set("inv", encodeURIComponent(JSON.stringify(directInvitePayload)));
   const inviteDirectUrlStr = directUrl.toString();
 
   // Показать секцию с QR для хоста
