@@ -3389,9 +3389,15 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
   const myHand = snapshot.hands[meIndex] || { cards: [] };
   const oppHand = snapshot.hands[oppIndex] || { cards: [] };
   myHand.cards.forEach(card => playerCardsEl.appendChild(renderCard(card)));
-  
-  // Показываем карты оппонента лицом вверх (честная игра)
-  oppHand.cards.forEach(card => opponentCardsEl.appendChild(renderCard(card)));
+
+  // Как у дилера: в процессе игры у оппонента открыта только первая карта.
+  const revealOpponentAll = snapshot.phase === "done";
+  oppHand.cards.forEach((card, idx) => {
+    const cardEl = revealOpponentAll || idx === 0
+      ? renderCard(card)
+      : renderCardBack();
+    opponentCardsEl.appendChild(cardEl);
+  });
 
   dealerScoreEl.textContent = multiplayerRoom
     ? "-"
@@ -3399,7 +3405,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
       ? "?"
       : mpScore(snapshot.dealerCards).toString();
   playerScoreEl.textContent = mpScore(myHand.cards).toString();
-  opponentScoreEl.textContent = mpScore(oppHand.cards).toString();
+  opponentScoreEl.textContent = revealOpponentAll ? mpScore(oppHand.cards).toString() : "?";
 
   if (snapshot.bet && betInput) {
     betInput.value = snapshot.bet.toString();
