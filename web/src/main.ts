@@ -739,6 +739,20 @@ function ensureRematchWsConnected() {
   mpLog(`Rematch WS connected: room=${room} isHost=${amIHost}`);
 }
 
+function sendChainRoomReadySafe(roomId: number) {
+  const client = multiplayer as any;
+  if (typeof client.sendChainRoomReady === "function") {
+    client.sendChainRoomReady(roomId);
+    return;
+  }
+  // Backward-compatible fallback for builds where the typed method is absent.
+  if (typeof client.sendEvent === "function") {
+    client.sendEvent({ type: "game:chain_room_ready", by: getMpName(), roomId });
+    return;
+  }
+  throw new Error("CHAIN_ROOM_READY_UNSUPPORTED");
+}
+
 function getMyTurnIndex(): number {
   // host = 0, guest = 1
   return amIHost ? 0 : 1;
@@ -3234,7 +3248,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
             await reopenRoomOnChain(reopenedRoomId, betOctas, networkMode);
             mpLog(`Rematch room reopened: id=${reopenedRoomId}`);
             // Send roomId to guest via WS (same room id)
-            multiplayer.sendChainRoomReady(reopenedRoomId);
+            sendChainRoomReadySafe(reopenedRoomId);
             // Setup host state for reopened room
             setTimeout(() => {
               chainRoomId = reopenedRoomId;
