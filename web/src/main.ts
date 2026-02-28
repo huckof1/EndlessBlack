@@ -612,6 +612,7 @@ let multiplayerHost: string | null = null;
 let isRoomHost = false;
 let pendingInviteAutoAccept = false;
 let mpWalletAddresses: Record<string, string> = {};
+let inviteDirectMode = false; // true when invite link is opened in direct (non-QR) mode
 let mpBetsDeducted = false;
 let mpOnChainMode = false;
 let mpWaitingForGuest = false;
@@ -2450,6 +2451,7 @@ function init() {
   const inviteHost = params.get("host_id");
   const inviteWalletAddr = params.get("wallet_addr");
   const inviteRoomId = params.get("room_id");
+  inviteDirectMode = params.get("direct") === "1";
   if (inviteFrom) {
     invitedByLink = true;
     const mode: "demo" | "testnet" | "mainnet" =
@@ -2499,6 +2501,7 @@ function init() {
     cleanUrl.searchParams.delete("room_id");
     cleanUrl.searchParams.delete("host_id");
     cleanUrl.searchParams.delete("wallet_addr");
+    cleanUrl.searchParams.delete("direct");
     // wallet=luffa оставляем — нужен для автоконнекта
     history.replaceState({}, "", cleanUrl.toString());
   }
@@ -4878,6 +4881,10 @@ async function handleInvite() {
   const qrUrl = new URL(url.toString());
   qrUrl.searchParams.delete("wallet");
   const qrUrlStr = qrUrl.toString();
+  // Direct invite URL for users without Luffa: open game invite screen, not QR overlay.
+  const directUrl = new URL(qrUrlStr);
+  directUrl.searchParams.set("direct", "1");
+  const inviteDirectUrlStr = directUrl.toString();
 
   // Показать секцию с QR для хоста
   const inviteShare = document.getElementById("invite-share") as HTMLDivElement;
@@ -4936,20 +4943,20 @@ async function handleInvite() {
       inviteShareCopy.onclick = async () => {
         const plainQr = inviteShareQr.querySelector("canvas");
         if (!plainQr) return;
-        const composite = buildInviteQrImage(plainQr, name, betValue, qrUrlStr);
+        const composite = buildInviteQrImage(plainQr, name, betValue, inviteDirectUrlStr);
         const shareText = currentLocale === "ru"
-          ? `${name} приглашает в Endless Pixel Blackjack. Ставка: ${betValue} EDS`
-          : `${name} invites you to Endless Pixel Blackjack. Bet: ${betValue} EDS`;
+          ? `${name} приглашает в Endless Pixel Blackjack. Ставка: ${betValue} EDS\n${inviteDirectUrlStr}`
+          : `${name} invites you to Endless Pixel Blackjack. Bet: ${betValue} EDS\n${inviteDirectUrlStr}`;
         composite.toBlob(async (blob) => {
           if (!blob) return;
         const file = new File([blob], "invite-qr.png", { type: "image/png" });
         let shared = false;
         if (navigator.share && navigator.canShare?.({ files: [file] })) {
           try {
-            // Prefer sharing the QR image first; some targets drop files when `url` is provided separately.
+            // Share QR image + plain-text link (no `url` field) so receivers can open invite directly.
             await navigator.share({
               files: [file],
-              text: `${shareText}\n${qrUrlStr}`,
+              text: shareText,
             });
             shared = true;
             resetInviteShareHint();
@@ -4970,7 +4977,7 @@ async function handleInvite() {
         // Fallback: copy plain invite link to clipboard so user can paste it with QR manually
         try {
           if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(qrUrlStr);
+            await navigator.clipboard.writeText(inviteDirectUrlStr);
           }
         } catch {
           // ignore clipboard failures
@@ -4978,8 +4985,8 @@ async function handleInvite() {
         latestInviteBlob = blob;
         showFallbackQrHint(
           currentLocale === "ru"
-            ? `QR сохранён, ссылка скопирована: ${qrUrlStr}`
-            : `QR saved, link copied: ${qrUrlStr}`
+            ? `QR сохранён, ссылка скопирована: ${inviteDirectUrlStr}`
+            : `QR saved, link copied: ${inviteDirectUrlStr}`
         );
         }, "image/png");
       };
@@ -5023,7 +5030,7 @@ function showInviteBanner() {
   document.body.classList.add("invite-mode");
   if (mascot) mascot.style.display = "none";
   const isOnChain = pendingInvite.mode === "testnet" || pendingInvite.mode === "mainnet";
-  const notInLuffa = isOnChain && !isLuffaInApp();
+  const notInLuffa = isOnChain && !isLuffaInApp() && !inviteDirectMode;
 
   // Если on-chain и НЕ в Luffa — полноэкранный QR-оверлей
   const luffaQrScreen = document.getElementById("luffa-qr-screen") as HTMLDivElement;
