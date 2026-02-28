@@ -4642,7 +4642,7 @@ function handleResetDemo() {
   setMascotState("happy", "🙂", I18N[currentLocale].msg_demo_reset_mascot);
 }
 
-function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: number): HTMLCanvasElement {
+function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: number, inviteUrl: string): HTMLCanvasElement {
   const qrSize = qrCanvas.width;
   const pad = 20;
   const width = qrSize + pad * 2;
@@ -4656,17 +4656,19 @@ function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: 
     ? `Ставка: ${bet} EDS`
     : `Bet: ${bet} EDS`;
   const hint = currentLocale === "ru"
-    ? "Отсканируйте QR в приложении Luffa"
+    ? "ОТСКАНИРУЙ ЧЕРЕЗ ПРИЛОЖЕНИЕ LUFFA"
     : "Scan QR in Luffa app";
+  const linkLabel = currentLocale === "ru" ? "Ссылка:" : "Link:";
 
   // Измерить высоту текста
   const titleFont = "bold 18px Arial, sans-serif";
   const infoFont = "14px Arial, sans-serif";
   const betFont = "bold 16px Arial, sans-serif";
   const hintFont = "12px Arial, sans-serif";
+  const linkFont = "11px Arial, sans-serif";
   const lineGap = 6;
   const topTextH = 18 + lineGap + 14 + lineGap + 16 + lineGap + 8;
-  const bottomTextH = 12 + 10;
+  const bottomTextH = 12 + 8 + 11 + 4 + 11 + 10;
   const height = pad + topTextH + qrSize + lineGap + bottomTextH + pad;
 
   const canvas = document.createElement("canvas");
@@ -4708,6 +4710,16 @@ function buildInviteQrImage(qrCanvas: HTMLCanvasElement, hostName: string, bet: 
   ctx.fillStyle = "#aaaaaa";
   ctx.font = hintFont;
   ctx.fillText(hint, width / 2, y + 10);
+  y += 12 + 8;
+
+  // Ссылка под QR — если нет LUFFA, человек может открыть вручную
+  const shortUrl = inviteUrl.length > 56 ? `${inviteUrl.slice(0, 53)}...` : inviteUrl;
+  ctx.fillStyle = "#ffd700";
+  ctx.font = linkFont;
+  ctx.fillText(linkLabel, width / 2, y + 10);
+  y += 11 + 4;
+  ctx.fillStyle = "#cfd8ff";
+  ctx.fillText(shortUrl, width / 2, y + 10);
 
   return canvas;
 }
@@ -4910,35 +4922,35 @@ async function handleInvite() {
       inviteShareCopy.onclick = async () => {
         const plainQr = inviteShareQr.querySelector("canvas");
         if (!plainQr) return;
-        const composite = buildInviteQrImage(plainQr, name, betValue);
+        const composite = buildInviteQrImage(plainQr, name, betValue, qrUrlStr);
         const shareText = currentLocale === "ru"
           ? `${name} приглашает в Endless Pixel Blackjack. Ставка: ${betValue} EDS`
           : `${name} invites you to Endless Pixel Blackjack. Bet: ${betValue} EDS`;
         composite.toBlob(async (blob) => {
           if (!blob) return;
         const file = new File([blob], "invite-qr.png", { type: "image/png" });
+        let shared = false;
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          try {
+            // Prefer sharing the QR image first; some targets drop files when `url` is provided separately.
+            await navigator.share({
+              files: [file],
+              text: `${shareText}\n${qrUrlStr}`,
+            });
+            shared = true;
+            resetInviteShareHint();
+          } catch (_) {
+            // fall through to fallback
+          }
+        }
+        if (shared) return;
         const isAndroid = /android/i.test(navigator.userAgent);
         const canClipboard = typeof ClipboardItem !== "undefined" && navigator.clipboard?.write;
         if (isAndroid && canClipboard) {
           try {
             await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-            resetInviteShareHint();
-            return;
-          } catch (_) {
-            // fall through to share/download fallback
-          }
-        }
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              text: `${shareText}\n${qrUrlStr}`,
-              url: qrUrlStr,
-            });
-            resetInviteShareHint();
-            return;
-          } catch (_) {
-            // fall through to fallback
+          } catch {
+            // ignore clipboard image failures
           }
         }
         // Fallback: copy plain invite link to clipboard so user can paste it with QR manually
