@@ -2074,7 +2074,7 @@ function init() {
       const newBetOctas = parseEDS(multiplayerSnapshot.pendingBet.toString());
       await updateInGameBalance();
       if (inGameBalance < newBetOctas) {
-        promptDepositForRematch(newBetOctas);
+        await promptDepositForRematch(newBetOctas);
         return;
       }
     }
@@ -2143,7 +2143,7 @@ function init() {
         await updateInGameBalance();
         const betOctas = parseEDS(bet.toString());
         if (inGameBalance < betOctas) {
-          promptDepositForRematch(betOctas);
+          await promptDepositForRematch(betOctas);
           return;
         }
         hideInviteShareSection();
@@ -2189,7 +2189,7 @@ function init() {
         const betOctas = parseEDS(multiplayerSnapshot.pendingBet.toString());
         await updateInGameBalance();
         if (inGameBalance < betOctas) {
-          promptDepositForRematch(betOctas);
+          await promptDepositForRematch(betOctas);
           return;
         }
       }
@@ -5560,10 +5560,22 @@ function hideInviteShareSection() {
   if (luffaQrScreen) luffaQrScreen.style.display = "none";
 }
 
-function promptDepositForRematch(requiredOctas: number) {
-  const neededEds = Math.max(0.1, (requiredOctas - inGameBalance) / 100000000 + 0.01);
+async function promptDepositForRematch(requiredOctas: number) {
+  await updateBalance();
+  const neededOctas = Math.max(0, requiredOctas - inGameBalance);
+  const neededEds = Math.max(0.1, neededOctas / 100000000 + 0.01);
+  const walletEds = currentPlayerBalanceOctas / 100000000;
   pendingRematchDecisionAfterDeposit = true;
   hideInviteShareSection();
+  if (currentPlayerBalanceOctas < neededOctas) {
+    showMessage(
+      currentLocale === "ru"
+        ? `Недостаточно EDS в основном кошельке: нужно ${neededEds.toFixed(2)} EDS, доступно ${walletEds.toFixed(2)} EDS. Сначала пополните основной кошелёк (GET EDS).`
+        : `Not enough EDS in main wallet: need ${neededEds.toFixed(2)} EDS, available ${walletEds.toFixed(2)} EDS. Top up main wallet first (GET EDS).`,
+      "error"
+    );
+    return;
+  }
   if (depositModal && depositAmountInput) {
     depositAmountInput.value = Math.ceil(neededEds).toString();
     depositModal.style.display = "flex";
@@ -6038,6 +6050,18 @@ async function executeDeposit() {
   const edsAmount = parseFloat(depositAmountInput?.value || "0");
   if (isNaN(edsAmount) || edsAmount <= 0) return;
   const octas = Math.floor(edsAmount * 100000000);
+  await updateBalance();
+  if (currentPlayerBalanceOctas < octas) {
+    const need = octas / 100000000;
+    const have = currentPlayerBalanceOctas / 100000000;
+    showMessage(
+      currentLocale === "ru"
+        ? `Недостаточно EDS в основном кошельке: нужно ${need.toFixed(2)} EDS, доступно ${have.toFixed(2)} EDS.`
+        : `Not enough EDS in main wallet: need ${need.toFixed(2)} EDS, available ${have.toFixed(2)} EDS.`,
+      "error"
+    );
+    return;
+  }
   const expectedInGame = inGameBalance + octas;
   if (depositModal) depositModal.style.display = "none";
   try {
