@@ -1050,11 +1050,27 @@ export async function requestFaucet(address: string, mode?: "testnet" | "mainnet
 
   // Ensure wallet session exists before trying to sign faucet tx.
   if (!activeWalletType || !connectedAddress) {
-    const w = window as any;
-    if (w?.endless) {
-      await connectEndlessExtension(mode);
-    } else {
+    if (preferredWalletType === "luffa") {
+      await connectLuffa(mode);
+    } else if (preferredWalletType === "endless") {
+      try {
+        await connectEndlessExtension(mode);
+      } catch {
+        await connectWallet(mode);
+      }
+    } else if (preferredWalletType === "web3") {
       await connectWallet(mode);
+    } else {
+      const w = window as any;
+      if (w?.endless) {
+        try {
+          await connectEndlessExtension(mode);
+        } catch {
+          await connectWallet(mode);
+        }
+      } else {
+        await connectWallet(mode);
+      }
     }
   }
 
@@ -1070,7 +1086,11 @@ export async function requestFaucet(address: string, mode?: "testnet" | "mainnet
         arguments: [address],
       };
       try {
-        const result = await wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+        const payloadPromise = wallet.signAndSubmitTransaction({ payload: fallbackPayload });
+        const payloadTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("ENDLESS_FAUCET_TIMEOUT")), 30000)
+        );
+        const result = await Promise.race([payloadPromise, payloadTimeout]);
         const hash = result?.hash || result?.args?.hash;
         if (hash) {
           const endless = await getEndless(mode);
@@ -1078,7 +1098,11 @@ export async function requestFaucet(address: string, mode?: "testnet" | "mainnet
         }
         return result;
       } catch {
-        return await wallet.signAndSubmitTransaction({ data: fallbackPayload });
+        const dataPromise = wallet.signAndSubmitTransaction({ data: fallbackPayload });
+        const dataTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("ENDLESS_FAUCET_TIMEOUT")), 30000)
+        );
+        return await Promise.race([dataPromise, dataTimeout]);
       }
     }
     throw new Error("Endless extension not available");
@@ -1088,13 +1112,14 @@ export async function requestFaucet(address: string, mode?: "testnet" | "mainnet
     const isWalletClosed = (res: any) =>
       String(res?.status || "").toLowerCase() === String(UserResponseStatus.REJECTED).toLowerCase() &&
       String(res?.message || "").toLowerCase().includes("wallet closed");
-    let settled = false;
-    const signPromise = web3Sdk.signAndSubmitTransaction({ payload }).then((v: any) => {
-      settled = true;
-      return v;
-    });
-    setTimeout(() => {
-      if (settled || !web3Sdk) return;
+    const dataFallback = {
+      function: "0x1::faucet::fund",
+      typeArguments: [],
+      functionArguments: [address],
+      type_arguments: [],
+      arguments: [address],
+    };
+    const openWalletView = () => {
       try {
         const openFn = (web3Sdk as any).open as (() => Promise<any> | void) | undefined;
         if (openFn) {
@@ -1104,20 +1129,63 @@ export async function requestFaucet(address: string, mode?: "testnet" | "mainnet
       } catch {
         // ignore
       }
-    }, 1200);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("WEB3_FAUCET_TIMEOUT")), 120000)
-    );
-    const firstRes: any = await Promise.race([signPromise, timeoutPromise]);
-    const res = isWalletClosed(firstRes)
-      ? await web3Sdk.signAndSubmitTransaction({ payload })
-      : firstRes;
-    if (res.status === UserResponseStatus.APPROVED) {
+    };
+    const submitWithTimeout = async (args: any, timeoutMs: number, timeoutCode: string) => {
+      const submitPromise = web3Sdk!.signAndSubmitTransaction(args);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(timeoutCode)), timeoutMs)
+      );
+      return await Promise.race([submitPromise, timeoutPromise]);
+    };
+
+    const waitAndReturnIfApproved = async (res: any) => {
+      if (res?.status !== UserResponseStatus.APPROVED) return null;
+      const hash = res?.args?.hash;
+      if (!hash) throw new Error("WEB3_FAUCET_MISSING_HASH");
       const endless = await getEndless(mode);
-      await endless.waitForTransaction({ transactionHash: res.args.hash });
+      await endless.waitForTransaction({ transactionHash: hash });
       return res.args;
+    };
+
+    let lastErr: string = "WEB3_FAUCET_FAILED";
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      openWalletView();
+      try {
+        const payloadRes: any = await submitWithTimeout(
+          { payload },
+          20000,
+          `WEB3_FAUCET_PAYLOAD_TIMEOUT_${attempt}`
+        );
+        const approvedPayload = await waitAndReturnIfApproved(payloadRes);
+        if (approvedPayload) return approvedPayload;
+
+        if (!isWalletClosed(payloadRes)) {
+          const msg = String(payloadRes?.message || payloadRes?.status || "Transaction rejected by user");
+          throw new Error(msg);
+        }
+      } catch (e: any) {
+        lastErr = String(e?.message || e || lastErr);
+      }
+
+      openWalletView();
+      try {
+        const dataRes: any = await submitWithTimeout(
+          { data: dataFallback } as any,
+          20000,
+          `WEB3_FAUCET_DATA_TIMEOUT_${attempt}`
+        );
+        const approvedData = await waitAndReturnIfApproved(dataRes);
+        if (approvedData) return approvedData;
+        lastErr = String(dataRes?.message || dataRes?.status || lastErr);
+        if (!isWalletClosed(dataRes)) {
+          throw new Error(lastErr);
+        }
+      } catch (e: any) {
+        lastErr = String(e?.message || e || lastErr);
+      }
     }
-    throw new Error(String(res?.message || "Transaction rejected by user"));
+
+    throw new Error(lastErr || "WEB3_FAUCET_FAILED");
   }
 
   const sdk = getLuffaSdk(mode);

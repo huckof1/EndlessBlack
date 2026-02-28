@@ -558,6 +558,7 @@ const multiplayer = new MultiplayerClient((state) => {
     multiplayer.sendSnapshot({ type: "game:snapshot", ...multiplayerSnapshot });
     showDebugState("bet_accept");
     hideRematchPanel();
+    hideInviteShareSection();
     // Скрыть секцию приглашения
     mpWaitingForGuest = false;
     const shareEl = document.getElementById("invite-share");
@@ -587,6 +588,7 @@ const multiplayer = new MultiplayerClient((state) => {
     // Скрыть секцию приглашения
     const shareDecl = document.getElementById("invite-share");
     if (shareDecl) shareDecl.style.display = "none";
+    hideInviteShareSection();
     showMessage(
       currentLocale === "ru"
         ? "СТАВКА ОТКЛОНЕНА"
@@ -657,6 +659,7 @@ let chainRematchCreating = false; // prevent double room creation during rematch
 let chainRematchWsConnected = false; // WS connected for rematch coordination
 let rematchWsRoom: string | null = null; // stable WS room for rematch negotiation
 let rematchRoomAnchorId: number | null = null; // first chain room id in current pvp session
+let pendingRematchDecisionAfterDeposit = false;
 
 function startRoomPolling() {
   stopRoomPolling();
@@ -2057,15 +2060,12 @@ function init() {
       const newBetOctas = parseEDS(multiplayerSnapshot.pendingBet.toString());
       await updateInGameBalance();
       if (inGameBalance < newBetOctas) {
-        showMessage(
-          currentLocale === "ru"
-            ? `Недостаточно баланса для ставки ${multiplayerSnapshot.pendingBet} EDS. Пополните баланс.`
-            : `Insufficient balance for ${multiplayerSnapshot.pendingBet} EDS bet. Please deposit.`,
-          "error"
-        );
+        promptDepositForRematch(newBetOctas);
         return;
       }
     }
+    pendingRematchDecisionAfterDeposit = false;
+    hideInviteShareSection();
     multiplayer.acceptBet();
   });
   betDecline.addEventListener("click", () => multiplayer.declineBet());
@@ -2127,14 +2127,10 @@ function init() {
         await updateInGameBalance();
         const betOctas = parseEDS(bet.toString());
         if (inGameBalance < betOctas) {
-          showMessage(
-            currentLocale === "ru"
-              ? `Недостаточно баланса для ставки ${bet} EDS. Пополните баланс.`
-              : `Insufficient balance for ${bet} EDS bet. Please deposit.`,
-            "error"
-          );
+          promptDepositForRematch(betOctas);
           return;
         }
+        hideInviteShareSection();
         multiplayer.proposeBet(bet);
         rematchProposeBtn.disabled = true;
         rematchStatus.textContent = currentLocale === "ru"
@@ -2142,6 +2138,7 @@ function init() {
           : "Waiting for opponent...";
         rematchActions.style.display = "none";
       } else {
+        hideInviteShareSection();
         multiplayer.proposeBet(bet);
         rematchProposeBtn.disabled = true;
         rematchStatus.textContent = currentLocale === "ru"
@@ -2176,15 +2173,12 @@ function init() {
         const betOctas = parseEDS(multiplayerSnapshot.pendingBet.toString());
         await updateInGameBalance();
         if (inGameBalance < betOctas) {
-          showMessage(
-            currentLocale === "ru"
-              ? `Недостаточно баланса для ставки ${multiplayerSnapshot.pendingBet} EDS. Пополните баланс.`
-              : `Insufficient balance for ${multiplayerSnapshot.pendingBet} EDS bet. Please deposit.`,
-            "error"
-          );
+          promptDepositForRematch(betOctas);
           return;
         }
       }
+      pendingRematchDecisionAfterDeposit = false;
+      hideInviteShareSection();
       multiplayer.acceptBet();
       hideRematchPanel();
     });
@@ -3312,6 +3306,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     const isRematchFlow = multiplayerRoom && snapshot.phase === "lobby" && snapshot.pendingBet && (prevPhase === "done" || rematchPanelVisible);
     if (isRematchFlow && snapshot.pendingBy && snapshot.pendingBy !== getMpName()) {
       // Opponent proposed rematch — show in rematch panel
+      hideInviteShareSection();
       if (betOffer) betOffer.style.display = "none";
       if (rematchPanel) rematchPanel.style.display = "flex";
       rematchActions.style.display = "none";
@@ -3333,6 +3328,7 @@ function renderMultiplayerSnapshot(snapshot: MultiplayerSnapshot) {
     }
     if (isRematchFlow && snapshot.pendingBy === getMpName()) {
       // We proposed rematch — show waiting status
+      hideInviteShareSection();
       if (betOffer) betOffer.style.display = "none";
       if (rematchPanel) rematchPanel.style.display = "flex";
       rematchActions.style.display = "none";
@@ -5526,6 +5522,26 @@ function hideInviteShareSection() {
   if (luffaQrScreen) luffaQrScreen.style.display = "none";
 }
 
+function promptDepositForRematch(requiredOctas: number) {
+  const neededEds = Math.max(0.1, (requiredOctas - inGameBalance) / 100000000 + 0.01);
+  pendingRematchDecisionAfterDeposit = true;
+  hideInviteShareSection();
+  if (depositModal && depositAmountInput) {
+    depositAmountInput.value = Math.ceil(neededEds).toString();
+    depositModal.style.display = "flex";
+    requestAnimationFrame(() => {
+      depositAmountInput.focus();
+      depositAmountInput.select();
+    });
+  }
+  showMessage(
+    currentLocale === "ru"
+      ? `Недостаточно баланса для реванша. Пополните минимум на ${neededEds.toFixed(2)} EDS.`
+      : `Insufficient balance for rematch. Deposit at least ${neededEds.toFixed(2)} EDS.`,
+    "error"
+  );
+}
+
 function markInviteUsed() {
   if (inviteAlreadyUsed) return;
   inviteAlreadyUsed = true;
@@ -6003,6 +6019,24 @@ async function executeDeposit() {
     await updateBalance();
     showMessage(I18N[currentLocale].deposit_success, "success");
     debugLogLine("DEPOSIT complete, game ready");
+    if (pendingRematchDecisionAfterDeposit && multiplayerSnapshot?.pendingBet && multiplayerRoom) {
+      pendingRematchDecisionAfterDeposit = false;
+      showRematchPanel(multiplayerSnapshot.bet || Number(multiplayerSnapshot.pendingBet) || 1);
+      rematchActions.style.display = "none";
+      rematchOffer.style.display = "flex";
+      const betText = Number(multiplayerSnapshot.pendingBet).toFixed(2);
+      rematchOfferText.textContent = currentLocale === "ru"
+        ? `${displayName(multiplayerSnapshot.pendingBy || "Оппонент")} предлагает реванш: ${betText} EDS`
+        : `${displayName(multiplayerSnapshot.pendingBy || "Opponent")} offers rematch: ${betText} EDS`;
+      rematchStatus.textContent = "";
+      hideInviteShareSection();
+      showMessage(
+        currentLocale === "ru"
+          ? "Баланс пополнен. Подтвердите или отклоните реванш."
+          : "Balance topped up. Accept or decline the rematch.",
+        "info"
+      );
+    }
   } catch (err: any) {
     console.error("Deposit failed:", err);
     const msg = err?.message || err;
